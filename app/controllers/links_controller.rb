@@ -10,7 +10,11 @@ class LinksController < ApplicationController
     shortener = Shortener.new(link_params[:original_url])
     @link = shortener.generate_short_link
 
-    render json: @link, status: :created
+    if @link.errors.any?
+      return render json: { errors: @link.errors.full_messages }, status: :unprocessable_entity
+    end
+
+    render :create, status: :created
   end
 
   private
