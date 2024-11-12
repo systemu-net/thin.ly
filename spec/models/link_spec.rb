@@ -10,6 +10,13 @@ RSpec.describe Link, type: :model do
     expect(link.valid?).to eq(true)
   end
 
+  it 'is invalid if the URL is not formatted properly' do
+    link = Link.new(
+      original_url: 'thin.ly/example'
+    )
+    expect(link.valid?).to eq(false)
+  end
+
   it 'lookup_code is always not empty' do
     link = Link.new(
       original_url: 'https://www.thin.ly/example',

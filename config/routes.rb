@@ -17,4 +17,6 @@ Rails.application.routes.draw do
       resources :links, only: %i[index create show]
     end
   end
+
+  get "/:lookup_code" => "api/v1/links#show", as: :lookup_code
 end
