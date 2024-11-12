@@ -9,7 +9,7 @@ module Api
       end
 
       def show
-        link = Link.find_by_lookup_code(params[:lookup_code])
+        link, _user_id = Link.find_by_lookup_code(params[:lookup_code])
 
         if link
           redirect_to link.original_url, allow_other_host: true

@@ -45,4 +45,11 @@ RSpec.describe Link, type: :model do
     )
     expect { link2.save }.to(change(Link, :count).by(1))
   end
+
+  it 'returns the original URL and associated user_id for a given short link' do
+    link = Link.new(original_url: 'https://www.thin.ly/example')
+    link.save
+
+    expect(link.send(:find_by_lookup_code, link.lookup_code)).to eq([ link, 1 ])
+  end
 end
