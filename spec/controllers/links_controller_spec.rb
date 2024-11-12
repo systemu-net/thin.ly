@@ -1,6 +1,6 @@
 require 'rails_helper'
 
-RSpec.describe LinksController, type: :controller do
+RSpec.describe Api::V1::LinksController, type: :controller do
   let(:url) { 'https://www.thin.ly' }
   let(:valid_attributes) { { original_url: url } }
 
