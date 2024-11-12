@@ -6,22 +6,11 @@ class Shortener
     @link_model = link_model
   end
 
-  def self.lookup_code(url)
-    new(url).lookup_code
-  end
-
   def generate_short_link
-    link_model.create(original_url: url, lookup_code: lookup_code)
+    link_model.create(original_url: url)
   end
 
   def lookup_code
-    SecureRandom.uuid.slice(0, 7)
-    # sqids_service.generate(2, 1)
-  end
-
-  private
-
-  def sqids_service
-    @sqids_service ||= SqidsService.instance
+    link_model.find_by(original_url: url).lookup_code
   end
 end

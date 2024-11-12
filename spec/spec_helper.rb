@@ -91,4 +91,9 @@ RSpec.configure do |config|
   # as the one that triggered the failure.
   Kernel.srand config.seed
 =end
+  config.include Module.new {
+      def response_body
+        JSON.parse(response.body)
+      end
+    }
 end
