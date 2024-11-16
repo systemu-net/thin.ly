@@ -2,6 +2,7 @@ module Api
   module V1
     class LinksController < ApplicationController
       skip_before_action :verify_authenticity_token, only: [ :create ]
+      before_action :set_link, only: %i[show update]
       def index
         links = Link.all
 
@@ -9,10 +10,8 @@ module Api
       end
 
       def show
-        link, _user_id = Link.find_by_lookup_code(params[:lookup_code])
-
-        if link
-          redirect_to link.original_url, allow_other_host: true
+        if @link
+          redirect_to @link.original_url, allow_other_host: true
         else
           render json: { error: "Link not found" }, status: :not_found
         end
@@ -29,10 +28,22 @@ module Api
         render :create, status: :created
       end
 
+      def update
+        if @link.update(link_params)
+          render json: @link
+        else
+          render json: { errors: link.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def link_params
         params.require(:link).permit(:original_url)
+      end
+
+      def set_link
+        @link, _user_id = Link.find_by_lookup_code(params[:lookup_code])
       end
     end
   end
