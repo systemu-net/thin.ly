@@ -50,6 +50,6 @@ RSpec.describe Link, type: :model do
     link = Link.new(original_url: 'https://www.thin.ly/example')
     link.save
 
-    expect(link.send(:find_by_lookup_code, link.lookup_code)).to eq([ link, 1 ])
+    expect(link.send(:find_by_lookup_code, link.lookup_code)).to eq(link)
   end
 end

@@ -1,7 +1,7 @@
 module Api
   module V1
     class LinksController < ApplicationController
-      skip_before_action :verify_authenticity_token, only: [ :create ]
+      skip_before_action :verify_authenticity_token, only: [ :create, :update ]
       before_action :set_link, only: %i[show update]
       def index
         links = Link.all
@@ -29,9 +29,12 @@ module Api
       end
 
       def update
-        if @link.update(link_params)
+        byebug
+        if @link.update(params[:original_url])
+          byebug
           render json: @link
         else
+          byebug
           render json: { errors: link.errors.full_messages }, status: :unprocessable_entity
         end
       end
@@ -39,11 +42,13 @@ module Api
       private
 
       def link_params
-        params.require(:link).permit(:original_url)
+        params.require(:link).permit(
+          :original_url
+        )
       end
 
       def set_link
-        @link, _user_id = Link.find_by_lookup_code(params[:lookup_code])
+        @link = Link.find_by_lookup_code(params[:lookup_code])
       end
     end
   end
