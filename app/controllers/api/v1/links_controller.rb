@@ -3,6 +3,7 @@ module Api
     class LinksController < ApplicationController
       skip_before_action :verify_authenticity_token, only: [ :create, :update ]
       before_action :set_link, only: %i[show update]
+
       def index
         links = Link.all
 
@@ -29,12 +30,11 @@ module Api
       end
 
       def update
-        byebug
-        if @link.update(params[:original_url])
-          byebug
-          render json: @link
+        # request_body = JSON.parse(request.body.read)
+        # Rails.logger.info "Request Body: #{request_body.inspect}"
+        if @link.update(link_params)
+          render :update, status: :ok
         else
-          byebug
           render json: { errors: link.errors.full_messages }, status: :unprocessable_entity
         end
       end
@@ -43,7 +43,7 @@ module Api
 
       def link_params
         params.require(:link).permit(
-          :original_url
+          :original_url, :lookup_code
         )
       end
 
