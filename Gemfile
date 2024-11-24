@@ -2,8 +2,12 @@ source "https://rubygems.org"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 7.2.2"
+
+gem "rack-cors", "~> 2.0"
 # The original asset pipeline for Rails [https://github.com/rails/sprockets-rails]
 gem "sprockets-rails"
+gem "devise", "~> 4.9"
+gem "devise-jwt", "~> 0.12.1"
 # Use sqlite3 as the database for Active Record
 gem "sqlite3", ">= 1.4"
 # Use the Puma web server [https://github.com/puma/puma]
@@ -14,6 +18,8 @@ gem "importmap-rails"
 gem "turbo-rails"
 # Hotwire's modest JavaScript framework [https://stimulus.hotwired.dev]
 gem "stimulus-rails"
+# Use sqids for generating unique short IDs
+gem "sqids", "~> 0.2.1"
 # Build JSON APIs with ease [https://github.com/rails/jbuilder]
 gem "jbuilder"
 # Use Redis adapter to run Action Cable in production
@@ -52,5 +58,3 @@ group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
 end
-
-gem "sqids", "~> 0.2.1"
