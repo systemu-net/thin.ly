@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class Users::SessionsController < Devise::SessionsController
+  include RackSessionFix
   # before_action :authenticate_user_with_jwt, only: :destroy
   respond_to :json
 
