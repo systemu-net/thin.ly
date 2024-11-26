@@ -1,9 +1,11 @@
 require 'rails_helper'
 
 RSpec.describe "Link Redirection", type: :request do
+  let(:user) { create(:user) }
+
   it 'redirects to the original URL for a given short link' do
     url = 'https://www.thin.ly'
-    shortener = Shortener.new(url)
+    shortener = Shortener.new(url, user.id)
     link = shortener.generate_short_link
 
     get link.shortened_url

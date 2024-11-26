@@ -1,6 +1,7 @@
 module Api
   module V1
     class LinksController < ApplicationController
+      before_action :authenticate_user!, only: %i[create update]
       skip_before_action :verify_authenticity_token, only: [ :create, :update ]
       before_action :set_link, only: %i[show update]
 
@@ -19,7 +20,7 @@ module Api
       end
 
       def create
-        shortener = Shortener.new(link_params[:original_url])
+        shortener = Shortener.new(link_params[:original_url], current_user.id)
         @link = shortener.generate_short_link
 
         if @link.errors.any?
