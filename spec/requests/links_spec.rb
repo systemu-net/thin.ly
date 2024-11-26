@@ -9,7 +9,10 @@ RSpec.describe "Links", type: :request do
   end
 
   describe "POST /api/v1/create" do
+    let(:user) { create(:user) }
+
     it "returns http success" do
+      sign_in(user)
       post "/api/v1/links", params: { link: { original_url: 'https://www.thin.ly/example' } }
 
       link = assigns(:link)

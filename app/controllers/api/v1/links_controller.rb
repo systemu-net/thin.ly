@@ -33,7 +33,7 @@ module Api
       def update
         # request_body = JSON.parse(request.body.read)
         # Rails.logger.info "Request Body: #{request_body.inspect}"
-        if @link.update(link_params)
+        if @link.update(link_params) & current_user.id == @link.user_id
           render :update, status: :ok
         else
           render json: { errors: link.errors.full_messages }, status: :unprocessable_entity

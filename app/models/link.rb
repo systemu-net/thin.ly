@@ -35,8 +35,7 @@ class Link < ApplicationRecord
 
   def find_by_lookup_code(lookup_code)
     link_id, _user_id = decode(lookup_code)
-    # Link.find_by(id: link_id, user_id: user_id)
-    Link.find(link_id)
+    Link.find_by(id: link_id)
   end
 
   def sqids_service
