@@ -4,6 +4,8 @@ class Users::RegistrationsController < Devise::RegistrationsController
   include RackSessionFix
   respond_to :json
 
+  before_action :authorize_admin, only: [ :update, :destroy ]
+
   skip_before_action :verify_authenticity_token
   # before_action :configure_sign_up_params, only: [:create]
   # before_action :configure_account_update_params, only: [:update]
@@ -74,6 +76,17 @@ class Users::RegistrationsController < Devise::RegistrationsController
       render json: {
         status: { code: 422, message: "User couldn't be created successfully. #{resource.errors.full_messages.to_sentence}" }
       }, status: :unprocessable_entity
+    end
+  end
+
+  private
+
+  def authorize_admin
+    unless current_user.email == "admin@thin.ly"
+      render json: {
+        status: 401,
+        message: "You are not authorized to perform this action."
+      }, status: :unauthorized
     end
   end
 end
