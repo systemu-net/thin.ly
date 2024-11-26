@@ -82,7 +82,7 @@ class Users::RegistrationsController < Devise::RegistrationsController
   private
 
   def authorize_admin
-    unless current_user.email == "admin@thin.ly"
+    unless current_user.email == Rails.application.credentials.fetch(:admin_email)
       render json: {
         status: 401,
         message: "You are not authorized to perform this action."
