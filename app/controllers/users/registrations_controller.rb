@@ -74,7 +74,7 @@ class Users::RegistrationsController < Devise::RegistrationsController
       render json: { status: { code: 200, message: "Account deleted successfully." } }, status: :ok
     else
       render json: {
-        status: { code: 422, message: "User couldn't be created successfully. #{resource.errors.full_messages.to_sentence}" }
+        message: "User couldn't be created successfully. #{resource.errors.full_messages.to_sentence}"
       }, status: :unprocessable_entity
     end
   end
@@ -83,10 +83,7 @@ class Users::RegistrationsController < Devise::RegistrationsController
 
   def authorize_admin
     unless current_user.email == Rails.application.credentials.fetch(:admin_email)
-      render json: {
-        status: 401,
-        message: "You are not authorized to perform this action."
-      }, status: :unauthorized
+      render json: { message: "You are not authorized to perform this action." }, status: :unauthorized
     end
   end
 end
