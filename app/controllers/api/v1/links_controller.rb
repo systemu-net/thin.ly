@@ -8,7 +8,7 @@ module Api
       def index
         @links = current_user.links
 
-        render json: @links, status: :ok
+        render json: { links: @links }, status: :ok
       end
 
       def show

@@ -14,7 +14,7 @@ RSpec.describe "Links", type: :request do
       links = assigns(:links)
 
       expect(response).to have_http_status(:success)
-      expect(response_body).to eq(links.as_json)
+      expect(response_body['links']).to eq(links.as_json)
     end
   end
 
