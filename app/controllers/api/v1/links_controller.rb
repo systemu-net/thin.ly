@@ -1,14 +1,14 @@
 module Api
   module V1
     class LinksController < ApplicationController
-      before_action :authenticate_user!, only: %i[create update]
+      before_action :authenticate_user!, only: %i[index create update]
       skip_before_action :verify_authenticity_token, only: [ :create, :update ]
       before_action :set_link, only: %i[show update]
 
       def index
-        links = Link.all
+        @links = current_user.links
 
-        render json: links
+        render json: @links, status: :ok
       end
 
       def show
