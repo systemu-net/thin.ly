@@ -18,7 +18,7 @@ Rails.application.routes.draw do
 
   namespace :api, defaults: { format: :json } do
     namespace :v1 do
-      resources :links, only: %i[index create update], param: :lookup_code
+      resources :links, only: %i[index create update destroy], param: :lookup_code
 
       get "/current_user", to: "current_user#index"
     end

@@ -1,12 +1,12 @@
 module Api
   module V1
     class LinksController < ApplicationController
-      before_action :authenticate_user!, only: %i[index create update]
+      before_action :authenticate_user!, only: %i[index create update destroy]
       skip_before_action :verify_authenticity_token, only: [ :create, :update ]
-      before_action :set_link, only: %i[show update]
+      before_action :set_link, only: %i[show update destroy]
 
       def index
-        @links = current_user.links
+        @links = current_user.links.order(created_at: :desc)
 
         render json: { links: @links }, status: :ok
       end
@@ -44,6 +44,18 @@ module Api
         end
       end
 
+      def destroy
+        if current_user.id != @link.user_id
+          render json: { error: "Unauthorized" }, status: :unauthorized
+        end
+
+        if @link.destroy
+          render json: {}, status: :no_content
+        else
+          render json: { errors: @link.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def link_params
@@ -54,6 +66,8 @@ module Api
 
       def set_link
         @link = Link.find_by_lookup_code(params[:lookup_code])
+
+        render json: { error: "Link not found" }, status: :not_found unless @link
       end
     end
   end
