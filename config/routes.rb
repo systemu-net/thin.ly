@@ -16,8 +16,6 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   # root "posts#index"
 
-  root "static#ui"
-
   namespace :api, defaults: { format: :json } do
     namespace :v1 do
       resources :links, only: %i[index create update destroy], param: :lookup_code
@@ -26,5 +24,9 @@ Rails.application.routes.draw do
     end
   end
 
-  get "/:lookup_code" => "api/v1/links#show", as: :lookup_code
+  get "/:lookup_code" => "api/v1/links#show", as: :lookup_code, constraints: { lookup_code: /[a-zA-Z0-9]{7}/ }
+  match "*ui", to: "static#ui", via: :get, constraints: ->(request) { request.format.html? && !request.path.start_with?("/api/") }
+  match "*path", to: "static#not_found", via: :all
+
+  root "static#ui"
 end
