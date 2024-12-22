@@ -13,7 +13,7 @@ RSpec.describe "Link Redirection", type: :request do
   end
 
   it 'returns a 404 for a short link that does not exist' do
-    get "/abcdefgh"
+    get "/1234567"
     expect(response).to have_http_status(:not_found)
   end
 end

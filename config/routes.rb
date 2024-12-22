@@ -18,13 +18,13 @@ Rails.application.routes.draw do
 
   namespace :api, defaults: { format: :json } do
     namespace :v1 do
-      resources :links, only: %i[index create update destroy], param: :lookup_code
+      resources :links, only: %i[index show create update destroy], param: :lookup_code
 
       get "/current_user", to: "current_user#index"
     end
   end
 
-  get "/:lookup_code" => "api/v1/links#show", as: :lookup_code, constraints: { lookup_code: /[a-zA-Z0-9]{7}/ }
+  get "/:lookup_code" => "api/v1/links#lookup_code", as: :lookup_code, constraints: { lookup_code: /[a-zA-Z0-9]{7}/ }
   match "*ui", to: "static#ui", via: :get, constraints: ->(request) { request.format.html? && !request.path.start_with?("/api/") }
   match "*path", to: "static#not_found", via: :all
 

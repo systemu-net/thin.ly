@@ -3,17 +3,25 @@ module Api
     class LinksController < ApplicationController
       before_action :authenticate_user!, only: %i[index create update destroy]
       skip_before_action :verify_authenticity_token, only: [ :create, :update ]
-      before_action :set_link, only: %i[show update destroy]
+      before_action :set_link, only: %i[lookup_code show update destroy]
 
       def index
         @links = current_user.links.order(created_at: :desc)
 
-        render json: { links: @links }, status: :ok
+        render :index, status: :ok
+      end
+
+      def lookup_code
+        if @link
+          redirect_to @link.original_url, allow_other_host: true
+        else
+          render json: { error: "Link not found" }, status: :not_found
+        end
       end
 
       def show
         if @link
-          redirect_to @link.original_url, allow_other_host: true
+          render :show, status: :ok
         else
           render json: { error: "Link not found" }, status: :not_found
         end

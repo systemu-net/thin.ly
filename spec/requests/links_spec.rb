@@ -1,7 +1,7 @@
 require 'rails_helper'
 
 RSpec.describe "Links", type: :request do
-  describe "GET /api/v1/index" do
+  describe "GET /api/v1/links" do
     let(:user) { create(:user) }
     let(:link) { create(:link, user: user) }
 
@@ -14,11 +14,11 @@ RSpec.describe "Links", type: :request do
       links = assigns(:links)
 
       expect(response).to have_http_status(:success)
-      expect(response_body['links']).to eq(links.as_json)
+      expect(response_body['links']).to eq(links.as_json(only: %i[id lookup_code original_url created_at updated_at]))
     end
   end
 
-  describe "POST /api/v1/create" do
+  describe "POST /api/v1/links" do
     let(:user) { create(:user) }
 
     it "returns http success" do
