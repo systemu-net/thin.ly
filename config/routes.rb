@@ -20,6 +20,8 @@ Rails.application.routes.draw do
     namespace :v1 do
       resources :links, only: %i[index show create update destroy], param: :lookup_code
 
+      resources :qr_codes, only: %i[create destroy]
+
       get "/current_user", to: "current_user#index"
     end
   end

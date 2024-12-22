@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2024_11_26_012554) do
+ActiveRecord::Schema[7.2].define(version: 2024_12_22_145451) do
   create_table "links", force: :cascade do |t|
     t.string "lookup_code"
     t.string "original_url"
@@ -18,6 +18,15 @@ ActiveRecord::Schema[7.2].define(version: 2024_11_26_012554) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.index ["user_id"], name: "index_links_on_user_id"
+  end
+
+  create_table "qr_codes", force: :cascade do |t|
+    t.integer "link_id", null: false
+    t.integer "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["link_id"], name: "index_qr_codes_on_link_id"
+    t.index ["user_id"], name: "index_qr_codes_on_user_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -35,4 +44,6 @@ ActiveRecord::Schema[7.2].define(version: 2024_11_26_012554) do
   end
 
   add_foreign_key "links", "users"
+  add_foreign_key "qr_codes", "links"
+  add_foreign_key "qr_codes", "users"
 end

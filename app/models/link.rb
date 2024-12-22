@@ -1,5 +1,6 @@
 class Link < ApplicationRecord
   belongs_to :user
+  has_many :qr_codes, -> { order(created_at: :desc) }
 
   validates_presence_of :original_url, :lookup_code
   validates_uniqueness_of :lookup_code
@@ -10,6 +11,10 @@ class Link < ApplicationRecord
 
   def shortened_url
     "http://localhost:3000/#{lookup_code}"
+  end
+
+  def has_qr_code?(user)
+    qr_codes.where(user_id: user.id).any?
   end
 
   private

@@ -7,4 +7,5 @@ class User < ApplicationRecord
          :jwt_authenticatable, jwt_revocation_strategy: self
 
   has_many :links, dependent: :destroy
+  has_many :qr_codes, dependent: :destroy
 end

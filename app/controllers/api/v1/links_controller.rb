@@ -1,12 +1,13 @@
 module Api
   module V1
     class LinksController < ApplicationController
-      before_action :authenticate_user!, only: %i[index create update destroy]
+      before_action :authenticate_user!, only: %i[index show create update destroy]
       skip_before_action :verify_authenticity_token, only: [ :create, :update ]
       before_action :set_link, only: %i[lookup_code show update destroy]
 
       def index
-        @links = current_user.links.order(created_at: :desc)
+        @links = current_user.links.includes(:qr_codes)
+          .order(created_at: :desc)
 
         render :index, status: :ok
       end
@@ -21,6 +22,7 @@ module Api
 
       def show
         if @link
+          @qr_codes = @link.qr_codes.includes(:user)
           render :show, status: :ok
         else
           render json: { error: "Link not found" }, status: :not_found
