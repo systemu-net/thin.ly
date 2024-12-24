@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2024_12_22_145451) do
+ActiveRecord::Schema[7.2].define(version: 2024_12_22_205547) do
   create_table "links", force: :cascade do |t|
     t.string "lookup_code"
     t.string "original_url"
@@ -25,6 +25,7 @@ ActiveRecord::Schema[7.2].define(version: 2024_12_22_145451) do
     t.integer "user_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "image"
     t.index ["link_id"], name: "index_qr_codes_on_link_id"
     t.index ["user_id"], name: "index_qr_codes_on_user_id"
   end

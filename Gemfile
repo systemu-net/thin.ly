@@ -1,29 +1,23 @@
 source "https://rubygems.org"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
-gem "rails", "~> 7.2.2"
-
-gem "rack-cors", "~> 2.0"
-# The original asset pipeline for Rails [https://github.com/rails/sprockets-rails]
-gem "sprockets-rails"
 gem "devise", "~> 4.9"
 gem "devise-jwt", "~> 0.12.1"
-# Use sqlite3 as the database for Active Record
-gem "sqlite3", ">= 1.4"
-# Use the Puma web server [https://github.com/puma/puma]
-gem "puma", ">= 5.0"
-# Use JavaScript with ESM import maps [https://github.com/rails/importmap-rails]
+gem "carrierwave", "~> 3.1"
 gem "importmap-rails"
-# Hotwire's SPA-like page accelerator [https://turbo.hotwired.dev]
-gem "turbo-rails"
-# Hotwire's modest JavaScript framework [https://stimulus.hotwired.dev]
-gem "stimulus-rails"
-# Use sqids for generating unique short IDs
-gem "sqids", "~> 0.2.1"
-# Build JSON APIs with ease [https://github.com/rails/jbuilder]
 gem "jbuilder"
-# Use Redis adapter to run Action Cable in production
-# gem "redis", ">= 4.0.1"
+gem "figaro", "~> 1.2"
+gem "fog-aws", "~> 3.30"
+gem "puma", ">= 5.0"
+gem "rack-cors", "~> 2.0"
+gem "rails", "~> 7.2.2"
+gem "rqrcode", "~> 2.2"
+gem "sprockets-rails"
+gem "sqids", "~> 0.2.1"
+gem "sqlite3", ">= 1.4"
+gem "stimulus-rails"
+gem "turbo-rails"
+
 
 # Use Kredis to get higher-level data types in Redis [https://github.com/rails/kredis]
 # gem "kredis"
@@ -59,7 +53,3 @@ group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
 end
-
-gem "rqrcode", "~> 2.2"
-
-gem "carrierwave", "~> 3.1"
