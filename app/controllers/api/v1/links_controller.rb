@@ -14,6 +14,7 @@ module Api
 
       def lookup_code
         if @link
+          Rails.logger.debug("Redirecting to: #{@link.original_url}")
           redirect_to @link.original_url, allow_other_host: true
         else
           render json: { error: "Link not found" }, status: :not_found
@@ -69,13 +70,11 @@ module Api
       private
 
       def link_params
-        params.require(:link).permit(
-          :original_url, :lookup_code
-        )
+        params.require(:link).permit(:original_url)
       end
 
       def set_link
-        @link = Link.find_by_lookup_code(params[:lookup_code])
+        @link = Link.find_by(lookup_code: params[:lookup_code])
 
         render json: { error: "Link not found" }, status: :not_found unless @link
       end

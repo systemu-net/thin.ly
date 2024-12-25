@@ -14,7 +14,9 @@ RSpec.describe "Links", type: :request do
       links = assigns(:links)
 
       expect(response).to have_http_status(:success)
-      expect(response_body['links']).to eq(links.as_json(only: %i[lookup_code original_url created_at updated_at]))
+      expect(response_body['links']).to eq(
+        links.as_json(only: %i[lookup_code original_url created_at updated_at])
+      )
     end
   end
 
@@ -27,7 +29,7 @@ RSpec.describe "Links", type: :request do
 
       link = assigns(:link)
       expect(response).to have_http_status(:created)
-      expect(response_body).to eq({
+      expect(response_body['link']).to eq({
         "lookup_code" => link.lookup_code,
         "created_at" => link.created_at.as_json,
         "updated_at" => link.updated_at.as_json
