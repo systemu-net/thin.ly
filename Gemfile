@@ -15,7 +15,7 @@ gem "rails", "~> 7.2.2"
 gem "rqrcode", "~> 2.2"
 gem "sprockets-rails"
 gem "sqids", "~> 0.2.1"
-gem "sqlite3", ">= 1.4"
+gem "sqlite3", ">= 2.5.0"
 gem "stimulus-rails"
 gem "turbo-rails"
 
