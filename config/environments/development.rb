@@ -80,6 +80,6 @@ Rails.application.configure do
   # config.generators.apply_rubocop_autocorrect_after_generate!
   config.hosts = [
     "localhost",
-    "quiet-golden-spaniel.ngrok-free.app"
+    ENV["DEV_HOST"]
   ]
 end

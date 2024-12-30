@@ -1,9 +1,9 @@
 module Api
   module V1
     class QrCodesController < ApplicationController
-      before_action :authenticate_user!, only: %i[index create destroy]
+      before_action :authenticate_user!, only: %i[index create show destroy]
       skip_before_action :verify_authenticity_token, only: [ :create ]
-      before_action :set_qr_code, only: %i[destroy]
+      before_action :set_qr_code, only: %i[show destroy]
 
       def index
         @qr_codes = current_user.qr_codes
@@ -25,6 +25,14 @@ module Api
         end
 
         render :create, status: :created
+      end
+
+      def show
+        if @qr_code
+          render :show, status: :ok
+        else
+          render json: { error: "QrCode not found" }, status: :not_found
+        end
       end
 
       def destroy
