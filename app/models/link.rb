@@ -29,7 +29,7 @@ class Link < ApplicationRecord
   before_validation :set_lookup_code, on: :create
 
   def shortened_url
-    "#{ENV['HOST_URL']}/#{lookup_code}"
+    "#{ENV['DEV_HOST']}/#{lookup_code}"
   end
 
   def has_qr_code?(user)

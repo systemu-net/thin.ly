@@ -97,6 +97,7 @@ Rails.application.configure do
 
   # Enable DNS rebinding protection and other `Host` header attacks.
   config.hosts = [
+    /harmless-bunny-illegally.ngrok-free.app/,
     /.*\.thin\.ly/ # Allow requests from subdomains like `www.example.com`
     # /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
   ]
