@@ -10,5 +10,3 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
     )
   end
 end
-
-Rails.application.config.hosts << ENV["DEV_HOST"].split("//").last

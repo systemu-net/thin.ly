@@ -7,6 +7,7 @@ RSpec.describe "CurrentUsers", type: :request do
 
     it "returns http success" do
       get "/api/v1/current_user", headers: headers
+
       expect(response).to have_http_status(:success)
     end
   end

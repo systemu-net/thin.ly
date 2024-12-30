@@ -14,4 +14,4 @@ AWS_ACCESS_KEY_ID: "AKIAYCQ7O72FAKQJ57Q2"
 AWS_SECRET_ACCESS_KEY: "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"
 AWS_REGION: "us-east-1"
 S3_BUCKET: "thinly"
-DEV_HOST: https://quiet-golden-spaniel.ngrok-free.app
+DEV_HOST: "https://quiet-golden-spaniel.ngrok-free.app"
