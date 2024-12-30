@@ -1,7 +1,7 @@
 # config/initializers/cors.rb
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
-    origins "http://localhost:4000", "http://localhost:3000", ENV["HOST_URL"]
+    origins "http://localhost:4000", "http://localhost:3000", ENV["DEV_HOST"]
     resource(
       "*",
       headers: :any,
@@ -10,3 +10,5 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
     )
   end
 end
+
+Rails.application.config.hosts << ENV["DEV_HOST"].split("//").last
