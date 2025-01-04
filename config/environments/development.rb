@@ -80,6 +80,6 @@ Rails.application.configure do
   # config.generators.apply_rubocop_autocorrect_after_generate!
   config.hosts = [
     "localhost",
-    ENV["DEV_HOST"]
+    ENV["DEV_HOST"].split("//").last
   ]
 end
