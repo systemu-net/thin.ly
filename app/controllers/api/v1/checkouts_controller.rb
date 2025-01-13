@@ -31,11 +31,11 @@ module Api
       end
 
       def success
-        redirect_to ENV["DEV_HOST"] + "/", allow_other_host: true
+        redirect_to root_path, allow_other_host: true
       end
 
       def cancel
-        redirect_to ENV["DEV_HOST"] + "/_pricing", allow_other_host: true
+        redirect_to "/_pricing", allow_other_host: true
       end
     end
   end
