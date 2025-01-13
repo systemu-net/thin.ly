@@ -22,8 +22,18 @@ Rails.application.routes.draw do
 
       resources :qr_codes, only: %i[index create show destroy]
 
+      resources :subscriptions, only: %i[index create destroy]
+
+      resources "checkouts", only: %i[create]
+      get "checkouts/success", to: "checkouts#success"
+      get "checkouts/cancel", to: "checkouts#cancel"
+
       get "/current_user", to: "current_user#index"
     end
+  end
+
+  namespace :stripe do
+    post "webhooks", to: "stripe/webhooks#create"
   end
 
   get "/:lookup_code" => "api/v1/links#lookup_code", as: :lookup_code, constraints: { lookup_code: /[a-zA-Z0-9]{7}/ }

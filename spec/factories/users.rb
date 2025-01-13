@@ -11,6 +11,7 @@
 #  reset_password_token   :string
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
+#  stripe_id              :string
 #
 # Indexes
 #
@@ -18,7 +19,6 @@
 #  index_users_on_jti                   (jti) UNIQUE
 #  index_users_on_reset_password_token  (reset_password_token) UNIQUE
 #
-# spec/factories/users.rb
 
 FactoryBot.define do
   factory :user do
