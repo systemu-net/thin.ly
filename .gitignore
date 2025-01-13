@@ -37,3 +37,6 @@
 .byebug_history
 ngrok.sh
 .DS_Store
+
+# Ignore application.yml YAML file
+config/application.yml

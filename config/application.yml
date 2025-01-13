@@ -10,8 +10,4 @@
 #   stripe_api_key: sk_live_EeHnL644i6zo4Iyq4v1KdV9H
 #   stripe_publishable_key: pk_live_9lcthxpSIHbGwmdO941O1XVU
 
-AWS_ACCESS_KEY_ID: "AKIAYCQ7O72FAKQJ57Q2"
-AWS_SECRET_ACCESS_KEY: "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"
-AWS_REGION: "us-east-1"
-S3_BUCKET: "thinly"
-DEV_HOST: "https://thinly.ngrok.app"
+DEV_HOST: "http://localhost:4000"

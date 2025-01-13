@@ -11,6 +11,7 @@
 #  reset_password_token   :string
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
+#  stripe_id              :string
 #
 # Indexes
 #
@@ -28,4 +29,26 @@ class User < ApplicationRecord
 
   has_many :links, dependent: :destroy
   has_many :qr_codes, dependent: :destroy
+  has_many :subscriptions, dependent: :destroy
+
+  before_validation :create_stripe_customer, on: :create
+  after_destroy :delete_stripe_customer
+
+  def retrieve_stripe_customer
+    Stripe::Customer.retrieve(stripe_id)
+  end
+
+  private
+
+  def create_stripe_customer
+    return if stripe_id.present?
+
+    customer = Stripe::Customer.create(email: email)
+    self.stripe_id = customer.id
+  end
+
+  def delete_stripe_customer
+    customer = retrieve_stripe_customer
+    customer.delete
+  end
 end
