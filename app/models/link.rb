@@ -20,6 +20,7 @@
 class Link < ApplicationRecord
   belongs_to :user
   has_many :qr_codes, -> { order(created_at: :desc) }
+  has_many :clicks
 
   validates_presence_of :original_url, :lookup_code
   validates_uniqueness_of :lookup_code
