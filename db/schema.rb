@@ -10,7 +10,18 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_01_12_232435) do
+ActiveRecord::Schema[7.2].define(version: 2025_01_18_061238) do
+  create_table "clicks", force: :cascade do |t|
+    t.integer "link_id", null: false
+    t.string "ip_address"
+    t.string "user_agent"
+    t.string "referrer"
+    t.string "country"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["link_id"], name: "index_clicks_on_link_id"
+  end
+
   create_table "links", force: :cascade do |t|
     t.string "lookup_code"
     t.string "original_url"
@@ -59,6 +70,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_01_12_232435) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
+  add_foreign_key "clicks", "links"
   add_foreign_key "links", "users"
   add_foreign_key "qr_codes", "links"
   add_foreign_key "qr_codes", "users"

@@ -40,3 +40,6 @@ ngrok.sh
 
 # Ignore application.yml YAML file
 config/application.yml
+
+# Ignore Redis dump file
+dump.rdb

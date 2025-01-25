@@ -20,6 +20,10 @@ Bundler.require(*Rails.groups)
 
 module Backend
   class Application < Rails::Application
+    # Use cookies for session store
+    config.middleware.use ActionDispatch::Cookies
+    config.middleware.use ActionDispatch::Session::CookieStore, key: "_your_app_session"
+
     config.api_only = true
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 7.2
@@ -39,5 +43,7 @@ module Backend
 
     # Don't generate system test files.
     config.generators.system_tests = nil
+
+    config.active_job.queue_adapter = :sidekiq
   end
 end

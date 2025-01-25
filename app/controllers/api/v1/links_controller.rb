@@ -15,6 +15,7 @@ module Api
       def lookup_code
         if @link
           Rails.logger.debug("Redirecting to: #{@link.original_url}")
+          log_click(@link)
           redirect_to @link.original_url, allow_other_host: true
         else
           render json: { error: "Link not found" }, status: :not_found
@@ -24,6 +25,7 @@ module Api
       def show
         if @link
           @qr_codes = @link.qr_codes.includes(:user)
+          @clicks = @link.clicks
           render :show, status: :ok
         else
           render json: { error: "Link not found" }, status: :not_found
@@ -71,6 +73,10 @@ module Api
 
       def link_params
         params.require(:link).permit(:original_url)
+      end
+
+      def log_click(link)
+        SimpleJob.new.perform(link.lookup_code, request.remote_ip, request.user_agent, request.referrer)
       end
 
       def set_link
