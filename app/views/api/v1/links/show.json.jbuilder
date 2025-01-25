@@ -4,6 +4,6 @@ json.link do
     json.extract! qr_code, :image_url, :created_at, :updated_at
   end
   json.clicks @clicks do |click|
-    json.extract! click, :country, :ip_address, :referrer, :user_agent, :created_at, :updated_at
+    json.extract! click, :id, :country, :ip_address, :referrer, :user_agent, :created_at, :updated_at
   end
 end

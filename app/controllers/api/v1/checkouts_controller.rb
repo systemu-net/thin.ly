@@ -3,7 +3,6 @@ module Api
     class CheckoutsController < ApplicationController
       before_action :authenticate_user!, only: %i[create]
       skip_before_action :verify_authenticity_token, only: [ :create ]
-      # before_action :set_link, only: %i[lookup_code show update destroy]
 
       def create
         prices = Stripe::Price.list(
