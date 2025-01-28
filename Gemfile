@@ -17,7 +17,7 @@ gem "sprockets-rails"
 gem "sqids", "~> 0.2.1"
 gem "sqlite3", ">= 2.5.0"
 gem "stimulus-rails"
-gem "stripe", "~> 13.3"
+gem "stripe", "~> 13.4"
 gem "turbo-rails"
 
 
