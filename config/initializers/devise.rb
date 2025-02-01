@@ -312,7 +312,7 @@ Devise.setup do |config|
   # config.sign_in_after_change_password = true
   config.navigational_formats = []
   config.jwt do |jwt|
-    jwt.secret = ENV["SECURE_RANDOM"] || Rails.application.credentials.fetch(:secret_key_base)
+    jwt.secret = ENV["SECRET_KEY_BASE"] || Rails.application.credentials.fetch(:secret_key_base)
     jwt.dispatch_requests = [
       [ "POST", %r{^/users/sign_in$} ],
       [ "POST", %r{^/users$} ]

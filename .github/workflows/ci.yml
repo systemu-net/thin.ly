@@ -54,4 +54,5 @@ jobs:
       - name: Run RSpec tests
         run: |
           bin/rspec
-      
+        env:
+          SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
