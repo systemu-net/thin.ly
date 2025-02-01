@@ -39,7 +39,7 @@ ngrok.sh
 .DS_Store
 
 # Ignore application.yml YAML file
-config/application.yml
+/config/application.yml
 
 # Ignore Redis dump file
 dump.rdb
