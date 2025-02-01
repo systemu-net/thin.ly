@@ -1,6 +1,12 @@
 require 'rails_helper'
 
 RSpec.describe "Links", type: :request do
+  let(:stripe_customer_id) { '1234' }
+
+  before do
+    allow(Stripe::Customer).to receive(:create).and_return(double(id: stripe_customer_id))
+  end
+
   describe "GET /api/v1/links" do
     let(:user) { create(:user) }
     let(:link) { create(:link, user: user) }

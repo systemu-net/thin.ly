@@ -2,6 +2,11 @@ require 'rails_helper'
 
 RSpec.describe "Link Redirection", type: :request do
   let(:user) { create(:user) }
+  let(:stripe_customer_id) { '1234' }
+
+  before do
+    allow(Stripe::Customer).to receive(:create).and_return(double(id: stripe_customer_id))
+  end
 
   it 'redirects to the original URL for a given short link' do
     url = 'https://www.thin.ly'

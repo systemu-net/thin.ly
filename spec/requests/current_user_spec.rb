@@ -4,6 +4,11 @@ RSpec.describe "CurrentUsers", type: :request do
   describe "GET /api/v1/current_user" do
     let(:user) { create(:user) }
     let(:headers) { auth_headers(user) }
+    let(:stripe_customer_id) { '1234' }
+
+    before do
+      allow(Stripe::Customer).to receive(:create).and_return(double(id: stripe_customer_id))
+    end
 
     it "returns http success" do
       get "/api/v1/current_user", headers: headers
