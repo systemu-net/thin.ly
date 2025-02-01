@@ -56,3 +56,4 @@ jobs:
           bin/rspec
         env:
           SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
+          DEV_HOST: ${{ secrets.DEV_HOST }}
