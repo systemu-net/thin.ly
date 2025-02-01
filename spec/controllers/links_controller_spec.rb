@@ -4,6 +4,11 @@ RSpec.describe Api::V1::LinksController, type: :controller do
   let(:url) { 'https://www.thin.ly' }
   let(:valid_attributes) { { original_url: url } }
   let(:user) { create(:user) }
+  let(:stripe_customer_id) { '1234' }
+
+  before do
+    allow(Stripe::Customer).to receive(:create).and_return(double(id: stripe_customer_id))
+  end
 
   it 'can shorten a link provided by the user' do
     sign_in(user)

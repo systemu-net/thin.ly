@@ -21,6 +21,11 @@ require 'rails_helper'
 
 RSpec.describe Link, type: :model do
   let(:user) { create(:user) }
+  let(:stripe_customer_id) { '1234' }
+
+  before do
+    allow(Stripe::Customer).to receive(:create).and_return(double(id: stripe_customer_id))
+  end
 
   it 'always has an original URL' do
     link = Link.new(

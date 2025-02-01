@@ -2,6 +2,11 @@ require 'rails_helper'
 
 RSpec.describe Shortener do
   let(:user) { create(:user) }
+  let(:stripe_customer_id) { '1234' }
+
+  before do
+    allow(Stripe::Customer).to receive(:create).and_return(double(id: stripe_customer_id))
+  end
 
   it 'shortens a URL to a 7 character lookup code' do
     url = 'https://www.example.com'

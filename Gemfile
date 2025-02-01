@@ -16,7 +16,7 @@ gem "sprockets-rails"
 gem "sqids", "~> 0.2.1"
 gem "sqlite3", ">= 2.5.0"
 gem "stimulus-rails"
-gem "stripe", "~> 13.3"
+gem "stripe", "~> 13.4"
 gem "turbo-rails"
 
 
@@ -37,18 +37,18 @@ gem "bootsnap", require: false
 
 group :development, :test do
   gem "annotate", "~> 3.2"
+  # Static analysis for security vulnerabilities [https://brakemanscanner.org/]
+  gem "brakeman", require: false
+  gem "byebug", "~> 11.1"
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
 
-  # Static analysis for security vulnerabilities [https://brakemanscanner.org/]
-  gem "brakeman", require: false
   gem "factory_bot_rails", "~> 6.4"
 
+  gem "rails-controller-testing", "~> 1.0"
+  gem "rspec-rails", "~> 7.1"
   # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
   gem "rubocop-rails-omakase", require: false
-  gem "rspec-rails", "~> 7.1"
-  gem "rails-controller-testing", "~> 1.0"
-  gem "byebug", "~> 11.1"
 end
 
 group :development do
