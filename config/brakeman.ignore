@@ -1,0 +1,28 @@
+{
+  "ignored_warnings": [
+    {
+      "warning_type": "Redirect",
+      "warning_code": 18,
+      "fingerprint": "7ebb2852ff427e8227bc080991caa8dc8101070c23eed72c5294420a19bfb460",
+      "check_name": "Redirect",
+      "message": "Possible unprotected redirect",
+      "file": "app/controllers/api/v1/links_controller.rb",
+      "line": 19,
+      "link": "https://brakemanscanner.org/docs/warning_types/redirect/",
+      "code": "redirect_to(Link.find_by(:lookup_code => params[:lookup_code]).original_url, :allow_other_host => true)",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "Api::V1::LinksController",
+        "method": "lookup_code"
+      },
+      "user_input": "Link.find_by(:lookup_code => params[:lookup_code]).original_url",
+      "confidence": "Weak",
+      "cwe_id": [
+        601
+      ],
+      "note": "This is done intentionally"
+    }
+  ],
+  "brakeman_version": "7.0.0"
+}
