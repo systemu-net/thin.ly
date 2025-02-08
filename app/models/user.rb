@@ -30,8 +30,10 @@ class User < ApplicationRecord
   has_many :links, dependent: :destroy
   has_many :qr_codes, dependent: :destroy
   has_many :subscriptions, dependent: :destroy
+  has_many :plans, through: :subscriptions
 
   before_validation :create_stripe_customer, on: :create
+  before_commit :create_default_subscription, on: :create
   after_destroy :delete_stripe_customer
 
   def retrieve_stripe_customer
@@ -50,5 +52,15 @@ class User < ApplicationRecord
   def delete_stripe_customer
     customer = retrieve_stripe_customer
     customer.delete
+  end
+
+  def create_default_subscription
+    return if subscriptions.any?
+
+    User.transaction do
+      subscriptions.create(
+        customer_id: stripe_id
+      )
+    end
   end
 end
