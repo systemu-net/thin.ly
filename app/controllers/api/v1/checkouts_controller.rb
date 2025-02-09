@@ -14,6 +14,7 @@ module Api
           session = Stripe::Checkout::Session.create(
             customer: current_user.stripe_id,
             mode: "subscription",
+            client_reference_id: current_user.id,
             # automatic_tax: { enabled: true },
             line_items: [ {
               quantity: 1,

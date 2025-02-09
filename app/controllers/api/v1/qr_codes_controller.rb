@@ -2,8 +2,9 @@ module Api
   module V1
     class QrCodesController < ApplicationController
       before_action :authenticate_user!, only: %i[index create show destroy]
-      skip_before_action :verify_authenticity_token, only: [ :create ]
+      skip_before_action :verify_authenticity_token
       before_action :set_qr_code, only: %i[show destroy]
+      before_action :check_api_limit, only: %i[create]
 
       def index
         @qr_codes = current_user.qr_codes
@@ -24,6 +25,8 @@ module Api
           return render json: { errors: @qr_code.errors.full_messages }, status: :unprocessable_entity
         end
 
+        log_api_request(@qr_code)
+        log_api_request(@qr_code.link)
         render :create, status: :created
       end
 

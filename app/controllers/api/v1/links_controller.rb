@@ -2,8 +2,9 @@ module Api
   module V1
     class LinksController < ApplicationController
       before_action :authenticate_user!, only: %i[index show create update destroy]
-      skip_before_action :verify_authenticity_token, only: [ :create, :update ]
+      skip_before_action :verify_authenticity_token
       before_action :set_link, only: %i[lookup_code show update destroy]
+      before_action :check_api_limit, only: %i[create]
 
       def index
         @links = current_user.links.includes(:qr_codes)
@@ -40,6 +41,7 @@ module Api
           return render json: { errors: @link.errors.full_messages }, status: :unprocessable_entity
         end
 
+        log_api_request(@link)
         render :create, status: :created
       end
 
