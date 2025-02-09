@@ -66,7 +66,6 @@ class Api::V1::WebhooksController < ApplicationController
   def fullfill_order(checkout_session)
     # Find user and assign customer id from Stripe
     user = User.find(checkout_session.client_reference_id)
-    byebug
     user.update(stripe_id: checkout_session.customer)
 
     # Retrieve new subscription via Stripe API using susbscription id
