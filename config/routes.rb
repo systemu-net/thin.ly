@@ -27,6 +27,10 @@ Rails.application.routes.draw do
 
       resources :subscriptions, only: %i[index create destroy]
 
+      resources :webhooks, only: %i[create]
+
+      resources :billings, only: %i[create]
+
       resources "checkouts", only: %i[create]
       get "checkouts/success", to: "checkouts#success"
       get "checkouts/cancel", to: "checkouts#cancel"
@@ -35,9 +39,9 @@ Rails.application.routes.draw do
     end
   end
 
-  namespace :stripe do
-    post "webhooks", to: "stripe/webhooks#create"
-  end
+  # namespace :stripe do
+  #   post "webhooks", to: "stripe/webhooks#create"
+  # end
 
   get "/:lookup_code" => "api/v1/links#lookup_code", as: :lookup_code, constraints: { lookup_code: /[a-zA-Z0-9]{7}/ }
   match "*ui", to: "static#ui", via: :get, constraints: ->(request) { request.format.html? && !request.path.start_with?("/api/") }

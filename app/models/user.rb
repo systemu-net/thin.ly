@@ -44,6 +44,10 @@ class User < ApplicationRecord
     @plan ||= plans.first
   end
 
+  def subscribed?
+    subscriptions.where(status: "active").any?
+  end
+
   private
 
   def create_stripe_customer
