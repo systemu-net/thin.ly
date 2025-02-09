@@ -10,7 +10,17 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_02_04_050617) do
+ActiveRecord::Schema[7.2].define(version: 2025_02_08_002348) do
+  create_table "api_requests", force: :cascade do |t|
+    t.integer "plan_id", null: false
+    t.string "logable_type", null: false
+    t.integer "logable_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["logable_type", "logable_id"], name: "index_api_requests_on_logable"
+    t.index ["plan_id"], name: "index_api_requests_on_plan_id"
+  end
+
   create_table "clicks", force: :cascade do |t|
     t.integer "link_id", null: false
     t.string "ip_address"
@@ -79,6 +89,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_02_04_050617) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
+  add_foreign_key "api_requests", "plans"
   add_foreign_key "clicks", "links"
   add_foreign_key "links", "users"
   add_foreign_key "plans", "subscriptions"

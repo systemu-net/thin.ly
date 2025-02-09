@@ -40,6 +40,10 @@ class User < ApplicationRecord
     Stripe::Customer.retrieve(stripe_id)
   end
 
+  def plan
+    @plan ||= plans.first
+  end
+
   private
 
   def create_stripe_customer
