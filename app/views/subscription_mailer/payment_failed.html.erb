@@ -1,0 +1,16 @@
+<!-- app/views/subscription_mailer -->
+<h1>Payment attempt failed</h1>
+
+<p>Hi <%= @user.email %>,</p>
+
+<p>It looks like your latest automated payment attempt failed</p>
+
+<p>
+  To not see a lapse in your subscription, we suggest updating your billing
+  information as soon as possible
+</p>
+
+<p>
+  <%= link_to "Update billing information", "#{ENV["DEV_HOST"]/login", class:
+  "underline", target: :_blank %>
+</p>

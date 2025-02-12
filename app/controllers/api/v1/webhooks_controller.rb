@@ -56,7 +56,12 @@ class Api::V1::WebhooksController < ApplicationController
       # The payment failed or the customer does not have a valid payment method.
       # The subscription becomes past_due. Notify the customer and send them to the
       # customer portal to update their payment information.
+      user = User.find_by(stripe_id: event.data.object.customer) || User.first
+      if user.retrieve_stripe_customer
+        SubscriptionMailer.with(user: user).payment_failed.deliver_now
+      end
     else
+      # byebug
       puts "Unhandled event type: #{event.type}"
     end
   end
