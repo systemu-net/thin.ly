@@ -59,3 +59,5 @@ end
 gem "sidekiq", "~> 7.3"
 
 gem "rest-client", "~> 2.1"
+
+gem "ruby-openai", "~> 7.3.1"
