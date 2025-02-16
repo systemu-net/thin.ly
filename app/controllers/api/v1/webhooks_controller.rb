@@ -103,8 +103,10 @@ class Api::V1::WebhooksController < ApplicationController
     )
 
     subscription.plan.update(
-      *metadata.slice("links", "qr_codes", "pages").transform_values(&:to_i),
-      name: metadata["name"]
+      name: metadata["name"],
+      links: metadata["links"].to_i,
+      qr_codes: metadata["qr_codes"].to_i,
+      pages: metadata["pages"].to_i
     )
   end
 end
