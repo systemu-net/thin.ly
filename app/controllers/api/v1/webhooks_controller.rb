@@ -27,6 +27,7 @@ class Api::V1::WebhooksController < ApplicationController
     case event.type
     when "checkout.session.completed"
       # byebug
+      # byebug
       # Payment is successful and the subscription is created.
       # Provision the subscription and save the customer ID to your database.
       # If a user doesn't exist we definitely don't want to subscribe them
@@ -87,6 +88,9 @@ class Api::V1::WebhooksController < ApplicationController
     # Retrieve new subscription via Stripe API using susbscription id
     stripe_subscription = Stripe::Subscription.retrieve(checkout_session.subscription)
 
+    product_plan = stripe_subscription.plan.product
+    metadata = Stripe::Product.retrieve(product_plan).metadata.as_json
+
     subscription = Subscription.find_by(customer_id: stripe_subscription.customer)
     # Update existing subscription with Stripe subscription details and user data
     subscription.update(
@@ -96,6 +100,11 @@ class Api::V1::WebhooksController < ApplicationController
       interval: stripe_subscription.plan.interval,
       status: stripe_subscription.status,
       subscription_id: stripe_subscription.id
+    )
+
+    subscription.plan.update(
+      *metadata.slice("links", "qr_codes", "pages").transform_values(&:to_i),
+      name: metadata["name"]
     )
   end
 end

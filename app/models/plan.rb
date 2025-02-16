@@ -4,6 +4,7 @@
 #
 #  id              :integer          not null, primary key
 #  links           :integer
+#  name            :string           default("Free"), not null
 #  pages           :integer
 #  qr_codes        :integer
 #  created_at      :datetime         not null
@@ -25,7 +26,8 @@ class Plan < ApplicationRecord
   DEFAULT_PLAN = {
     links: 50,
     qr_codes: 5,
-    pages: 1
+    pages: 1,
+    name: "Free"
   }
 
   def links_created_within_last_30_days

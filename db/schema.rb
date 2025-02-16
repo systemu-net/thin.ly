@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_02_08_002348) do
+ActiveRecord::Schema[7.2].define(version: 2025_02_16_030358) do
   create_table "api_requests", force: :cascade do |t|
     t.integer "plan_id", null: false
     t.string "logable_type", null: false
@@ -48,6 +48,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_02_08_002348) do
     t.integer "pages"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "name", default: "Free", null: false
     t.index ["subscription_id"], name: "index_plans_on_subscription_id"
   end
 

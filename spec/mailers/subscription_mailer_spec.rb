@@ -2,17 +2,47 @@ require "rails_helper"
 
 RSpec.describe SubscriptionMailer, type: :mailer do
   describe "payment_failed" do
-    let(:mail) { SubscriptionMailer.payment_failed }
+    let(:mail) { SubscriptionMailer.with(user: user).payment_failed }
+    let(:user) { create(:user) }
 
     it "renders the headers" do
-      expect(mail.subject).to eq("Payment failed")
-      expect(mail.to).to eq(["to@example.org"])
-      expect(mail.from).to eq(["from@example.com"])
+      expect(mail.subject).to eq("Payment attempt failed")
+      expect(mail.to).to eq([ user.email ])
+      expect(mail.from).to eq([ "notifications@thin.ly" ])
     end
 
     it "renders the body" do
-      expect(mail.body.encoded).to match("Hi")
+      expect(mail.body.encoded).to match("Hi #{user.email},")
     end
   end
 
+  describe "payment_completed" do
+    let(:mail) { SubscriptionMailer.with(user: user).payment_completed }
+    let(:user) { create(:user) }
+
+    it "renders the headers" do
+      expect(mail.subject).to eq("Payment completed")
+      expect(mail.to).to eq([ user.email ])
+      expect(mail.from).to eq([ "notifications@thin.ly" ])
+    end
+
+    it "renders the body" do
+      expect(mail.body.encoded).to match("Hi #{user.email},")
+    end
+  end
+
+  describe "payment_successful" do
+    let(:mail) { SubscriptionMailer.with(user: user).payment_successful }
+    let(:user) { create(:user) }
+
+    it "renders the headers" do
+      expect(mail.subject).to eq("Payment successful")
+      expect(mail.to).to eq([ user.email ])
+      expect(mail.from).to eq([ "notifications@thin.ly" ])
+    end
+
+    it "renders the body" do
+      expect(mail.body.encoded).to match("Hi #{user.email},")
+    end
+  end
 end

@@ -4,6 +4,7 @@ module Api
       before_action :authenticate_user!, only: %i[index show create update destroy]
       skip_before_action :verify_authenticity_token
       before_action :set_link, only: %i[lookup_code show update destroy]
+      before_action :check_link_authorization, only: %i[show update destroy]
       before_action :check_api_limit, only: %i[create]
 
       def index
@@ -48,10 +49,6 @@ module Api
       def update
         # request_body = JSON.parse(request.body.read)
         # Rails.logger.info "Request Body: #{request_body.inspect}"
-        if current_user.id != @link.user_id
-          return render json: { error: "Unauthorized" }, status: :unauthorized
-        end
-
         if @link.update(link_params)
           render :update, status: :ok
         else
@@ -72,6 +69,12 @@ module Api
       end
 
       private
+
+      def check_link_authorization
+        if current_user.id != @link.user_id
+          render json: { error: "Unauthorized" }, status: :unauthorized
+        end
+      end
 
       def link_params
         params.require(:link).permit(:original_url)
