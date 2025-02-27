@@ -1,0 +1,14 @@
+<!-- app/views/subscription_mailer -->
+<h1>Payment attempt completed</h1>
+
+<p>Hi <%= @user.email %>,</p>
+
+<p>It looks like your latest automated payment attempt completed</p>
+
+<p>
+  Congratulations
+</p>
+
+<p>
+  <%= link_to "Check billing dashboard", "#{ENV["DEV_HOST"]}/login", class: "underline", target: :_blank %>
+</p>

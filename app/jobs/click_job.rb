@@ -1,7 +1,7 @@
 require "sidekiq"
 require "rest-client"
 
-class SimpleJob
+class ClickJob
   include Sidekiq::Job
   queue_as :default
 

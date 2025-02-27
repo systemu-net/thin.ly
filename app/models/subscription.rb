@@ -27,6 +27,10 @@ class Subscription < ApplicationRecord
 
   after_commit :create_default_plan, on: :create
 
+  def plan
+    @plan ||= plans.first
+  end
+
   private
 
   def create_default_plan

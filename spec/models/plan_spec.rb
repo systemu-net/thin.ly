@@ -4,6 +4,7 @@
 #
 #  id              :integer          not null, primary key
 #  links           :integer
+#  name            :string           default("Free"), not null
 #  pages           :integer
 #  qr_codes        :integer
 #  created_at      :datetime         not null
