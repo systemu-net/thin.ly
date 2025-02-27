@@ -81,7 +81,7 @@ module Api
       end
 
       def log_click(link)
-        SimpleJob.new.perform(link.lookup_code, request.remote_ip, request.user_agent, request.referrer)
+        ClickJob.new.perform(link.lookup_code, request.remote_ip, request.user_agent, request.referrer)
       end
 
       def set_link
