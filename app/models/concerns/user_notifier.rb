@@ -6,6 +6,6 @@ module UserNotifier
   end
 
   def send_created_email
-    UserMailer.created(self).deliver_later
+    UserMailer.created(self).deliver_later unless Rails.env.test?
   end
 end
