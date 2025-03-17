@@ -193,7 +193,7 @@ GEM
     jbuilder (2.13.0)
       actionview (>= 5.0.0)
       activesupport (>= 5.0.0)
-    json (2.10.1)
+    json (2.10.2)
     jwt (2.9.3)
       base64
     language_server-protocol (3.17.0.4)
@@ -374,7 +374,7 @@ GEM
       rubocop (>= 1.72)
       rubocop-performance (>= 1.24)
       rubocop-rails (>= 2.30)
-    ruby-openai (7.4.0)
+    ruby-openai (8.0.0)
       event_stream_parser (>= 0.3.0, < 2.0.0)
       faraday (>= 1)
       faraday-multipart (>= 1)
@@ -422,7 +422,7 @@ GEM
     unicode-display_width (3.1.4)
       unicode-emoji (~> 4.0, >= 4.0.4)
     unicode-emoji (4.0.4)
-    uri (1.0.2)
+    uri (1.0.3)
     useragent (0.16.11)
     warden (1.2.9)
       rack (>= 2.0.9)
@@ -481,7 +481,7 @@ DEPENDENCIES
   rqrcode (~> 2.2)
   rspec-rails (~> 7.1)
   rubocop-rails-omakase
-  ruby-openai (~> 7.4.0)
+  ruby-openai (~> 8.0.0)
   sidekiq (~> 7.3)
   sprockets-rails
   sqids (~> 0.2.1)
