@@ -23,18 +23,26 @@ class Api::V1::WebhooksController < ApplicationController
 
     case event.type
     when "checkout.session.completed"
-      user = User.find_by(stripe_id: event.data.object.customer)
+    when "checkout.session.async_payment_succeeded" # Some payments take longer to succeed (usually noncredit card payments)
       fullfill_order(event.data.object)
+    when "checkout.session.async_payment_failed"
+      # Payment failed, send email to user
+      user = User.find_by(stripe_id: event.data.object.customer)
       if user.retrieve_stripe_customer
-        SubscriptionMailer.with(user: user).payment_completed.deliver_now
+        SubscriptionMailer.with(user: user).payment_failed.deliver_now
       end
-    when "checkout.session.async_payment_succeeded"
-      # Some payments take longer to succeed (usually noncredit card payments)
     when "invoice.payment_succeeded"
       return unless event.data.object.subscription.present?
       user = User.find_by(stripe_id: event.data.object.customer)
       stripe_subscription = Stripe::Subscription.retrieve(event.data.object.subscription)
-      subscription = Subscription.find_by(subscription_id: stripe_subscription)
+      subscription = Subscription.find_by(customer_id: user.stripe_id)
+      stripe_product = stripe_subscription.plan.product
+      metadata = Stripe::Product.retrieve(stripe_product).metadata.as_json
+
+      raise "Subscription not found" unless subscription
+      raise "User not found" unless user
+      raise "Stripe subscription not found" unless stripe_subscription
+      raise "Metadata not found" unless metadata
 
       subscription.update(
         current_period_start: Time.at(stripe_subscription.current_period_start).to_datetime,
@@ -44,9 +52,14 @@ class Api::V1::WebhooksController < ApplicationController
         status: stripe_subscription.status,
       )
 
-      if user.retrieve_stripe_customer
-        SubscriptionMailer.with(user: user).payment_successful.deliver_now
-      end
+      subscription.plan.update(
+        name: metadata["name"],
+        links: metadata["links"].to_i,
+        qr_codes: metadata["qr_codes"].to_i,
+        pages: metadata["pages"].to_i
+      )
+
+      SubscriptionMailer.with(user: user).payment_successful.deliver_now if user.retrieve_stripe_customer
     when "invoice.payment_failed"
       user = User.find_by(stripe_id: event.data.object.customer)
       if user.retrieve_stripe_customer
@@ -62,13 +75,13 @@ class Api::V1::WebhooksController < ApplicationController
   def fullfill_order(checkout_session)
     # Find user and assign customer id from Stripe
     user = User.find(checkout_session.client_reference_id)
-    user.update(stripe_id: checkout_session.customer)
+    # user.update(stripe_id: checkout_session.customer)
 
     # Retrieve new subscription via Stripe API using susbscription id
     stripe_subscription = Stripe::Subscription.retrieve(checkout_session.subscription)
 
-    product_plan = stripe_subscription.plan.product
-    metadata = Stripe::Product.retrieve(product_plan).metadata.as_json
+    stripe_product = stripe_subscription.plan.product
+    metadata = Stripe::Product.retrieve(stripe_product).metadata.as_json
 
     subscription = Subscription.find_by(customer_id: stripe_subscription.customer)
     # Update existing subscription with Stripe subscription details and user data
@@ -87,5 +100,7 @@ class Api::V1::WebhooksController < ApplicationController
       qr_codes: metadata["qr_codes"].to_i,
       pages: metadata["pages"].to_i
     )
+
+    SubscriptionMailer.with(user: user).payment_completed.deliver_now if user.retrieve_stripe_customer
   end
 end
