@@ -11,7 +11,10 @@ gem "fog-aws", "~> 3.30"
 gem "puma", ">= 5.0"
 gem "rack-cors", "~> 2.0"
 gem "rails", "~> 7.2.2"
+gem "rest-client", "~> 2.1"
 gem "rqrcode", "~> 2.2"
+gem "ruby-openai", "~> 7.4.0"
+gem "sidekiq", "~> 7.3"
 gem "sprockets-rails"
 gem "sqids", "~> 0.2.1"
 gem "sqlite3", ">= 2.5.0"
@@ -38,7 +41,7 @@ gem "bootsnap", require: false
 group :development, :test do
   gem "annotate", "~> 3.2"
   # Static analysis for security vulnerabilities [https://brakemanscanner.org/]
-  gem "brakeman", require: false
+  gem "brakeman", "~> 7.0", require: false
   gem "byebug", "~> 11.1"
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
@@ -51,13 +54,11 @@ group :development, :test do
   gem "rubocop-rails-omakase", require: false
 end
 
+group :test do
+  gem "stripe-ruby-mock", "~> 5.0", require: "stripe_mock"
+end
+
 group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
 end
-
-gem "sidekiq", "~> 7.3"
-
-gem "rest-client", "~> 2.1"
-
-gem "ruby-openai", "~> 7.4.0"
