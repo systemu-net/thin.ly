@@ -20,7 +20,7 @@
 class Link < ApplicationRecord
   belongs_to :user
   has_many :qr_codes, -> { order(created_at: :desc) }
-  has_many :clicks
+  has_many :clicks, dependent: :destroy
   has_many :api_requests, as: :logable, dependent: :destroy
 
   validates_presence_of :original_url, :lookup_code
