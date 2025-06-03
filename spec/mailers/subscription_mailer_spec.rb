@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe SubscriptionMailer, type: :mailer do
+  let(:stripe_helper) { StripeMock.create_test_helper }
+  before { StripeMock.start }
+  after { StripeMock.stop }
+
   describe "payment_failed" do
     let(:mail) { SubscriptionMailer.with(user: user).payment_failed }
     let(:user) { create(:user) }
