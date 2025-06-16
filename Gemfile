@@ -9,7 +9,7 @@ gem "jbuilder"
 gem "figaro", "~> 1.2"
 gem "fog-aws", "~> 3.32"
 gem "puma", ">= 5.0"
-gem "rack-cors", "~> 2.0"
+gem "rack-cors", "~> 3.0"
 gem "rails", "~> 7.2.2"
 gem "rest-client", "~> 2.1"
 gem "rqrcode", "~> 3.1"
@@ -49,7 +49,7 @@ group :development, :test do
   gem "factory_bot_rails", "~> 6.4"
 
   gem "rails-controller-testing", "~> 1.0"
-  gem "rspec-rails", "~> 7.1"
+  gem "rspec-rails", "~> 8.0"
   # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
   gem "rubocop-rails-omakase", require: false
 end
