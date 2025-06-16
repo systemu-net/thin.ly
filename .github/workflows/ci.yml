@@ -78,3 +78,4 @@ jobs:
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+          SECRET_KEY_BASE: dummy_secret_key_base_for_testing
