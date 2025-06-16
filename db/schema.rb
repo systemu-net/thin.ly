@@ -11,10 +11,13 @@
 # It's strongly recommended that you check this file into your version control system.
 
 ActiveRecord::Schema[7.2].define(version: 2025_02_16_030358) do
+  # These are extensions that must be enabled in order to support this database
+  enable_extension "plpgsql"
+
   create_table "api_requests", force: :cascade do |t|
-    t.integer "plan_id", null: false
+    t.bigint "plan_id", null: false
     t.string "logable_type", null: false
-    t.integer "logable_id", null: false
+    t.bigint "logable_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["logable_type", "logable_id"], name: "index_api_requests_on_logable"
@@ -22,7 +25,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_02_16_030358) do
   end
 
   create_table "clicks", force: :cascade do |t|
-    t.integer "link_id", null: false
+    t.bigint "link_id", null: false
     t.string "ip_address"
     t.string "user_agent"
     t.string "referrer"
@@ -37,12 +40,12 @@ ActiveRecord::Schema[7.2].define(version: 2025_02_16_030358) do
     t.string "original_url"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "user_id", null: false
+    t.bigint "user_id", null: false
     t.index ["user_id"], name: "index_links_on_user_id"
   end
 
   create_table "plans", force: :cascade do |t|
-    t.integer "subscription_id", null: false
+    t.bigint "subscription_id", null: false
     t.integer "links"
     t.integer "qr_codes"
     t.integer "pages"
@@ -53,8 +56,8 @@ ActiveRecord::Schema[7.2].define(version: 2025_02_16_030358) do
   end
 
   create_table "qr_codes", force: :cascade do |t|
-    t.integer "link_id", null: false
-    t.integer "user_id", null: false
+    t.bigint "link_id", null: false
+    t.bigint "user_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "image"
@@ -64,7 +67,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_02_16_030358) do
 
   create_table "subscriptions", force: :cascade do |t|
     t.string "customer_id"
-    t.integer "user_id", null: false
+    t.bigint "user_id", null: false
     t.string "status"
     t.datetime "current_period_end"
     t.datetime "current_period_start"

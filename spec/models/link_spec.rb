@@ -2,12 +2,12 @@
 #
 # Table name: links
 #
-#  id           :integer          not null, primary key
+#  id           :bigint           not null, primary key
 #  lookup_code  :string
 #  original_url :string
 #  created_at   :datetime         not null
 #  updated_at   :datetime         not null
-#  user_id      :integer          not null
+#  user_id      :bigint           not null
 #
 # Indexes
 #
@@ -15,7 +15,7 @@
 #
 # Foreign Keys
 #
-#  user_id  (user_id => users.id)
+#  fk_rails_...  (user_id => users.id)
 #
 require 'rails_helper'
 

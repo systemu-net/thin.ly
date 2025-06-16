@@ -2,12 +2,12 @@
 #
 # Table name: qr_codes
 #
-#  id         :integer          not null, primary key
+#  id         :bigint           not null, primary key
 #  image      :string
 #  created_at :datetime         not null
 #  updated_at :datetime         not null
-#  link_id    :integer          not null
-#  user_id    :integer          not null
+#  link_id    :bigint           not null
+#  user_id    :bigint           not null
 #
 # Indexes
 #
@@ -16,8 +16,8 @@
 #
 # Foreign Keys
 #
-#  link_id  (link_id => links.id)
-#  user_id  (user_id => users.id)
+#  fk_rails_...  (link_id => links.id)
+#  fk_rails_...  (user_id => users.id)
 #
 require 'rails_helper'
 require 'carrierwave/test/matchers'

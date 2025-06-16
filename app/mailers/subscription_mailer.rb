@@ -21,4 +21,10 @@ class SubscriptionMailer < ApplicationMailer
 
     mail to: @user.email, subject: "Payment successful"
   end
+
+  def subscription_canceled
+    @user = params[:user]
+
+    mail to: @user.email, subject: "Subscription canceled"
+  end
 end

@@ -1,0 +1,14 @@
+<!-- app/views/subscription_mailer -->
+<h1>Subscription cancelled</h1>
+
+<p>Hi <%= @user.email %>,</p>
+
+<p>Your subscription was cancelled either by your or expiration period</p>
+
+<p>
+  Please send us an email at <%= ENV["NOTIFICATION_EMAIL"] %> if you have any questions or concerns regarding your subscription.
+</p>
+
+<p>
+  <%= link_to "Check billing dashboard", "#{ENV["DEV_HOST"]}/login", class: "underline", target: :_blank %>
+</p>

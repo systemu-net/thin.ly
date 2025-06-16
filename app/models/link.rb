@@ -2,12 +2,12 @@
 #
 # Table name: links
 #
-#  id           :integer          not null, primary key
+#  id           :bigint           not null, primary key
 #  lookup_code  :string
 #  original_url :string
 #  created_at   :datetime         not null
 #  updated_at   :datetime         not null
-#  user_id      :integer          not null
+#  user_id      :bigint           not null
 #
 # Indexes
 #
@@ -15,7 +15,7 @@
 #
 # Foreign Keys
 #
-#  user_id  (user_id => users.id)
+#  fk_rails_...  (user_id => users.id)
 #
 class Link < ApplicationRecord
   belongs_to :user
@@ -60,7 +60,8 @@ class Link < ApplicationRecord
   end
 
   def find_by_lookup_code(lookup_code)
-    link_id, _user_id = decode(lookup_code)
+    user_id, link_id = decode(lookup_code)
+    Rails.logger.info("Decoded link_id: #{link_id}, user_id: #{user_id}")
     Link.find_by(id: link_id)
   end
 
