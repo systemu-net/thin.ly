@@ -2,7 +2,7 @@
 #
 # Table name: subscriptions
 #
-#  id                   :integer          not null, primary key
+#  id                   :bigint           not null, primary key
 #  current_period_end   :datetime
 #  current_period_start :datetime
 #  interval             :string
@@ -11,7 +11,7 @@
 #  updated_at           :datetime         not null
 #  customer_id          :string
 #  subscription_id      :string
-#  user_id              :integer          not null
+#  user_id              :bigint           not null
 #
 # Indexes
 #
@@ -19,7 +19,7 @@
 #
 # Foreign Keys
 #
-#  user_id  (user_id => users.id)
+#  fk_rails_...  (user_id => users.id)
 #
 FactoryBot.define do
   factory :subscription do

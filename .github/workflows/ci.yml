@@ -41,6 +41,20 @@ jobs:
   test:
 
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -50,10 +64,21 @@ jobs:
         with:
           ruby-version: .ruby-version
           bundler-cache: true
+          
+      - name: Set up database
+        run: |
+          bin/rails db:create
+          bin/rails db:migrate
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+          SECRET_KEY_BASE: dummy_secret_key_base_for_testing
+          DEV_HOST: http://localhost
 
       - name: Run RSpec tests
-        run: |
-          bin/rspec
+        run: bin/rspec
         env:
-          SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
-          DEV_HOST: ${{ secrets.DEV_HOST }}
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
+          SECRET_KEY_BASE: dummy_secret_key_base_for_testing
+          DEV_HOST: http://localhost

@@ -50,6 +50,7 @@ class Api::V1::WebhooksController < ApplicationController
         # plan: stripe_subscription.plan.id,
         interval: stripe_subscription.plan.interval,
         status: stripe_subscription.status,
+        subscription_id: stripe_subscription.id
       )
 
       subscription.plan.update(
@@ -65,6 +66,9 @@ class Api::V1::WebhooksController < ApplicationController
       if user.retrieve_stripe_customer
         SubscriptionMailer.with(user: user).payment_failed.deliver_now
       end
+    when "customer.subscription.deleted"
+      # Handle subscription cancellation here
+      handle_subscription_cancellation(event.data.object)
     else
       puts "Unhandled event type: #{event.type}"
     end
@@ -102,5 +106,25 @@ class Api::V1::WebhooksController < ApplicationController
     )
 
     SubscriptionMailer.with(user: user).payment_completed.deliver_now if user.retrieve_stripe_customer
+  end
+
+  def handle_subscription_cancellation(stripe_subscription)
+    user = User.find_by(stripe_id: stripe_subscription.customer)
+    return Rails.logger.error("User not found for user: #{stripe_subscription.customer}") unless user
+
+    # Update the user's subscription status
+    subscription = user.subscriptions.where(subscription_id: stripe_subscription.id).first
+
+    return Rails.logger.error("Subscription to be cancelled not found stripe_subscription = #{stripe_subscription.id}") unless subscription
+    subscription.update(
+      status: "canceled",
+      subscription_id: nil
+    )
+    Rails.logger.info("Subscription canceled for user: #{user.email}")
+
+    subscription.plan.update(Plan::DEFAULT_PLAN)
+
+    # Optionally, send an email notification to the user
+    SubscriptionMailer.with(user: user).subscription_canceled.deliver_now if user.retrieve_stripe_customer
   end
 end

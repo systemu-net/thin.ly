@@ -2,12 +2,12 @@
 #
 # Table name: api_requests
 #
-#  id           :integer          not null, primary key
+#  id           :bigint           not null, primary key
 #  logable_type :string           not null
 #  created_at   :datetime         not null
 #  updated_at   :datetime         not null
-#  logable_id   :integer          not null
-#  plan_id      :integer          not null
+#  logable_id   :bigint           not null
+#  plan_id      :bigint           not null
 #
 # Indexes
 #
@@ -16,7 +16,7 @@
 #
 # Foreign Keys
 #
-#  plan_id  (plan_id => plans.id)
+#  fk_rails_...  (plan_id => plans.id)
 #
 FactoryBot.define do
   factory :api_request do

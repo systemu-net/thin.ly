@@ -2,14 +2,14 @@
 #
 # Table name: plans
 #
-#  id              :integer          not null, primary key
+#  id              :bigint           not null, primary key
 #  links           :integer
 #  name            :string           default("Free"), not null
 #  pages           :integer
 #  qr_codes        :integer
 #  created_at      :datetime         not null
 #  updated_at      :datetime         not null
-#  subscription_id :integer          not null
+#  subscription_id :bigint           not null
 #
 # Indexes
 #
@@ -17,7 +17,7 @@
 #
 # Foreign Keys
 #
-#  subscription_id  (subscription_id => subscriptions.id)
+#  fk_rails_...  (subscription_id => subscriptions.id)
 #
 require 'rails_helper'
 
