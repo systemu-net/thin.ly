@@ -78,5 +78,3 @@ jobs:
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/test
-          SECRET_KEY_BASE: ${{ secrets.SECRET_KEY_BASE }}
-          DEV_HOST: ${{ secrets.DEV_HOST }}
