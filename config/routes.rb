@@ -27,6 +27,13 @@ Rails.application.routes.draw do
 
       resources :subscriptions, only: %i[index create destroy]
 
+      resources :brand_pages, param: :lookup_code do
+        member do
+          post :publish
+          post :unpublish
+        end
+      end
+
       resources :webhooks, only: %i[create]
 
       resources :billings, only: %i[create]

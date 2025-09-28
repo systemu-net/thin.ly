@@ -32,6 +32,7 @@ class User < ApplicationRecord
   has_many :qr_codes, dependent: :destroy
   has_many :subscriptions, dependent: :destroy
   has_many :plans, through: :subscriptions
+  has_many :brand_pages, dependent: :destroy
 
   before_validation :create_stripe_customer, on: :create
   before_commit :create_default_subscription, on: :create
