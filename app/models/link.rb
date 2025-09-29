@@ -48,7 +48,7 @@ class Link < ApplicationRecord
   end
 
   def set_lookup_code
-    self.lookup_code = SecureRandom.uuid
+    self.lookup_code = SecureRandom.uuid if lookup_code.blank?
   end
 
   def update_lookup_code

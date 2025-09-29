@@ -22,8 +22,10 @@
 
 FactoryBot.define do
   factory :user do
-    email { 'testuser@example.com' }
-    password { 'password' }
-    # Add additional fields as necessary
+    sequence(:email) { |n| "testuser#{n}@example.com" }
+    password { 'password123' }
+
+    # Skip the Stripe customer creation in tests
+    after(:build) { |user| user.define_singleton_method(:create_stripe_customer) { true } }
   end
 end
