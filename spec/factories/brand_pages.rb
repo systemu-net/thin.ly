@@ -2,32 +2,46 @@
 #
 # Table name: brand_pages
 #
-#  id              :bigint           not null, primary key
-#  content         :jsonb            not null
-#  lookup_code     :string           not null
-#  published_at    :datetime
-#  created_at      :datetime         not null
-#  updated_at      :datetime         not null
-#  draft_source_id :bigint
-#  user_id         :bigint           not null
+#  id                   :bigint           not null, primary key
+#  content              :jsonb            not null
+#  lookup_code          :string           not null
+#  published_at         :datetime
+#  created_at           :datetime         not null
+#  updated_at           :datetime         not null
+#  published_version_id :bigint
+#  user_id              :bigint           not null
 #
 # Indexes
 #
-#  index_brand_pages_on_draft_source_id  (draft_source_id)
-#  index_brand_pages_on_lookup_code      (lookup_code) UNIQUE
-#  index_brand_pages_on_published_at     (published_at)
-#  index_brand_pages_on_user_id          (user_id)
+#  index_brand_pages_on_lookup_code           (lookup_code) UNIQUE
+#  index_brand_pages_on_published_at          (published_at)
+#  index_brand_pages_on_published_version_id  (published_version_id)
+#  index_brand_pages_on_user_id               (user_id)
 #
 # Foreign Keys
 #
-#  fk_rails_...  (draft_source_id => brand_pages.id)
+#  fk_rails_...  (published_version_id => brand_pages.id)
 #  fk_rails_...  (user_id => users.id)
 #
 FactoryBot.define do
   factory :brand_page do
-    user { nil }
-    content { "" }
-    published_at { "2025-06-19 15:37:09" }
-    draft_source { nil }
+    association :user
+    content { { title: "Test Page", links: [] } }
+    sequence(:lookup_code) { |n| "test_code_#{n}" }
+
+    trait :draft do
+      published_at { nil }
+    end
+
+    trait :published do
+      published_at { Time.current }
+    end
+
+    trait :with_published_version do
+      after(:create) do |draft|
+        published = create(:brand_page, :published, user: draft.user, content: draft.content)
+        draft.update!(published_version: published)
+      end
+    end
   end
 end

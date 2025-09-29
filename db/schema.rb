@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_06_19_193708) do
+ActiveRecord::Schema[7.2].define(version: 2025_09_28_234913) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -28,13 +28,13 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_19_193708) do
     t.bigint "user_id", null: false
     t.jsonb "content", default: {}, null: false
     t.datetime "published_at"
-    t.bigint "draft_source_id"
+    t.bigint "published_version_id"
     t.string "lookup_code", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["draft_source_id"], name: "index_brand_pages_on_draft_source_id"
     t.index ["lookup_code"], name: "index_brand_pages_on_lookup_code", unique: true
     t.index ["published_at"], name: "index_brand_pages_on_published_at"
+    t.index ["published_version_id"], name: "index_brand_pages_on_published_version_id"
     t.index ["user_id"], name: "index_brand_pages_on_user_id"
   end
 
@@ -108,7 +108,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_19_193708) do
   end
 
   add_foreign_key "api_requests", "plans"
-  add_foreign_key "brand_pages", "brand_pages", column: "draft_source_id"
+  add_foreign_key "brand_pages", "brand_pages", column: "published_version_id"
   add_foreign_key "brand_pages", "users"
   add_foreign_key "clicks", "links"
   add_foreign_key "links", "users"

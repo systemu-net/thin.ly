@@ -34,31 +34,39 @@ module Api
       end
 
       def destroy
-        if @brand_page.published_at.present?
-          # Unpublish and keep current draft
-          @brand_page.unpublish!
+        ActiveRecord::Base.transaction do
+          if @brand_page.published?
+            # If deleting a published version, also delete its draft
+            @brand_page.draft_version&.destroy
+          elsif @brand_page.draft? && @brand_page.published_version&.published?
+            # If deleting a draft that has a published version, unpublish first
+            @brand_page.published_version.unpublish!
+          end
+
+          @brand_page.destroy
         end
 
-        @brand_page.destroy
         head :no_content
       end
 
       def publish
-        ActiveRecord::Base.transaction do
-          # Make sure only one published version exists per draft chain
-          if (current_published = @brand_page.draft_source)
-            current_published.unpublish!
-          end
-
-          @brand_page.publish!
-        end
-
+        @published_version = @brand_page.publish!
+        @brand_page = @published_version
         render :show, status: :ok
+      rescue StandardError => e
+        render json: { error: e.message }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
 
       def unpublish
+        draft_version = @brand_page.draft_version
         @brand_page.unpublish!
+        # Return the draft version for the response
+        @brand_page = draft_version
         render :show, status: :ok
+      rescue StandardError => e
+        render json: { error: e.message }, status: :unprocessable_entity
       end
 
       private
