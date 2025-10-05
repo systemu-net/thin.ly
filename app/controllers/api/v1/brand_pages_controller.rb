@@ -7,7 +7,7 @@ module Api
       before_action :check_owner!, only: %i[show update destroy publish unpublish]
 
       def index
-        @brand_pages = current_user.brand_pages.order(updated_at: :desc)
+        @brand_pages = current_user.brand_pages.drafts.order(updated_at: :desc)
         render :index, status: :ok
       end
 
@@ -26,6 +26,11 @@ module Api
       end
 
       def update
+        if @brand_page.published?
+          render json: { error: "Cannot update a published brand page. Please create a draft version first." },
+                 status: :unprocessable_entity and return
+        end
+
         if @brand_page.update(brand_page_params)
           render :show, status: :ok
         else
@@ -72,7 +77,7 @@ module Api
       private
 
       def brand_page_params
-        params.require(:brand_page).permit(content: {})
+        params.require(:brand_page).permit(:title, :description, content: {})
       end
 
       def set_brand_page

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_09_28_234913) do
+ActiveRecord::Schema[7.2].define(version: 2025_10_05_034414) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -32,6 +32,8 @@ ActiveRecord::Schema[7.2].define(version: 2025_09_28_234913) do
     t.string "lookup_code", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "title", default: "Untitled", null: false
+    t.text "description"
     t.index ["lookup_code"], name: "index_brand_pages_on_lookup_code", unique: true
     t.index ["published_at"], name: "index_brand_pages_on_published_at"
     t.index ["published_version_id"], name: "index_brand_pages_on_published_version_id"
