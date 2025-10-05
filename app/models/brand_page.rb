@@ -4,8 +4,10 @@
 #
 #  id                   :bigint           not null, primary key
 #  content              :jsonb            not null
+#  description          :text
 #  lookup_code          :string           not null
 #  published_at         :datetime
+#  title                :string           default("Untitled"), not null
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
 #  published_version_id :bigint
