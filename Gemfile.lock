@@ -197,7 +197,7 @@ GEM
     jbuilder (2.14.1)
       actionview (>= 7.0.0)
       activesupport (>= 7.0.0)
-    json (2.15.0)
+    json (2.15.1)
     jwt (2.9.3)
       base64
     language_server-protocol (3.17.0.4)
@@ -280,7 +280,7 @@ GEM
     puma (7.0.4)
       nio4r (~> 2.0)
     racc (1.8.1)
-    rack (3.1.16)
+    rack (3.1.17)
     rack-cors (3.0.0)
       logger
       rack (>= 3.0.14)
@@ -400,7 +400,7 @@ GEM
       ffi (~> 1.12)
       logger
     securerandom (0.4.1)
-    sidekiq (8.0.7)
+    sidekiq (8.0.8)
       connection_pool (>= 2.5.0)
       json (>= 2.9.0)
       logger (>= 1.6.2)
