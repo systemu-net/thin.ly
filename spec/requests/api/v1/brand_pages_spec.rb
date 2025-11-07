@@ -319,6 +319,10 @@ RSpec.describe "Api::V1::BrandPages", type: :request do
       context "when publishing a draft for the first time" do
         let(:draft_page) { create(:brand_page, :draft, user: user) }
 
+        before do
+          allow(GithubPagesPublisher).to receive(:new).and_return(double(success: true))
+        end
+
         it "creates a published version and updates the draft" do
           # Ensure the draft exists before counting
           draft_page
@@ -329,6 +333,7 @@ RSpec.describe "Api::V1::BrandPages", type: :request do
 
           expect(BrandPage.count).to eq(initial_count + 1)
           expect(response).to have_http_status(:ok)
+
 
           json_response = JSON.parse(response.body)
           bp = json_response['brand_page']
@@ -348,6 +353,10 @@ RSpec.describe "Api::V1::BrandPages", type: :request do
       context "when publishing a draft that already has a published version" do
         let!(:existing_published) { create(:brand_page, :published, user: user, content: { title: "Old Published" }) }
         let!(:draft_with_published) { create(:brand_page, :draft, user: user, published_version: existing_published, content: { title: "New Draft Content" }) }
+
+        before do
+          allow(GithubPagesPublisher).to receive(:new).and_return(double(success: true))
+        end
 
         it "updates the existing published version instead of creating new one" do
           original_published_id = existing_published.id
@@ -422,6 +431,7 @@ RSpec.describe "Api::V1::BrandPages", type: :request do
           # Set up the relationship properly
           draft_version
           published_page.update!(draft_version: draft_version)
+          allow(GithubPagesPublisher).to receive(:new).and_return(double(success: true))
         end
 
         it "deletes the published version and returns the draft" do
