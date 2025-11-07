@@ -4,6 +4,9 @@ RSpec.describe PublishJob, type: :job do
   let(:user) { create(:user) }
   let(:draft) { create(:brand_page, :draft, user: user) }
   let!(:published_version) do
+    # Mock the Sidekiq job to avoid Redis connection
+    allow(PublishJob).to receive(:perform_async)
+
     # Simulate the publish! call which creates a published version
     draft.publish!
     draft.reload.published_version
