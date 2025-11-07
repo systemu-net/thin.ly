@@ -31,7 +31,6 @@ Rails.application.routes.draw do
         member do
           post :publish
           post :unpublish
-          get :status, action: :publication_status
         end
       end
 
