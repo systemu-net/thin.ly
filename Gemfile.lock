@@ -261,6 +261,9 @@ GEM
       racc (~> 1.4)
     nokogiri (1.18.10-x86_64-linux-musl)
       racc (~> 1.4)
+    octokit (10.0.0)
+      faraday (>= 1, < 3)
+      sawyer (~> 0.9)
     orm_adapter (0.5.0)
     ostruct (0.6.3)
     parallel (1.26.3)
@@ -405,6 +408,9 @@ GEM
     ruby-vips (2.2.3)
       ffi (~> 1.12)
       logger
+    sawyer (0.9.3)
+      addressable (>= 2.3.5)
+      faraday (>= 0.17.3, < 3)
     securerandom (0.4.1)
     sidekiq (8.0.9)
       connection_pool (>= 2.5.0)
@@ -492,6 +498,7 @@ DEPENDENCIES
   fog-aws (~> 3.33)
   importmap-rails
   jbuilder
+  octokit (~> 10.0)
   ostruct (~> 0.6.3)
   pg (~> 1.6)
   puma (>= 5.0)

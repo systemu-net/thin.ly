@@ -7,6 +7,7 @@
 #  description          :text
 #  lookup_code          :string           not null
 #  published_at         :datetime
+#  published_url        :string
 #  title                :string           default("Untitled"), not null
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
@@ -60,47 +61,48 @@ class BrandPage < ApplicationRecord
   def publish!
     raise StandardError, "You can only publish the draft version, you cannot publish a published version" if published?
 
-    ActiveRecord::Base.transaction do
-      if published_version&.published?
+    published_page = ActiveRecord::Base.transaction do
+      if published_version.present?
         # Update existing published version with draft content
         published_version.update!(
           content: content,
-          published_at: Time.current
+          # Reset published_at and published_url since the worker will update them
+          published_at: nil,
+          published_url: nil
         )
         published_version
       else
         # Create new published version from this draft
         new_published_version = self.dup
         new_published_version.published_version = nil  # Published version doesn't point to anything
-        new_published_version.published_at = Time.current
+        new_published_version.published_at = nil
         new_published_version.lookup_code = nil  # Will be regenerated
         new_published_version.save!
 
         # Update this draft to point to the new published version
         update!(published_version: new_published_version)
-
         new_published_version
       end
     end
+
+    PublishJob.perform_async(published_page.lookup_code)
+    published_page
   end
 
   def unpublish!
     raise StandardError, "You can only unpublish the published version, you cannot unpublish a draft version" if draft?
 
     ActiveRecord::Base.transaction do
-      # Update the draft version to remove the reference
-      if draft_version
-        draft_version.update!(published_version: nil)
-      end
-
-      # Delete this published version
-      destroy!
+      draft_version.update!(published_version: nil) if draft_version
     end
+
+    UnpublishJob.perform_async(lookup_code)
   end
 
   def get_published_version
     return self if published?
-    published_version if published_version&.published?
+    # In async workflow, published_version might exist but not have published_at set yet
+    published_version if published_version.present?
   end
 
   def get_draft_version
@@ -129,6 +131,6 @@ class BrandPage < ApplicationRecord
   private
 
   def sqids_service
-    @sqids_service ||= SqidsService.instance
+    @sqids_service ||= PagesSqidsService.instance
   end
 end

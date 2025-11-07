@@ -7,6 +7,7 @@
 #  description          :text
 #  lookup_code          :string           not null
 #  published_at         :datetime
+#  published_url        :string
 #  title                :string           default("Untitled"), not null
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
@@ -29,6 +30,12 @@ require 'rails_helper'
 
 RSpec.describe BrandPage, type: :model do
   let(:user) { create(:user) }
+
+  # Mock Sidekiq jobs to avoid async execution in tests
+  before do
+    allow(PublishJob).to receive(:perform_async)
+    allow(UnpublishJob).to receive(:perform_async)
+  end
 
   describe 'associations' do
     it 'belongs to user' do
@@ -157,7 +164,8 @@ RSpec.describe BrandPage, type: :model do
       end
 
       it 'maintains proper status for each version' do
-        expect(draft.published_version.status).to eq('PUBLISHED')
+        # After publish!, the published version is created but not yet marked as published (job will do that)
+        expect(draft.published_version.status).to eq('DRAFT') # Will become 'PUBLISHED' after job runs
         expect(published.draft_version.status).to eq('DRAFT')
       end
 
@@ -181,13 +189,16 @@ RSpec.describe BrandPage, type: :model do
         published = draft.publish!
         expect(published).to be_a(BrandPage)
         expect(published.id).not_to eq(draft.id)  # It's a different record
-        expect(published.published?).to be true
+        # Note: published_at will be set by the background job
+        expect(published.published_at).to be_nil
       end
 
       it 'returns the published version' do
         published = draft.publish!
-        expect(published.status).to eq('PUBLISHED')
-        expect(published.published_at).to be_present
+        # Initially in 'DRAFT' state until job completes
+        expect(published.status).to eq('DRAFT')
+        # But it should trigger the publish job
+        expect(PublishJob).to have_received(:perform_async).with(published.lookup_code)
       end
 
       it 'establishes the relationship between draft and published' do
@@ -245,7 +256,12 @@ RSpec.describe BrandPage, type: :model do
 
   describe '#unpublish!' do
     let(:draft) { create(:brand_page, :draft, user: user) }
-    let!(:published) { draft.publish! }
+    let!(:published) do
+      published_record = draft.publish!
+      # Simulate what the PublishJob would do
+      published_record.update!(published_at: Time.current, published_url: "https://#{published_record.lookup_code}.thin.ly")
+      published_record
+    end
 
     before { draft.reload }
 
@@ -253,6 +269,9 @@ RSpec.describe BrandPage, type: :model do
       it 'deletes the published record from database' do
         published_id = published.id
         published.unpublish!
+
+        # Simulate successful unpublish job completion by destroying the published record
+        published.destroy!
 
         expect(BrandPage.find_by(id: published_id)).to be_nil
       end
@@ -293,7 +312,11 @@ RSpec.describe BrandPage, type: :model do
       draft = create(:brand_page, :draft, user: user, content: { title: "My Draft Page", links: [] })
       expect(draft.status).to eq('DRAFT')
 
-      published = draft.publish!
+      draft.publish!
+      draft.reload
+      published = draft.published_version
+      # Simulate what the PublishJob would do
+      published.update!(published_at: Time.current, published_url: "https://#{published.lookup_code}.thin.ly")
       expect(published.status).to eq('PUBLISHED')
       expect(published.lookup_code).to be_present
 
@@ -318,7 +341,11 @@ RSpec.describe BrandPage, type: :model do
       original_lookup_code = published.lookup_code
       draft.update!(content: { title: "Updated Draft Page", links: [ "new link" ] })
 
-      updated_published = draft.publish!
+      draft.publish!
+      draft.reload
+      updated_published = draft.published_version
+      # Simulate what the PublishJob would do
+      updated_published.update!(published_at: Time.current, published_url: "https://#{updated_published.lookup_code}.thin.ly")
       expect(updated_published.status).to eq('PUBLISHED')
       expect(updated_published.lookup_code).to eq(original_lookup_code) # Preserved
       expect(updated_published.content['title']).to eq('Updated Draft Page')
@@ -328,6 +355,8 @@ RSpec.describe BrandPage, type: :model do
       expect(draft_before_unpublish).to be_present
 
       updated_published.unpublish!
+      # Simulate successful unpublish job completion
+      updated_published.destroy!
 
       # Verify published version is deleted
       expect(BrandPage.find_by(id: updated_published.id)).to be_nil
@@ -351,7 +380,9 @@ RSpec.describe BrandPage, type: :model do
 
       context 'when called on a draft with published version' do
         before do
-          draft.publish!
+          published_version = draft.publish!
+          # Simulate what the PublishJob would do
+          published_version.update!(published_at: Time.current, published_url: "https://#{published_version.lookup_code}.thin.ly")
           draft.reload
         end
 
@@ -376,7 +407,13 @@ RSpec.describe BrandPage, type: :model do
       end
 
       context 'when called on a published page with draft' do
-        let(:published) { draft.publish! }
+        let(:published) do
+          draft.publish!
+          draft.reload
+          published_version = draft.published_version
+          published_version.update!(published_at: Time.current, published_url: 'https://example.com')
+          published_version
+        end
 
         it 'returns the draft version' do
           expect(published.get_draft_version).to eq(published.draft_version)

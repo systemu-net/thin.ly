@@ -1,5 +1,5 @@
 json.brand_page do
-  json.(@brand_page, :id, :content, :lookup_code, :title, :description, :published_at, :created_at, :updated_at)
+  json.(@brand_page, :id, :content, :lookup_code, :title, :description, :published_at, :published_url, :created_at, :updated_at)
   json.status @brand_page.status
   json.published_lookup_code @brand_page.published_version&.lookup_code if @brand_page.published_version&.published?
   json.has_published_version @brand_page.draft? && @brand_page.published_version&.published?
@@ -7,7 +7,7 @@ json.brand_page do
 
   if @brand_page.draft? && @brand_page.published_version&.published?
     json.published_version do
-      json.(@brand_page.published_version, :id, :lookup_code, :published_at)
+      json.(@brand_page.published_version, :id, :lookup_code, :published_at, :published_url)
     end
   end
 

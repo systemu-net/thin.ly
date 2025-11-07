@@ -7,6 +7,7 @@
 #  description          :text
 #  lookup_code          :string           not null
 #  published_at         :datetime
+#  published_url        :string
 #  title                :string           default("Untitled"), not null
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
