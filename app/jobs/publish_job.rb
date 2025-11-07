@@ -32,8 +32,6 @@ class PublishJob
     else
       # On failure, revert status to DRAFT
       Rails.logger.error "Failed to publish brand page #{brand_page.lookup_code}: #{result[:error]}"
-
-      brand_page.update!(status: BrandPage::STATUS_DRAFT)
     end
   end
 end

@@ -68,13 +68,14 @@ RSpec.describe PublishJob, type: :job do
       it 'does not update the brand page' do
         original_url = published_version.published_url
         original_time = published_version.published_at
+        original_status = published_version.status
 
         PublishJob.new.perform(published_version.lookup_code)
 
         published_version.reload
         expect(published_version.published_url).to eq(original_url)
         expect(published_version.published_at).to eq(original_time)
-        expect(published_version.status).to eq('DRAFT') # Status reverts to DRAFT on failure
+        expect(published_version.status).to eq(original_status) # Status not changed on failure
       end
 
       it 'logs error message' do
