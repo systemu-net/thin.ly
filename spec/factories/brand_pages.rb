@@ -8,6 +8,7 @@
 #  lookup_code          :string           not null
 #  published_at         :datetime
 #  published_url        :string
+#  status               :string           default("DRAFT"), not null
 #  title                :string           default("Untitled"), not null
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
@@ -19,6 +20,7 @@
 #  index_brand_pages_on_lookup_code           (lookup_code) UNIQUE
 #  index_brand_pages_on_published_at          (published_at)
 #  index_brand_pages_on_published_version_id  (published_version_id)
+#  index_brand_pages_on_status                (status)
 #  index_brand_pages_on_user_id               (user_id)
 #
 # Foreign Keys
@@ -31,13 +33,16 @@ FactoryBot.define do
     association :user
     content { { title: "Test Page", links: [] } }
     sequence(:lookup_code) { |n| "test_code_#{n}" }
+    status { "DRAFT" }
 
     trait :draft do
       published_at { nil }
+      status { "DRAFT" }
     end
 
     trait :published do
       published_at { Time.current }
+      status { "PUBLISHED" }
     end
 
     trait :with_published_version do
