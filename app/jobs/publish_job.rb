@@ -17,17 +17,20 @@ class PublishJob
       # Update the published version with the publishing results
       brand_page.update!(
         published_url: result[:published_url],
-        published_at: result[:published_at],
-        status: BrandPage::STATUS_PUBLISHED
-      )
-
-      brand_page.draft_version.update!(
-        published_url: result[:published_url],
         published_at: result[:published_at]
       )
 
+      # Also update the draft version with the published URL and timestamp
+      if brand_page.draft_version
+        brand_page.draft_version.update!(
+          published_url: result[:published_url],
+          published_at: result[:published_at]
+        )
+      end
+
       Rails.logger.info "Successfully published brand page #{brand_page.lookup_code} to #{result[:published_url]}"
     else
+      # On failure, revert status to DRAFT
       Rails.logger.error "Failed to publish brand page #{brand_page.lookup_code}: #{result[:error]}"
 
       brand_page.update!(status: BrandPage::STATUS_DRAFT)

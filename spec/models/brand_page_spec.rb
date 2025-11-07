@@ -166,8 +166,8 @@ RSpec.describe BrandPage, type: :model do
       end
 
       it 'maintains proper status for each version' do
-        # After publish!, the published version is created but not yet marked as published (job will do that)
-        expect(draft.published_version.status).to eq('DRAFT') # Will become 'PUBLISHED' after job runs
+        # After publish!, the published version has status PUBLISHED
+        expect(draft.published_version.status).to eq('PUBLISHED')
         expect(published.draft_version.status).to eq('DRAFT')
       end
 
@@ -197,9 +197,9 @@ RSpec.describe BrandPage, type: :model do
 
       it 'returns the published version' do
         published = draft.publish!
-        # Initially in 'DRAFT' state until job completes
-        expect(published.status).to eq('DRAFT')
-        # But it should trigger the publish job
+        # Status should be PUBLISHED immediately
+        expect(published.status).to eq('PUBLISHED')
+        # But it should trigger the publish job to update published_url and published_at
         expect(PublishJob).to have_received(:perform_async).with(published.lookup_code)
       end
 

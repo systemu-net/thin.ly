@@ -2,7 +2,12 @@ require 'rails_helper'
 
 RSpec.describe PublishJob, type: :job do
   let(:user) { create(:user) }
-  let(:brand_page) { create(:brand_page, :draft, user: user) }
+  let(:draft) { create(:brand_page, :draft, user: user) }
+  let!(:published_version) do
+    # Simulate the publish! call which creates a published version
+    draft.publish!
+    draft.reload.published_version
+  end
 
   before do
     allow(Stripe::Customer).to receive(:create).and_return(double(id: 'cus_test123'))
@@ -19,7 +24,7 @@ RSpec.describe PublishJob, type: :job do
       let(:success_result) do
         {
           success: true,
-          published_url: "https://#{brand_page.lookup_code}.thin.ly",
+          published_url: "https://#{published_version.lookup_code}.thin.ly",
           published_at: Time.current
         }
       end
@@ -29,17 +34,22 @@ RSpec.describe PublishJob, type: :job do
       end
 
       it 'updates the brand page with published URL and timestamp' do
-        PublishJob.new.perform(brand_page.lookup_code)
+        PublishJob.new.perform(published_version.lookup_code)
 
-        brand_page.reload
-        expect(brand_page.published_url).to eq(success_result[:published_url])
-        expect(brand_page.published_at).to be_within(1.second).of(success_result[:published_at])
+        published_version.reload
+        expect(published_version.published_url).to eq(success_result[:published_url])
+        expect(published_version.published_at).to be_within(1.second).of(success_result[:published_at])
+
+        # Also check that the draft version gets updated
+        draft.reload
+        expect(draft.published_url).to eq(success_result[:published_url])
+        expect(draft.published_at).to be_within(1.second).of(success_result[:published_at])
       end
 
       it 'logs success message' do
         expect(Rails.logger).to receive(:info).with(/Successfully published brand page/)
 
-        PublishJob.new.perform(brand_page.lookup_code)
+        PublishJob.new.perform(published_version.lookup_code)
       end
     end
 
@@ -56,20 +66,21 @@ RSpec.describe PublishJob, type: :job do
       end
 
       it 'does not update the brand page' do
-        original_url = brand_page.published_url
-        original_time = brand_page.published_at
+        original_url = published_version.published_url
+        original_time = published_version.published_at
 
-        PublishJob.new.perform(brand_page.lookup_code)
+        PublishJob.new.perform(published_version.lookup_code)
 
-        brand_page.reload
-        expect(brand_page.published_url).to eq(original_url)
-        expect(brand_page.published_at).to eq(original_time)
+        published_version.reload
+        expect(published_version.published_url).to eq(original_url)
+        expect(published_version.published_at).to eq(original_time)
+        expect(published_version.status).to eq('DRAFT') # Status reverts to DRAFT on failure
       end
 
       it 'logs error message' do
         expect(Rails.logger).to receive(:error).with(/Failed to publish brand page/)
 
-        PublishJob.new.perform(brand_page.lookup_code)
+        PublishJob.new.perform(published_version.lookup_code)
       end
     end
 

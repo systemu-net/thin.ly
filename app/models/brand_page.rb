@@ -68,9 +68,9 @@ class BrandPage < ApplicationRecord
     published_page = ActiveRecord::Base.transaction do
       if published_version.present?
         # Update existing published version with draft content
-        # Keep status as DRAFT until PublishJob completes successfully
         published_version.update!(
           content: content,
+          status: STATUS_PUBLISHED,
           # Reset published_at and published_url since the worker will update them
           published_at: nil,
           published_url: nil
@@ -80,7 +80,7 @@ class BrandPage < ApplicationRecord
         # Create new published version from this draft
         new_published_version = self.dup
         new_published_version.published_version = nil  # Published version doesn't point to anything
-        new_published_version.status = STATUS_PUBLISHED  # Will be set to PUBLISHED by the job
+        new_published_version.status = STATUS_PUBLISHED
         new_published_version.published_at = nil
         new_published_version.lookup_code = nil  # Will be regenerated
         new_published_version.save!
