@@ -8,6 +8,7 @@
 #  lookup_code          :string           not null
 #  published_at         :datetime
 #  published_url        :string
+#  status               :string           default("DRAFT"), not null
 #  title                :string           default("Untitled"), not null
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
@@ -19,6 +20,7 @@
 #  index_brand_pages_on_lookup_code           (lookup_code) UNIQUE
 #  index_brand_pages_on_published_at          (published_at)
 #  index_brand_pages_on_published_version_id  (published_version_id)
+#  index_brand_pages_on_status                (status)
 #  index_brand_pages_on_user_id               (user_id)
 #
 # Foreign Keys
@@ -43,19 +45,21 @@ class BrandPage < ApplicationRecord
   validates :content, presence: true
   validates :lookup_code, presence: true, uniqueness: true
 
-  scope :published, -> { where.not(published_at: nil) }
-  scope :drafts, -> { where(published_at: nil) }
+  # Status constants
+  STATUS_DRAFT = "DRAFT"
+  STATUS_PUBLISHED = "PUBLISHED"
+
+  validates :status, inclusion: { in: [ STATUS_DRAFT, STATUS_PUBLISHED ] }
+
+  scope :published, -> { where(status: STATUS_PUBLISHED) }
+  scope :drafts, -> { where(status: STATUS_DRAFT) }
 
   def published?
-    published_at.present?
+    status == STATUS_PUBLISHED
   end
 
   def draft?
-    published_at.nil?
-  end
-
-  def status
-    published? ? "PUBLISHED" : "DRAFT"
+    status == STATUS_DRAFT
   end
 
   def publish!
@@ -66,6 +70,7 @@ class BrandPage < ApplicationRecord
         # Update existing published version with draft content
         published_version.update!(
           content: content,
+          status: STATUS_PUBLISHED,
           # Reset published_at and published_url since the worker will update them
           published_at: nil,
           published_url: nil
@@ -75,6 +80,7 @@ class BrandPage < ApplicationRecord
         # Create new published version from this draft
         new_published_version = self.dup
         new_published_version.published_version = nil  # Published version doesn't point to anything
+        new_published_version.status = STATUS_PUBLISHED
         new_published_version.published_at = nil
         new_published_version.lookup_code = nil  # Will be regenerated
         new_published_version.save!
@@ -93,7 +99,11 @@ class BrandPage < ApplicationRecord
     raise StandardError, "You can only unpublish the published version, you cannot unpublish a draft version" if draft?
 
     ActiveRecord::Base.transaction do
-      draft_version.update!(published_version: nil) if draft_version
+      draft_version.update!(
+        published_version: nil,
+        published_url: nil,
+        published_at: nil
+      ) if draft_version
     end
 
     UnpublishJob.perform_async(lookup_code)

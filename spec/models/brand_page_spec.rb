@@ -8,6 +8,7 @@
 #  lookup_code          :string           not null
 #  published_at         :datetime
 #  published_url        :string
+#  status               :string           default("DRAFT"), not null
 #  title                :string           default("Untitled"), not null
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
@@ -19,6 +20,7 @@
 #  index_brand_pages_on_lookup_code           (lookup_code) UNIQUE
 #  index_brand_pages_on_published_at          (published_at)
 #  index_brand_pages_on_published_version_id  (published_version_id)
+#  index_brand_pages_on_status                (status)
 #  index_brand_pages_on_user_id               (user_id)
 #
 # Foreign Keys
@@ -164,8 +166,8 @@ RSpec.describe BrandPage, type: :model do
       end
 
       it 'maintains proper status for each version' do
-        # After publish!, the published version is created but not yet marked as published (job will do that)
-        expect(draft.published_version.status).to eq('DRAFT') # Will become 'PUBLISHED' after job runs
+        # After publish!, the published version has status PUBLISHED
+        expect(draft.published_version.status).to eq('PUBLISHED')
         expect(published.draft_version.status).to eq('DRAFT')
       end
 
@@ -195,9 +197,9 @@ RSpec.describe BrandPage, type: :model do
 
       it 'returns the published version' do
         published = draft.publish!
-        # Initially in 'DRAFT' state until job completes
-        expect(published.status).to eq('DRAFT')
-        # But it should trigger the publish job
+        # Status should be PUBLISHED immediately
+        expect(published.status).to eq('PUBLISHED')
+        # But it should trigger the publish job to update published_url and published_at
         expect(PublishJob).to have_received(:perform_async).with(published.lookup_code)
       end
 
@@ -259,7 +261,11 @@ RSpec.describe BrandPage, type: :model do
     let!(:published) do
       published_record = draft.publish!
       # Simulate what the PublishJob would do
-      published_record.update!(published_at: Time.current, published_url: "https://#{published_record.lookup_code}.thin.ly")
+      published_record.update!(
+        published_at: Time.current,
+        published_url: "https://#{published_record.lookup_code}.thin.ly",
+        status: BrandPage::STATUS_PUBLISHED
+      )
       published_record
     end
 
@@ -316,7 +322,11 @@ RSpec.describe BrandPage, type: :model do
       draft.reload
       published = draft.published_version
       # Simulate what the PublishJob would do
-      published.update!(published_at: Time.current, published_url: "https://#{published.lookup_code}.thin.ly")
+      published.update!(
+        published_at: Time.current,
+        published_url: "https://#{published.lookup_code}.thin.ly",
+        status: BrandPage::STATUS_PUBLISHED
+      )
       expect(published.status).to eq('PUBLISHED')
       expect(published.lookup_code).to be_present
 
@@ -345,7 +355,11 @@ RSpec.describe BrandPage, type: :model do
       draft.reload
       updated_published = draft.published_version
       # Simulate what the PublishJob would do
-      updated_published.update!(published_at: Time.current, published_url: "https://#{updated_published.lookup_code}.thin.ly")
+      updated_published.update!(
+        published_at: Time.current,
+        published_url: "https://#{updated_published.lookup_code}.thin.ly",
+        status: BrandPage::STATUS_PUBLISHED
+      )
       expect(updated_published.status).to eq('PUBLISHED')
       expect(updated_published.lookup_code).to eq(original_lookup_code) # Preserved
       expect(updated_published.content['title']).to eq('Updated Draft Page')
@@ -382,7 +396,11 @@ RSpec.describe BrandPage, type: :model do
         before do
           published_version = draft.publish!
           # Simulate what the PublishJob would do
-          published_version.update!(published_at: Time.current, published_url: "https://#{published_version.lookup_code}.thin.ly")
+          published_version.update!(
+            published_at: Time.current,
+            published_url: "https://#{published_version.lookup_code}.thin.ly",
+            status: BrandPage::STATUS_PUBLISHED
+          )
           draft.reload
         end
 
@@ -411,7 +429,11 @@ RSpec.describe BrandPage, type: :model do
           draft.publish!
           draft.reload
           published_version = draft.published_version
-          published_version.update!(published_at: Time.current, published_url: 'https://example.com')
+          published_version.update!(
+            published_at: Time.current,
+            published_url: 'https://example.com',
+            status: BrandPage::STATUS_PUBLISHED
+          )
           published_version
         end
 

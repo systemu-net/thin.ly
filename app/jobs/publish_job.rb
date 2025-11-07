@@ -20,15 +20,17 @@ class PublishJob
         published_at: result[:published_at]
       )
 
+      # Also update the draft version with the published URL and timestamp
+      if brand_page.draft_version
+        brand_page.draft_version.update!(
+          published_url: result[:published_url],
+          published_at: result[:published_at]
+        )
+      end
+
       Rails.logger.info "Successfully published brand page #{brand_page.lookup_code} to #{result[:published_url]}"
     else
-      # Log the error but don't raise an exception (let Sidekiq handle retries)
       Rails.logger.error "Failed to publish brand page #{brand_page.lookup_code}: #{result[:error]}"
-
-      # Optionally, you could raise an exception to trigger Sidekiq retries:
-      # raise StandardError, "Publishing failed: #{result[:error]}"
     end
   end
-
-  private
 end

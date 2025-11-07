@@ -17,7 +17,6 @@
 #
 #  fk_rails_...  (user_id => users.id)
 #
-
 FactoryBot.define do
   factory :link do
     original_url { 'https://www.thin.ly/example' }

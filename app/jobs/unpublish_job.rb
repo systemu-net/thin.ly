@@ -19,13 +19,9 @@ class UnpublishJob
 
       Rails.logger.info "Successfully unpublished and deleted brand page #{brand_page.lookup_code}"
     else
-      # Log the error but don't raise an exception (let Sidekiq handle retries)
       Rails.logger.error "Failed to unpublish brand page #{brand_page.lookup_code}: #{result[:error]}"
 
-      # Optionally, you could raise an exception to trigger Sidekiq retries:
-      # raise StandardError, "Unpublishing failed: #{result[:error]}"
+      brand_page.update!(status: BrandPage::STATUS_PUBLISHED)
     end
   end
-
-  private
 end
