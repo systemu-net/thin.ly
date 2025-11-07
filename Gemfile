@@ -64,3 +64,5 @@ group :development do
 end
 
 gem "ostruct", "~> 0.6.3"
+
+gem "octokit", "~> 10.0"
