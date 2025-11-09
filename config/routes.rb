@@ -43,6 +43,17 @@ Rails.application.routes.draw do
       get "checkouts/cancel", to: "checkouts#cancel"
 
       get "/current_user", to: "current_user#index"
+
+      # Track page views
+      match "/track/view", to: "track#cors_preflight", via: [ :options ]
+      post "/track/view", to: "track#view"
+
+      # Page views analytics
+      resources :page_views, only: [ :index ] do
+        collection do
+          get :by_brand_page
+        end
+      end
     end
   end
 

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_11_07_161404) do
+ActiveRecord::Schema[7.2].define(version: 2025_11_09_042355) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -61,6 +61,29 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_07_161404) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["user_id"], name: "index_links_on_user_id"
+  end
+
+  create_table "page_views", force: :cascade do |t|
+    t.bigint "brand_page_id", null: false
+    t.string "ip_address"
+    t.text "user_agent"
+    t.string "referrer"
+    t.string "country"
+    t.string "city"
+    t.string "region"
+    t.string "browser"
+    t.string "browser_version"
+    t.string "os"
+    t.string "os_version"
+    t.string "device_type"
+    t.datetime "visited_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["brand_page_id", "visited_at"], name: "index_page_views_on_brand_page_id_and_visited_at"
+    t.index ["brand_page_id"], name: "index_page_views_on_brand_page_id"
+    t.index ["country"], name: "index_page_views_on_country"
+    t.index ["device_type"], name: "index_page_views_on_device_type"
+    t.index ["visited_at"], name: "index_page_views_on_visited_at"
   end
 
   create_table "plans", force: :cascade do |t|
@@ -117,6 +140,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_07_161404) do
   add_foreign_key "brand_pages", "users"
   add_foreign_key "clicks", "links"
   add_foreign_key "links", "users"
+  add_foreign_key "page_views", "brand_pages"
   add_foreign_key "plans", "subscriptions"
   add_foreign_key "qr_codes", "links"
   add_foreign_key "qr_codes", "users"

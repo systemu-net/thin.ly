@@ -43,7 +43,8 @@ class GithubPagesPublisher
       assigns: {
         user: @user,
         page: @page,
-        links: links
+        links: links,
+        tracking_enabled: true  # Pass this flag to include tracking scripts
       }
     )
 
