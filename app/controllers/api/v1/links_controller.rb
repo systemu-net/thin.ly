@@ -77,7 +77,7 @@ module Api
       end
 
       def link_params
-        params.require(:link).permit(:original_url)
+        params.require(:link).permit(:original_url, :title, :description)
       end
 
       def log_click(link)
