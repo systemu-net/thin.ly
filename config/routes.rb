@@ -21,7 +21,11 @@ Rails.application.routes.draw do
 
   namespace :api, defaults: { format: :json } do
     namespace :v1 do
-      resources :links, only: %i[index show create update destroy], param: :lookup_code
+      resources :links, only: %i[index show create update destroy], param: :lookup_code do
+        collection do
+          get :search
+        end
+      end
 
       resources :qr_codes, only: %i[index create show destroy]
 

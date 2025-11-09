@@ -15,14 +15,14 @@ class PublishJob
 
     if result[:success]
       # Update the published version with the publishing results
-      brand_page.update!(
+      brand_page.update_columns(
         published_url: result[:published_url],
         published_at: result[:published_at]
       )
 
       # Also update the draft version with the published URL and timestamp
       if brand_page.draft_version
-        brand_page.draft_version.update!(
+        brand_page.draft_version.update_columns(
           published_url: result[:published_url],
           published_at: result[:published_at]
         )
