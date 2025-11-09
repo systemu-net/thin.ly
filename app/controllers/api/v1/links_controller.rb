@@ -1,7 +1,7 @@
 module Api
   module V1
     class LinksController < ApplicationController
-      before_action :authenticate_user!, only: %i[index show create update destroy]
+      before_action :authenticate_user!, only: %i[index search show create update destroy]
       skip_before_action :verify_authenticity_token
       before_action :set_link, only: %i[lookup_code show update destroy]
       before_action :check_link_authorization, only: %i[show update destroy]
@@ -9,6 +9,20 @@ module Api
 
       def index
         @links = current_user.links.includes(:qr_codes)
+          .order(created_at: :desc)
+
+        render :index, status: :ok
+      end
+
+      def search
+        query = params[:query]
+
+        if query.blank?
+          return render json: { error: "Query parameter is required" }, status: :bad_request
+        end
+
+        @links = current_user.links
+          .where("original_url ILIKE ? OR title ILIKE ?", "%#{query}%", "%#{query}%")
           .order(created_at: :desc)
 
         render :index, status: :ok
