@@ -32,7 +32,7 @@ class BrandPage < ApplicationRecord
   belongs_to :user
   belongs_to :published_version, class_name: "BrandPage", optional: true
   has_one :draft_version, class_name: "BrandPage", foreign_key: :published_version_id, dependent: :nullify
-  # has_many :clicks, dependent: :destroy
+  has_many :page_views, dependent: :destroy
   has_many :api_requests, as: :logable, dependent: :destroy
 
   validates_presence_of :content, :lookup_code

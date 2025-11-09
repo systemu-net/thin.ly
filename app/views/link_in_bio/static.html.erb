@@ -161,57 +161,39 @@
 </div>
 
 <!-- Analytics Script -->
+<% if @tracking_enabled %>
 <script>
-    // Simple analytics tracking
-    function trackClick(elementId, elementName) {
-        // You can integrate with Google Analytics, Plausible, or your own analytics
-        console.log('Click tracked:', { elementId, elementName, timestamp: new Date().toISOString() });
-        
-        // Example: Google Analytics 4
-        if (typeof gtag !== 'undefined') {
-            gtag('event', 'click', {
-                'event_category': 'Brand Page',
-                'event_label': elementName,
-                'custom_parameter_1': elementId
-            });
-        }
-        
-        // Example: Send to your own analytics endpoint
-        // fetch('/api/analytics/track', {
-        //     method: 'POST',
-        //     headers: { 'Content-Type': 'application/json' },
-        //     body: JSON.stringify({
-        //         page: '<%= @page.lookup_code %>',
-        //         element: elementId,
-        //         label: elementName,
-        //         timestamp: new Date().toISOString(),
-        //         userAgent: navigator.userAgent,
-        //         referrer: document.referrer
-        //     })
-        // });
-    }
-    
-    // Page load tracking
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Brand page loaded:', '<%= @page.title %>');
-        
-        // Track page view
-        if (typeof gtag !== 'undefined') {
-            gtag('event', 'page_view', {
-                'page_title': '<%= @page.title %>',
-                'page_location': window.location.href
-            });
-        }
+  // Track page view
+  fetch('https://app.thin.ly/api/v1/track/view', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      lookup_code: '<%= @page.lookup_code %>'
+    })
+  }).catch(err => console.error('Tracking error:', err));
+  
+  // Track link clicks
+  document.querySelectorAll('a[data-link-id]').forEach(link => {
+    link.addEventListener('click', function(e) {
+      const linkId = this.getAttribute('data-link-id');
+
+      fetch('https://app.thin.ly/api/v1/track/click', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          link_id: linkId,
+          lookup_code: '<%= @page.lookup_code %>',
+          timestamp: new Date().toISOString()
+        })
+      }).catch(err => console.error('Click tracking error:', err));
     });
-    
-    // Error handling for images
-    document.querySelectorAll('img').forEach(img => {
-        img.onerror = function() {
-            this.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIGZpbGw9IiNFNUU3RUIiLz4KPHBhdGggZD0ibTktOSAzIDMgMy0zLTMtM1oiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+';
-            this.alt = 'Profile Image';
-        };
-    });
+  });
 </script>
+<% end %>
 
 <!-- Optional: Google Analytics -->
 <!-- 
