@@ -36,6 +36,15 @@ Rails.application.routes.draw do
           post :publish
           post :unpublish
         end
+
+        # Nested resources for managing resources (links, qr_codes, etc) on brand pages
+        scope module: :brand_pages do
+          resources :resources, param: :id do
+            collection do
+              patch :reorder
+            end
+          end
+        end
       end
 
       resources :webhooks, only: %i[create]

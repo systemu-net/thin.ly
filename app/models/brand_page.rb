@@ -34,6 +34,12 @@ class BrandPage < ApplicationRecord
   has_one :draft_version, class_name: "BrandPage", foreign_key: :published_version_id, dependent: :nullify
   has_many :page_views, dependent: :destroy
   has_many :api_requests, as: :logable, dependent: :destroy
+  has_many :resources, foreign_key: :page_id, dependent: :destroy
+  has_many :resource_links, through: :resources, source: :linkable, source_type: "Link"
+  has_many :resource_qr_codes, through: :resources, source: :linkable, source_type: "QrCode"
+
+  # Accept nested attributes for resources
+  accepts_nested_attributes_for :resources, allow_destroy: true
 
   validates_presence_of :content, :lookup_code
   validates_uniqueness_of :lookup_code
