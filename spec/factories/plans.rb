@@ -3,9 +3,9 @@
 # Table name: plans
 #
 #  id              :bigint           not null, primary key
+#  brand_pages     :integer
 #  links           :integer
 #  name            :string           default("Free"), not null
-#  pages           :integer
 #  qr_codes        :integer
 #  created_at      :datetime         not null
 #  updated_at      :datetime         not null

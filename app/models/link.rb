@@ -24,6 +24,8 @@ class Link < ApplicationRecord
   has_many :qr_codes, -> { order(created_at: :desc) }
   has_many :clicks, dependent: :destroy
   has_many :api_requests, as: :logable, dependent: :destroy
+  has_many :resources, as: :linkable, dependent: :destroy
+  has_many :brand_pages, through: :resources, source: :page
 
   validates_presence_of :original_url, :lookup_code
   validates_uniqueness_of :lookup_code

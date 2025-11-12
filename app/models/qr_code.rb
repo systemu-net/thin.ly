@@ -23,6 +23,8 @@ class QrCode < ApplicationRecord
   belongs_to :link
   belongs_to :user
   has_many :api_requests, as: :logable, dependent: :destroy
+  has_many :resources, as: :linkable, dependent: :destroy
+  has_many :brand_pages, through: :resources, source: :page
 
   validates :user_id, uniqueness: { scope: :link_id }
   validates :image, presence: true
