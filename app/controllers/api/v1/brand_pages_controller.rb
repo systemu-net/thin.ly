@@ -5,6 +5,7 @@ module Api
       skip_before_action :verify_authenticity_token
       before_action :set_brand_page, only: %i[show update destroy publish unpublish]
       before_action :check_owner!, only: %i[show update destroy publish unpublish]
+      before_action :check_api_limit, only: %i[create]
 
       def index
         @brand_pages = current_user.brand_pages.drafts.order(updated_at: :desc)
@@ -18,11 +19,14 @@ module Api
       def create
         @brand_page = current_user.brand_pages.new(brand_page_params)
 
-        if @brand_page.save
-          render :show, status: :created
-        else
-          render json: { errors: @brand_page.errors.full_messages }, status: :unprocessable_entity
+        @brand_page.save
+
+        if @brand_page.errors.full_messages.any?
+          return render json: { errors: @brand_page.errors.full_messages }, status: :unprocessable_entity
         end
+
+        log_api_request(@brand_page)
+        render :show, status: :created
       end
 
       def update

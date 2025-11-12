@@ -34,7 +34,7 @@ class GithubPagesPublisher
 
   def html_content
     # Extract links from page content
-    links = extract_links_from_content
+    links = page_resources
 
     # Generate complete static HTML using Rails templates
     html = ApplicationController.render(
@@ -137,18 +137,23 @@ class GithubPagesPublisher
     @github_client ||= Octokit::Client.new(access_token: ENV["GITHUB_TOKEN"] || Rails.application.credentials.dig(:github_token))
   end
 
-  def extract_links_from_content
-    # Extract links array from page content JSON
-    content = @page.content || {}
-    links_data = content["links"] || []
+  def page_resources
+    # Fetch resources with their linkable associations (Links, QR Codes, etc.)
+    resources = @page.resources.includes(:linkable).order(sort_order: :asc)
 
-    # Convert links data to OpenStruct objects for easier template access
-    links_data.map do |link_data|
+    # Convert resources to OpenStruct objects for easier template access
+    resources.map do |resource|
+      linkable = resource.linkable
+
+      # Only include Link type resources for now (can extend to QrCode later)
+      next unless resource.linkable_type == "Link"
+
       OpenStruct.new(
-        title: link_data["title"] || link_data["name"] || "Untitled Link",
-        url: link_data["url"] || link_data["link"] || "#",
-        color: link_data["color"] || link_data["backgroundColor"] || "#3b82f6"
+        title: linkable.title || "Untitled Link",
+        url: linkable.original_url || "#",
+        color: resource.color || "#3b82f6",
+        description: linkable.description
       )
-    end
+    end.compact
   end
 end

@@ -12,7 +12,7 @@
   button_style = content['button'] || 'rounded'
   font_family = content['fontFamily'] || 'rubik'
   social = content['social'] || {}
-  profile_image = content['profileImage']  # NEW: Get profile image from content
+  profile_image = content['profileImage']
   
   # Generate background style for body
   if background_type == 'gradient'
@@ -48,52 +48,31 @@
     <div class="py-8 px-6 overflow-y-auto scrollbar-hidden rounded-3xl min-h-[558px] <%= font_class %>" style="color: <%= text_color %>;">
         
         <!-- Profile Section -->
-        <div class="flex items-center flex-col gap-4 mb-8">
+        <div class="flex items-center flex-col gap-4" style="color: <%= text_color %>;">
             <% if profile_image.present? %>
                 <img 
-                    class="w-24 h-24 rounded-full object-cover border-4 border-white/20 shadow-lg" 
+                    class="w-24 h-24 rounded-full object-cover shadow-lg" 
                     src="<%= profile_image %>"
                     alt="<%= @page.title %>"
                     loading="lazy"
                     onerror="this.style.display='none';"
                 />
             <% end %>
-            <div class="text-center">
-                <h1 class="text-2xl font-bold break-words mb-2"><%= @page.title %></h1>
-                <% if @page.description.present? %>
-                    <p class="text-base opacity-90 break-words"><%= @page.description %></p>
-                <% end %>
-            </div>
+            <h1 class="text-2xl mb-4 font-bold text-center break-all"><%= @page.title %></h1>
+            <% if @page.description.present? %>
+                <h2 class="text-base -mt-6 mb-4 text-center break-all"><%= @page.description %></h2>
+            <% end %>
         </div>
         
-        <!-- Links Section -->
-        <% if @links.any? %>
-            <div class="space-y-4 mb-8">
-                <% @links.each_with_index do |link, index| %>
-                    <a 
-                        href="<%= link.url %>"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="block w-full px-6 py-3 text-center font-medium <%= button_class %> hover-scale transition-all duration-200 shadow-md"
-                        style="background-color: <%= link.color || '#3b82f6' %>; color: <%= button_color %>;"
-                        title="<%= link.title %>"
-                        data-link-id="<%= link.id %>"
-                    >
-                        <%= link.title %>
-                    </a>
-                <% end %>
-            </div>
-        <% end %>
-        
-        <!-- Social Links Section -->
+        <!-- Social Links Section (Now appears BEFORE regular links) -->
         <% if social.any? { |k, v| v.present? } %>
-            <div class="flex justify-center gap-6 mt-8">
+            <div class="flex gap-4 mt-6 content-center justify-center">
                 <% if social['fb'].present? %>
                     <a 
                         href="<%= social['fb'] %>"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-current opacity-80 hover:opacity-100 hover-scale transition-all duration-200"
+                        class="text-current hover:scale-105 transition-transform duration-200"
                         title="Facebook"
                         data-social="facebook"
                     >
@@ -106,7 +85,7 @@
                         href="<%= social['ig'] %>"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-current opacity-80 hover:opacity-100 hover-scale transition-all duration-200"
+                        class="text-current hover:scale-105 transition-transform duration-200"
                         title="Instagram"
                         data-social="instagram"
                     >
@@ -119,7 +98,7 @@
                         href="<%= social['x'] %>"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-current opacity-80 hover:opacity-100 hover-scale transition-all duration-200"
+                        class="text-current hover:scale-105 transition-transform duration-200"
                         title="X (Twitter)"
                         data-social="x"
                     >
@@ -132,7 +111,7 @@
                         href="<%= social['linkedin'] %>"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-current opacity-80 hover:opacity-100 hover-scale transition-all duration-200"
+                        class="text-current hover:scale-105 transition-transform duration-200"
                         title="LinkedIn"
                         data-social="linkedin"
                     >
@@ -145,11 +124,30 @@
                         href="<%= social['tiktok'] %>"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-current opacity-80 hover:opacity-100 hover-scale transition-all duration-200"
+                        class="text-current hover:scale-105 transition-transform duration-200"
                         title="TikTok"
                         data-social="tiktok"
                     >
                         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
+                    </a>
+                <% end %>
+            </div>
+        <% end %>
+        
+        <!-- Links Section (Now appears AFTER social links with reduced margin) -->
+        <% if @links.any? %>
+            <div class="mt-5 space-y-4 grid grid-cols-1">
+                <% @links.each_with_index do |link, index| %>
+                    <a 
+                        href="<%= link.url %>"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-block px-4 py-2 font-bold text-center <%= button_class %> hover-scale transition-all duration-200 shadow-md"
+                        style="background-color: <%= link.color || '#3b82f6' %>; color: <%= button_color %>;"
+                        title="<%= link.description.present? ? link.description : link.title %>"
+                        data-link-id="<%= link.id %>"
+                    >
+                        <%= link.title %>
                     </a>
                 <% end %>
             </div>
@@ -227,3 +225,4 @@
     gtag('js', new Date());
     gtag('config', 'GA_MEASUREMENT_ID');
 </script>
+-->

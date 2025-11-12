@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_11_09_061902) do
+ActiveRecord::Schema[7.2].define(version: 2025_11_12_025843) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -92,7 +92,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_09_061902) do
     t.bigint "subscription_id", null: false
     t.integer "links"
     t.integer "qr_codes"
-    t.integer "pages"
+    t.integer "brand_pages"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "name", default: "Free", null: false
@@ -107,6 +107,20 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_09_061902) do
     t.string "image"
     t.index ["link_id"], name: "index_qr_codes_on_link_id"
     t.index ["user_id"], name: "index_qr_codes_on_user_id"
+  end
+
+  create_table "resources", force: :cascade do |t|
+    t.bigint "page_id", null: false
+    t.string "linkable_type", null: false
+    t.bigint "linkable_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "sort_order", default: 0, null: false
+    t.string "color"
+    t.index ["linkable_type", "linkable_id"], name: "index_resources_on_linkable"
+    t.index ["page_id", "linkable_type", "linkable_id"], name: "index_resources_on_page_and_linkable"
+    t.index ["page_id", "sort_order"], name: "index_resources_on_page_id_and_sort_order"
+    t.index ["page_id"], name: "index_resources_on_page_id"
   end
 
   create_table "subscriptions", force: :cascade do |t|
@@ -146,5 +160,6 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_09_061902) do
   add_foreign_key "plans", "subscriptions"
   add_foreign_key "qr_codes", "links"
   add_foreign_key "qr_codes", "users"
+  add_foreign_key "resources", "brand_pages", column: "page_id"
   add_foreign_key "subscriptions", "users"
 end

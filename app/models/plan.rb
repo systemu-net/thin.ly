@@ -3,9 +3,9 @@
 # Table name: plans
 #
 #  id              :bigint           not null, primary key
+#  brand_pages     :integer
 #  links           :integer
 #  name            :string           default("Free"), not null
-#  pages           :integer
 #  qr_codes        :integer
 #  created_at      :datetime         not null
 #  updated_at      :datetime         not null
@@ -26,7 +26,7 @@ class Plan < ApplicationRecord
   DEFAULT_PLAN = {
     links: 50,
     qr_codes: 5,
-    pages: 1,
+    brand_pages: 1,
     name: "Free"
   }
 
@@ -38,8 +38,8 @@ class Plan < ApplicationRecord
     api_requests.where(logable_type: "QrCode").where("created_at >= ?", 30.days.ago).count
   end
 
-  def pages_created_within_last_30_days
-    api_requests.where(logable_type: "Page").where("created_at >= ?", 30.days.ago).count
+  def brand_pages_created_within_last_30_days
+    api_requests.where(logable_type: "BrandPage").where("created_at >= ?", 30.days.ago).count
   end
 
   def links_limit_exceeded?
@@ -50,7 +50,7 @@ class Plan < ApplicationRecord
     qr_codes_created_within_last_30_days >= qr_codes
   end
 
-  def pages_limit_exceeded?
-    pages_created_within_last_30_days >= pages
+  def brand_pages_limit_exceeded?
+    brand_pages_created_within_last_30_days >= brand_pages
   end
 end

@@ -6,7 +6,7 @@ module Api
 
       def index
         @plan = current_user.plan
-        @features = %i[links qr_codes pages].map do |feature|
+        @features = %i[links qr_codes brand_pages].map do |feature|
           {
             name: feature,
             limit: @plan.send(feature),
