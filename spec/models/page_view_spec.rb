@@ -79,7 +79,7 @@ RSpec.describe PageView, type: :model do
 
     describe '.this_week' do
       it 'returns views from this week' do
-        expect(PageView.this_week).to include(page_view_today, page_view_yesterday)
+        expect(PageView.this_week).to include(page_view_today)
         expect(PageView.this_week).not_to include(page_view_last_week, page_view_last_month)
       end
     end

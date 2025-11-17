@@ -134,8 +134,7 @@
             </div>
         <% end %>
         
-        <!-- Links Section (Now appears AFTER social links with reduced margin) -->
-        <% if @links.any? %>
+        <% if @links && @links.any? %>
             <div class="mt-5 space-y-4 grid grid-cols-1">
                 <% @links.each_with_index do |link, index| %>
                     <a 
@@ -151,6 +150,10 @@
                     </a>
                 <% end %>
             </div>
+        <% else %>
+            <div class="mt-5 text-center text-sm opacity-60">
+                <p>No links added yet</p>
+            </div>
         <% end %>
         
         <!-- Footer -->
@@ -165,54 +168,59 @@
 <!-- Analytics Script -->
 <% if @tracking_enabled %>
 <script>
-  // Track page view
-  fetch('https://app.thin.ly/api/v1/track/view', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      lookup_code: '<%= @page.lookup_code %>'
-    })
-  }).catch(err => console.error('Tracking error:', err));
-  
-  // Track link clicks
-  document.querySelectorAll('a[data-link-id]').forEach(link => {
-    link.addEventListener('click', function(e) {
-      const linkId = this.getAttribute('data-link-id');
-      
-      fetch('https://app.thin.ly/api/v1/track/click', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          link_id: linkId,
-          lookup_code: '<%= @page.lookup_code %>',
-          timestamp: new Date().toISOString()
-        })
-      }).catch(err => console.error('Click tracking error:', err));
+  (function() {
+    const API_BASE = 'https://app.thin.ly';
+    const PAGE_CODE = '<%= @page.lookup_code %>';
+    
+    // Track page view
+    fetch(API_BASE + '/api/v1/track/view', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        lookup_code: PAGE_CODE
+      })
+    }).catch(err => console.error('Tracking error:', err));
+    
+    // Track link clicks
+    document.querySelectorAll('a[data-link-id]').forEach(link => {
+      link.addEventListener('click', function(e) {
+        const linkId = this.getAttribute('data-link-id');
+        
+        fetch(API_BASE + '/api/v1/track/click', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            link_id: linkId,
+            lookup_code: PAGE_CODE,
+            timestamp: new Date().toISOString()
+          })
+        }).catch(err => console.error('Click tracking error:', err));
+      });
     });
-  });
-  
-  // Track social clicks
-  document.querySelectorAll('a[data-social]').forEach(link => {
-    link.addEventListener('click', function(e) {
-      const social = this.getAttribute('data-social');
-      
-      fetch('https://app.thin.ly/api/v1/track/social', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          social_platform: social,
-          lookup_code: '<%= @page.lookup_code %>',
-          timestamp: new Date().toISOString()
-        })
-      }).catch(err => console.error('Social tracking error:', err));
+    
+    // Track social clicks
+    document.querySelectorAll('a[data-social]').forEach(link => {
+      link.addEventListener('click', function(e) {
+        const social = this.getAttribute('data-social');
+        
+        fetch(API_BASE + '/api/v1/track/social', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            social_platform: social,
+            lookup_code: PAGE_CODE,
+            timestamp: new Date().toISOString()
+          })
+        }).catch(err => console.error('Social tracking error:', err));
+      });
     });
-  });
+  })();
 </script>
 <% end %>
 
