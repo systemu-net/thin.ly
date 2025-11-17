@@ -139,21 +139,17 @@ class GithubPagesPublisher
 
   def page_resources
     # Fetch resources with their linkable associations (Links, QR Codes, etc.)
-    resources = @page.resources.includes(:linkable).order(sort_order: :asc)
+    @page_resources ||= @page.draft_version.resources.includes(:linkable).order(sort_order: :asc)
+      .select { |resource| resource.linkable_type == "Link" }.map do |resource|
+        linkable = resource.linkable
 
-    # Convert resources to OpenStruct objects for easier template access
-    resources.map do |resource|
-      linkable = resource.linkable
-
-      # Only include Link type resources for now (can extend to QrCode later)
-      next unless resource.linkable_type == "Link"
-
-      OpenStruct.new(
-        title: linkable.title || "Untitled Link",
-        url: linkable.original_url || "#",
-        color: resource.color || "#3b82f6",
-        description: linkable.description
-      )
-    end.compact
+        OpenStruct.new(
+          id: linkable.id,
+          title: linkable.title || "Untitled Link",
+          url: linkable.original_url || "#",
+          color: resource.color || "#3b82f6",
+          description: linkable.description
+        )
+      end
   end
 end
