@@ -78,8 +78,8 @@ class BrandPage < ApplicationRecord
           content: content,
           status: STATUS_PUBLISHED,
           # Reset published_at and published_url since the worker will update them
-          published_at: nil,
-          published_url: nil
+          # published_at: nil,
+          # published_url: nil
         )
         published_version
       else

@@ -58,7 +58,9 @@ Rails.application.configure do
     authentication: "plain",
     enable_starttls_auto: true,
     open_timeout: 5,
-    read_timeout: 5
+    read_timeout: 5,
+    # Disable SSL verification in development to avoid certificate issues
+    openssl_verify_mode: OpenSSL::SSL::VERIFY_NONE
   }
 
   # Print deprecation notices to the Rails logger.
