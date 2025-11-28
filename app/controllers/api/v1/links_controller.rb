@@ -56,18 +56,20 @@ module Api
           return render json: { errors: @link.errors.full_messages }, status: :unprocessable_entity
         end
 
+        scan_link(@link)
         log_api_request(@link)
         render :create, status: :created
       end
 
       def update
-        # request_body = JSON.parse(request.body.read)
-        # Rails.logger.info "Request Body: #{request_body.inspect}"
-        if @link.update(link_params)
-          render :update, status: :ok
-        else
-          render json: { errors: @link.errors.full_messages }, status: :unprocessable_entity
+        @link.update(link_params)
+
+        if @link.errors.any?
+          return render json: { errors: @link.errors.full_messages }, status: :unprocessable_entity
         end
+
+        scan_link(@link)
+        render :update, status: :ok
       end
 
       def destroy
@@ -96,6 +98,10 @@ module Api
 
       def log_click(link)
         ClickJob.new.perform(link.lookup_code, request.remote_ip, request.user_agent, request.referrer)
+      end
+
+      def scan_link(link)
+        LinkScannerJob.perform_async(link.id)
       end
 
       def set_link

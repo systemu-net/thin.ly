@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #d32f2f;">Security Alert: Threat Detected</h2>
+    
+    <p>Hello <%= @user.email || 'there' %>,</p>
+    
+    <p>We've detected a security threat in one of your links on thin.ly.</p>
+    
+    <div style="background: #f5f5f5; padding: 15px; border-left: 4px solid #d32f2f; margin: 20px 0;">
+      <h3 style="margin-top: 0;">Link Details:</h3>
+      <p><strong>Title:</strong> <%= @link.title %></p>
+      <p><strong>URL:</strong> <%= @link.original_url %></p>
+      <p><strong>Short Code:</strong> <%= @link.lookup_code %></p>
+    </div>
+    
+    <div style="background: #fff3cd; padding: 15px; border-left: 4px solid #ffc107; margin: 20px 0;">
+      <h3 style="margin-top: 0; color: #856404;">Threat Information:</h3>
+      <p><strong>Severity:</strong> <span style="color: <%= @detection.severity == 'HIGH' ? '#d32f2f' : '#ff9800' %>;"><%= @detection.severity %></span></p>
+      <p><strong>Threat Types:</strong> <%= @detection.threat_types_humanized %></p>
+      <p><strong>Detected At:</strong> <%= @detection.created_at.strftime('%B %d, %Y at %I:%M %p') %></p>
+    </div>
+    
+    <h3>What This Means:</h3>
+    <ul>
+      <% if @detection.threat_types.include?('MALWARE') %>
+        <li><strong>Malware:</strong> This link may contain or lead to malicious software</li>
+      <% end %>
+      <% if @detection.threat_types.include?('SOCIAL_ENGINEERING') %>
+        <li><strong>Social Engineering:</strong> This link may be a phishing attempt or deceptive site</li>
+      <% end %>
+      <% if @detection.threat_types.include?('UNWANTED_SOFTWARE') %>
+        <li><strong>Unwanted Software:</strong> This link may lead to unwanted software downloads</li>
+      <% end %>
+    </ul>
+    
+    <h3>What Happens Next:</h3>
+    <p>For your safety and the safety of our users, this link has been <strong>automatically deactivated</strong>. It will not redirect users until the threat is resolved.</p>
+    
+    <h3>What You Can Do:</h3>
+    <ul>
+      <li>Verify the destination URL is correct and safe</li>
+      <li>If you believe this is a false positive, contact our support team</li>
+      <li>Update the URL to point to a safe destination</li>
+      <li>Delete the link if it's no longer needed</li>
+    </ul>
+    
+    <p style="margin-top: 30px;">
+      <%= link_to 'View Link Details', api_v1_link_url(@link), style: 'background: #1976d2; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;' %>
+    </p>
+    
+    <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
+      Questions? Contact us at support@thin.ly or reply to this email.
+    </p>
+  </div>
+</body>
+</html>

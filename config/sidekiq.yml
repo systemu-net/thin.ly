@@ -1,0 +1,9 @@
+:queues:
+  - default
+  - safe_browsing
+  - mailers
+
+:max_retries: 3
+
+:safe_browsing:
+  :concurrency: 5

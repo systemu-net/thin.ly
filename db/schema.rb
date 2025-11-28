@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_11_12_025843) do
+ActiveRecord::Schema[7.2].define(version: 2025_11_23_081113) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -62,6 +62,12 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_12_025843) do
     t.bigint "user_id", null: false
     t.string "title"
     t.text "description"
+    t.boolean "is_safe"
+    t.datetime "last_scanned_at"
+    t.integer "scan_failures", default: 0
+    t.index ["is_safe", "last_scanned_at"], name: "index_links_on_is_safe_and_last_scanned_at"
+    t.index ["is_safe"], name: "index_links_on_is_safe"
+    t.index ["last_scanned_at"], name: "index_links_on_last_scanned_at"
     t.index ["user_id"], name: "index_links_on_user_id"
   end
 
@@ -134,6 +140,24 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_12_025843) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["user_id"], name: "index_subscriptions_on_user_id"
+  end
+
+  create_table "threat_detections", force: :cascade do |t|
+    t.string "detectable_type", null: false
+    t.bigint "detectable_id", null: false
+    t.string "url", null: false
+    t.json "threat_types", default: []
+    t.json "platform_types", default: []
+    t.string "severity"
+    t.string "status", default: "active"
+    t.text "notes"
+    t.datetime "resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_threat_detections_on_created_at"
+    t.index ["detectable_type", "detectable_id", "status"], name: "idx_on_detectable_type_detectable_id_status_ac4e47f857"
+    t.index ["detectable_type", "detectable_id"], name: "index_threat_detections_on_detectable"
+    t.index ["status"], name: "index_threat_detections_on_status"
   end
 
   create_table "users", force: :cascade do |t|
