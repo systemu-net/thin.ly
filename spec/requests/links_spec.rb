@@ -29,6 +29,10 @@ RSpec.describe "Links", type: :request do
   describe "POST /api/v1/links" do
     let(:user) { create(:user) }
 
+    before do
+      allow(LinkScannerJob).to receive(:perform_async).and_return(true)
+    end
+
     it "returns http success" do
       sign_in(user)
       post "/api/v1/links", params: { link: { original_url: 'https://www.thin.ly/example' } }

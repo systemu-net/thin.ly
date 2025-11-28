@@ -8,6 +8,7 @@ RSpec.describe Api::V1::LinksController, type: :controller do
 
   before do
     allow(Stripe::Customer).to receive(:create).and_return(double(id: stripe_customer_id))
+    allow(LinkScannerJob).to receive(:perform_async).and_return(true)
   end
 
   it 'can shorten a link provided by the user' do
