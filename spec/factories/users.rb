@@ -9,6 +9,7 @@
 #  remember_created_at    :datetime
 #  reset_password_sent_at :datetime
 #  reset_password_token   :string
+#  terms_accepted         :boolean          default(FALSE), not null
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
 #  stripe_id              :string
@@ -23,6 +24,7 @@ FactoryBot.define do
   factory :user do
     sequence(:email) { |n| "testuser#{n}@example.com" }
     password { 'password123' }
+    terms_accepted { true }
 
     # Skip the Stripe customer creation in tests
     after(:build) { |user| user.define_singleton_method(:create_stripe_customer) { true } }
