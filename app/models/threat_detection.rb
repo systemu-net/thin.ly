@@ -1,3 +1,27 @@
+# == Schema Information
+#
+# Table name: threat_detections
+#
+#  id              :bigint           not null, primary key
+#  detectable_type :string           not null
+#  notes           :text
+#  platform_types  :json
+#  resolved_at     :datetime
+#  severity        :string
+#  status          :string           default("active")
+#  threat_types    :json
+#  url             :string           not null
+#  created_at      :datetime         not null
+#  updated_at      :datetime         not null
+#  detectable_id   :bigint           not null
+#
+# Indexes
+#
+#  idx_on_detectable_type_detectable_id_status_ac4e47f857  (detectable_type,detectable_id,status)
+#  index_threat_detections_on_created_at                   (created_at)
+#  index_threat_detections_on_detectable                   (detectable_type,detectable_id)
+#  index_threat_detections_on_status                       (status)
+#
 class ThreatDetection < ApplicationRecord
   belongs_to :detectable, polymorphic: true
 

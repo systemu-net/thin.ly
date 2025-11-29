@@ -30,6 +30,11 @@ module Api
 
       def lookup_code
         if @link
+          # Block unsafe links and show warning page
+          if @link.is_safe == false
+            return redirect_to unsafe_link_path
+          end
+
           Rails.logger.debug("Redirecting to: #{@link.original_url}")
           log_click(@link)
           redirect_to @link.original_url, allow_other_host: true
