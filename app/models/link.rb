@@ -3,6 +3,7 @@
 # Table name: links
 #
 #  id              :bigint           not null, primary key
+#  clicks_count    :integer          default(0), not null
 #  description     :text
 #  is_safe         :boolean
 #  last_scanned_at :datetime

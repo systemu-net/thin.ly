@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_11_23_081113) do
+ActiveRecord::Schema[7.2].define(version: 2025_11_28_194440) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -65,6 +65,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_23_081113) do
     t.boolean "is_safe"
     t.datetime "last_scanned_at"
     t.integer "scan_failures", default: 0
+    t.integer "clicks_count", default: 0, null: false
     t.index ["is_safe", "last_scanned_at"], name: "index_links_on_is_safe_and_last_scanned_at"
     t.index ["is_safe"], name: "index_links_on_is_safe"
     t.index ["last_scanned_at"], name: "index_links_on_last_scanned_at"

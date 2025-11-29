@@ -20,5 +20,5 @@
 #  fk_rails_...  (link_id => links.id)
 #
 class Click < ApplicationRecord
-  belongs_to :link
+  belongs_to :link, counter_cache: true
 end

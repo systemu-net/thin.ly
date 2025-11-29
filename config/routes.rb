@@ -74,6 +74,7 @@ Rails.application.routes.draw do
   #   post "webhooks", to: "stripe/webhooks#create"
   # end
 
+  get "/unsafe-link", to: "static#unsafe_link", as: :unsafe_link
   get "/:lookup_code" => "api/v1/links#lookup_code", as: :lookup_code, constraints: { lookup_code: /[a-zA-Z0-9]{7}/ }
   match "*ui", to: "static#ui", via: :get, constraints: ->(request) { request.format.html? && !request.path.start_with?("/api/") }
   match "*path", to: "static#not_found", via: :all
