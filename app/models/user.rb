@@ -9,6 +9,7 @@
 #  remember_created_at    :datetime
 #  reset_password_sent_at :datetime
 #  reset_password_token   :string
+#  terms_accepted         :boolean          default(FALSE), not null
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
 #  stripe_id              :string
@@ -37,6 +38,12 @@ class User < ApplicationRecord
   before_validation :create_stripe_customer, on: :create
   before_commit :create_default_subscription, on: :create
   after_destroy :delete_stripe_customer
+
+  # Persisted column `terms_accepted` records explicit acceptance of terms.
+  # Validate terms acceptance on signup — require boolean `true` on create.
+  validates :terms_accepted,
+            acceptance: { accept: true, message: "must be accepted" },
+            on: :create
 
   def retrieve_stripe_customer
     Stripe::Customer.retrieve(stripe_id)
