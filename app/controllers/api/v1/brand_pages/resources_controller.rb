@@ -18,7 +18,7 @@ module Api
                 sort_order: resource.sort_order,
                 color: resource.color,
                 linkable_type: resource.linkable_type,
-                linkable: resource.linkable.as_json(only: [ :id, :lookup_code, :original_url, :title, :description, :created_at, :updated_at ])
+                linkable: resource.linkable.as_json(only: [ :id, :lookup_code, :original_url, :title, :description, :created_at, :updated_at, :is_safe, :clicks_count ])
               }
             end
           }, status: :ok
@@ -55,7 +55,7 @@ module Api
                 sort_order: @resource.sort_order,
                 color: @resource.color,
                 linkable_type: @resource.linkable_type,
-                linkable: @link.as_json(only: [ :id, :lookup_code, :original_url, :title, :description, :created_at, :updated_at ])
+                linkable: @link.as_json(only: [ :id, :lookup_code, :original_url, :title, :description, :created_at, :updated_at, :is_safe, :clicks_count ])
               }
             }, status: :created
           end
@@ -81,7 +81,7 @@ module Api
                 sort_order: resource.sort_order,
                 color: resource.color,
                 linkable_type: resource.linkable_type,
-                linkable: resource.linkable.as_json(only: [ :id, :lookup_code, :original_url, :title, :description, :created_at, :updated_at ])
+                linkable: resource.linkable.as_json(only: [ :id, :lookup_code, :original_url, :title, :description, :created_at, :updated_at, :is_safe, :clicks_count ])
               }
             end
           }, status: :ok
@@ -103,7 +103,7 @@ module Api
                 sort_order: @resource.sort_order,
                 color: @resource.color,
                 linkable_type: @resource.linkable_type,
-                linkable: @resource.linkable.as_json(only: [ :id, :lookup_code, :original_url, :title, :description, :created_at, :updated_at ])
+                linkable: @resource.linkable.as_json(only: [ :id, :lookup_code, :original_url, :title, :description, :created_at, :updated_at, :is_safe, :clicks_count ])
               }
             }, status: :ok
           else

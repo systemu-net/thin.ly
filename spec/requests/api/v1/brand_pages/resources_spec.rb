@@ -40,6 +40,20 @@ RSpec.describe "Api::V1::BrandPages::Resources", type: :request do
         json_response = JSON.parse(response.body)
         expect(json_response['resources']).to be_empty
       end
+
+      it "includes is_safe and clicks_count in the response" do
+        link = create(:link, user: user, original_url: "https://example.com", is_safe: true)
+        create_list(:click, 5, link: link)
+        create(:resource, page: brand_page, linkable: link, sort_order: 0)
+
+        get "/api/v1/brand_pages/#{brand_page.lookup_code}/resources"
+
+        expect(response).to have_http_status(:ok)
+        json_response = JSON.parse(response.body)
+        resource = json_response['resources'].first
+        expect(resource['linkable']['is_safe']).to eq(true)
+        expect(resource['linkable']['clicks_count']).to eq(5)
+      end
     end
 
     context "when user is not authenticated" do
@@ -91,6 +105,20 @@ RSpec.describe "Api::V1::BrandPages::Resources", type: :request do
 
         json_response = JSON.parse(response.body)
         expect(json_response['resource']['sort_order']).to eq(6)
+      end
+
+      it "includes is_safe and clicks_count in created resource" do
+        post "/api/v1/brand_pages/#{brand_page.lookup_code}/resources", params: {
+          link: {
+            original_url: "https://example.com",
+            title: "Example Link"
+          }
+        }
+
+        expect(response).to have_http_status(:created)
+        json_response = JSON.parse(response.body)
+        expect(json_response['resource']['linkable']).to have_key('is_safe')
+        expect(json_response['resource']['linkable']['clicks_count']).to eq(0)
       end
 
       it "allows custom sort_order" do
@@ -159,6 +187,22 @@ RSpec.describe "Api::V1::BrandPages::Resources", type: :request do
 
         expect(response).to have_http_status(:not_found)
       end
+
+      it "includes is_safe and clicks_count in reordered resources" do
+        link = create(:link, user: user, is_safe: false)
+        create_list(:click, 3, link: link)
+        resource = create(:resource, page: brand_page, linkable: link, sort_order: 0)
+
+        patch "/api/v1/brand_pages/#{brand_page.lookup_code}/resources/reorder", params: {
+          resources: [ { id: resource.id, sort_order: 1 } ]
+        }
+
+        expect(response).to have_http_status(:ok)
+        json_response = JSON.parse(response.body)
+        returned_resource = json_response['resources'].first
+        expect(returned_resource['linkable']['is_safe']).to eq(false)
+        expect(returned_resource['linkable']['clicks_count']).to eq(3)
+      end
     end
   end
 
@@ -194,6 +238,21 @@ RSpec.describe "Api::V1::BrandPages::Resources", type: :request do
 
         expect(response).to have_http_status(:ok)
         expect(resource.reload.sort_order).to eq(5)
+      end
+
+      it "includes is_safe and clicks_count in updated resource" do
+        link = create(:link, user: user, original_url: "https://old.com", is_safe: true)
+        create_list(:click, 7, link: link)
+        resource = create(:resource, page: brand_page, linkable: link, sort_order: 1)
+
+        patch "/api/v1/brand_pages/#{brand_page.lookup_code}/resources/#{resource.id}", params: {
+          link: { title: "Updated Title" }
+        }
+
+        expect(response).to have_http_status(:ok)
+        json_response = JSON.parse(response.body)
+        expect(json_response['resource']['linkable']['is_safe']).to eq(true)
+        expect(json_response['resource']['linkable']['clicks_count']).to eq(7)
       end
     end
   end
