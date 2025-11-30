@@ -17,8 +17,9 @@ RSpec.describe "Link Redirection", type: :request do
     expect(response).to redirect_to(link.original_url)
   end
 
-  it 'returns a 404 for a short link that does not exist' do
+  it 'redirects to link not found page for a short link that does not exist' do
     get "/1234567"
-    expect(response).to have_http_status(:not_found)
+    expect(response).to have_http_status(:found)
+    expect(response).to redirect_to(link_not_found_path)
   end
 end

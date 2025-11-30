@@ -3,7 +3,8 @@ module Api
     class LinksController < ApplicationController
       before_action :authenticate_user!, only: %i[index search show create update destroy]
       skip_before_action :verify_authenticity_token
-      before_action :set_link, only: %i[lookup_code show update destroy]
+      before_action :set_link, only: %i[show update destroy]
+      before_action :set_link_for_lookup, only: %i[lookup_code]
       before_action :check_link_authorization, only: %i[show update destroy]
       before_action :check_api_limit, only: %i[create]
 
@@ -39,7 +40,7 @@ module Api
           log_click(@link)
           redirect_to @link.original_url, allow_other_host: true
         else
-          render json: { error: "Link not found" }, status: :not_found
+          redirect_to link_not_found_path
         end
       end
 
@@ -113,6 +114,11 @@ module Api
         @link = Link.find_by(lookup_code: params[:lookup_code])
 
         render json: { error: "Link not found" }, status: :not_found unless @link
+      end
+
+      def set_link_for_lookup
+        @link = Link.find_by(lookup_code: params[:lookup_code])
+        # Don't render anything here - let lookup_code action handle the response
       end
     end
   end
