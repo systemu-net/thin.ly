@@ -29,6 +29,13 @@ Rails.application.routes.draw do
 
       resources :qr_codes, only: %i[index create show destroy]
 
+      # User profile and avatar management
+      resource :user, only: %i[show update] do
+        # Avatar routes without format constraints to allow multipart/form-data
+        patch :avatar, action: :update_avatar, defaults: { format: nil }
+        delete :avatar, action: :destroy_avatar, defaults: { format: nil }
+      end
+
       resources :subscriptions, only: %i[index create destroy]
 
       resources :brand_pages, param: :lookup_code do
