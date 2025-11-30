@@ -289,11 +289,23 @@ RSpec.describe "Links", type: :request do
     end
 
     context "when link does not exist" do
-      it "returns not found" do
+      it "redirects to link not found page" do
         get "/abc1234"  # 7-character lookup code that doesn't exist
 
-        expect(response).to have_http_status(:not_found)
+        expect(response).to have_http_status(:found)
+        expect(response).to redirect_to(link_not_found_path)
       end
+    end
+  end
+
+  describe "GET /link-not-found" do
+    it "renders the link not found page" do
+      get "/link-not-found"
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.body).to include('thin.ly')
+      expect(response.body).to include('Link Not Found')
+      expect(response.body).to include('deleted by its creator')
     end
   end
 

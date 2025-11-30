@@ -75,6 +75,7 @@ Rails.application.routes.draw do
   # end
 
   get "/unsafe-link", to: "static#unsafe_link", as: :unsafe_link
+  get "/link-not-found", to: "static#link_not_found", as: :link_not_found
   get "/:lookup_code" => "api/v1/links#lookup_code", as: :lookup_code, constraints: { lookup_code: /[a-zA-Z0-9]{7}/ }
   match "*ui", to: "static#ui", via: :get, constraints: ->(request) { request.format.html? && !request.path.start_with?("/api/") }
   match "*path", to: "static#not_found", via: :all

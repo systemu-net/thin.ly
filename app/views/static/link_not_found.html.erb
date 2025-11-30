@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Link Not Found - thin.ly</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+      text-align: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 600px;
+      padding: 2rem;
+    }
+
+    .logo {
+      font-size: 3rem;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    .icon {
+      font-size: 5rem;
+      margin: 2rem 0;
+      filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin: 1rem 0;
+      font-weight: 600;
+    }
+
+    .message {
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin: 2rem 0;
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .message p {
+      font-size: 1.1rem;
+      line-height: 1.6;
+      margin: 0.5rem 0;
+    }
+
+    .reasons {
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1.5rem 0;
+      text-align: left;
+    }
+
+    .reasons strong {
+      display: block;
+      margin-bottom: 0.75rem;
+      font-size: 1.1rem;
+      text-align: center;
+    }
+
+    .reasons ul {
+      margin: 0;
+      padding-left: 1.5rem;
+      line-height: 1.8;
+    }
+
+    .reasons li {
+      margin: 0.5rem 0;
+    }
+
+    .footer {
+      margin-top: 3rem;
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+
+    a {
+      color: #fff;
+      text-decoration: underline;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 0.75rem 1.5rem;
+      background-color: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 500;
+      margin-top: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    .btn:hover {
+      background-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .code {
+      display: inline-block;
+      background-color: rgba(0, 0, 0, 0.2);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.95em;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <img src="https://raw.githubusercontent.com/systemu-net/thin.ly/refs/heads/develop/public/404.png" alt="404 - Page Not Found" style="max-width: 100%; height: auto; margin-bottom: 2rem;">
+    
+    <div class="message">
+      <p>We couldn't find the short link you're looking for.</p>
+      
+      <div class="reasons">
+        <strong>Possible reasons:</strong>
+        <ul>
+          <li>The link may have been deleted by its creator</li>
+          <li>The link might have expired</li>
+          <li>There may be a typo in the URL</li>
+          <li>The link never existed</li>
+        </ul>
+      </div>
+      
+      <p>If you believe this link should exist, please contact the person who shared it with you.</p>
+    </div>
+
+    <a href="/" class="btn">Go to thin.ly Home</a>
+    
+    <div class="footer">
+      <p>Want to create your own short links?</p>
+      <p><a href="/">Sign up for <strong>thin.ly</strong></a> - Free and simple URL shortening</p>
+    </div>
+  </div>
+</body>
+</html>

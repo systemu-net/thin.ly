@@ -6,6 +6,10 @@ class StaticController < ApplicationController
     render "static/unsafe_link", status: :forbidden, layout: false
   end
 
+  def link_not_found
+    render "static/link_not_found", status: :not_found, layout: false
+  end
+
   def not_found
     render file: Rails.root.join("public", "404.html"), status: :not_found, layout: false
   end
