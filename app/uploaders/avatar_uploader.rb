@@ -1,52 +1,77 @@
 class AvatarUploader < CarrierWave::Uploader::Base
-  # Include RMagick or MiniMagick support:
-  # include CarrierWave::RMagick
-  # include CarrierWave::MiniMagick
+  # Include MiniMagick for image processing
+  include CarrierWave::MiniMagick
 
-  # Choose what kind of storage to use for this uploader:
-  # storage :file
   # Storage is configured globally in config/initializers/carrierwave.rb
   # Test environment uses :file, production/development uses :fog (S3)
 
   # Override the directory where uploaded files will be stored.
-  # This is a sensible default for uploaders that are meant to be mounted:
   def store_dir
     "uploads/#{model.class.to_s.underscore}/#{mounted_as}/#{model.id}"
   end
 
-  # Provide a default URL as a default if there hasn't been a file uploaded:
-  # def default_url(*args)
-  #   # For Rails 3.1+ asset pipeline compatibility:
-  #   # ActionController::Base.helpers.asset_path("fallback/" + [version_name, "default.png"].compact.join('_'))
-  #
-  #   "/images/fallback/" + [version_name, "default.png"].compact.join('_')
-  # end
+  # Process images: resize first, then convert to WebP and optimize
+  process resize_to_fill: [ 400, 400 ]  # Square avatar, 400x400px
+  process :convert_and_optimize
 
-  # Process files as they are uploaded:
-  # process scale: [200, 300]
-  #
-  # def scale(width, height)
-  #   # do something
-  # end
-
-  # Create different versions of your uploaded files:
-  # version :thumb do
-  #   process resize_to_fit: [50, 50]
-  # end
+  # Create thumbnail version for faster loading in lists/navigation
+  version :thumb do
+    process resize_to_fill: [ 100, 100 ]
+  end
 
   # Add an allowlist of extensions which are allowed to be uploaded.
-  # For images you might use something like this:
   def extension_allowlist
-    %w[jpg jpeg gif png webp]
+    %w[jpg jpeg gif png webp heic heif]
   end
 
-  # Override the filename of the uploaded files:
-  # Avoid using model.id or version_name here, see uploader/store.rb for details.
+  # Content type allowlist
+  def content_type_allowlist
+    /image\//
+  end
+
+  # File size limit (5MB)
+  def size_range
+    1..5.megabytes
+  end
+
+  # Override the filename to always use .webp extension
   def filename
-    "avatar_#{secure_token}.#{file.extension}"
+    "avatar.webp"
   end
 
-  protected
+  # Set correct content type for S3
+  def fog_attributes
+    {
+      "Content-Type" => "image/webp",
+      "Cache-Control" => "public, max-age=#{365.days.to_i}"
+    }
+  end
+
+  # Override content type to always be webp
+  def content_type
+    "image/webp"
+  end
+
+  private
+
+  # Convert image to WebP format and optimize
+  def convert_and_optimize
+    manipulate! do |img|
+      # Auto-orient based on EXIF data (important for mobile photos)
+      img.auto_orient
+
+      # Convert to WebP
+      img.format("webp")
+
+      # Strip metadata
+      img.strip
+
+      # Set quality
+      img.quality(85)
+
+      img
+    end
+  end
 
   def secure_token
     var = :"@#{mounted_as}_secure_token"
