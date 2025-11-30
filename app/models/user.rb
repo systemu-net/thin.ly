@@ -3,6 +3,7 @@
 # Table name: users
 #
 #  id                     :bigint           not null, primary key
+#  avatar                 :string
 #  email                  :string           default(""), not null
 #  encrypted_password     :string           default(""), not null
 #  jti                    :string           not null
@@ -35,7 +36,10 @@ class User < ApplicationRecord
   has_many :plans, through: :subscriptions
   has_many :brand_pages, dependent: :destroy
 
+  mount_uploader :avatar, AvatarUploader
+
   before_validation :create_stripe_customer, on: :create
+  before_validation :generate_default_avatar, on: :create, if: -> { avatar.blank? }
   before_commit :create_default_subscription, on: :create
   after_destroy :delete_stripe_customer
 
@@ -78,6 +82,18 @@ class User < ApplicationRecord
       subscriptions.create(
         customer_id: stripe_id
       )
+    end
+  end
+
+  def generate_default_avatar
+    return if avatar.present?
+
+    begin
+      generator = JdenticonGenerator.new(email)
+      self.avatar = generator.generate
+    rescue => e
+      Rails.logger.error "Failed to generate avatar for user #{email}: #{e.message}"
+      # Don't fail user creation if avatar generation fails
     end
   end
 end

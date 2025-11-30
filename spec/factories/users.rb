@@ -3,6 +3,7 @@
 # Table name: users
 #
 #  id                     :bigint           not null, primary key
+#  avatar                 :string
 #  email                  :string           default(""), not null
 #  encrypted_password     :string           default(""), not null
 #  jti                    :string           not null
@@ -27,6 +28,24 @@ FactoryBot.define do
     terms_accepted { true }
 
     # Skip the Stripe customer creation in tests
-    after(:build) { |user| user.define_singleton_method(:create_stripe_customer) { true } }
+    after(:build) do |user|
+      user.define_singleton_method(:create_stripe_customer) { true }
+      # Skip avatar generation in tests by default for performance
+      user.define_singleton_method(:generate_default_avatar) { true }
+    end
+
+    trait :with_avatar do
+      avatar { Rack::Test::UploadedFile.new(Rails.root.join('spec', 'fixtures', 'files', 'test_avatar.jpg'), 'image/jpeg') }
+    end
+
+    trait :with_generated_avatar do
+      # Allow avatar generation for this user
+      after(:build) do |user|
+        user.define_singleton_method(:generate_default_avatar) do
+          generator = JdenticonGenerator.new(user.email)
+          user.avatar = generator.generate
+        end
+      end
+    end
   end
 end

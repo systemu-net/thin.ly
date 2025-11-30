@@ -253,9 +253,7 @@ GEM
       logger
       mime-types-data (~> 3.2025, >= 3.2025.0507)
     mime-types-data (3.2025.0924)
-    mini_magick (5.2.0)
-      benchmark
-      logger
+    mini_magick (4.13.2)
     mini_mime (1.1.5)
     mini_portile2 (2.8.9)
     minitest (5.26.0)
@@ -554,6 +552,7 @@ DEPENDENCIES
   google-apis-safebrowsing_v4 (~> 0.21.0)
   importmap-rails
   jbuilder
+  mini_magick (~> 4.13)
   octokit (~> 10.0)
   ostruct (~> 0.6.3)
   pg (~> 1.6)
