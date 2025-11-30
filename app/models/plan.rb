@@ -25,7 +25,7 @@ class Plan < ApplicationRecord
 
   DEFAULT_PLAN = {
     links: 50,
-    qr_codes: 5,
+    qr_codes: 50,
     brand_pages: 1,
     name: "Free"
   }

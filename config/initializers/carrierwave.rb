@@ -20,5 +20,9 @@ unless Rails.env.test?
     config.fog_use_ssl_for_aws = false
     config.storage = :fog
     config.fog_directory = ENV["S3_BUCKET"] || Rails.application.credentials.fetch(:s3_bucket)
+    config.fog_attributes = {
+      "Cache-Control" => "max-age=#{365.days.to_i}",
+      "Expires" => 1.year.from_now.httpdate
+    }
   end
 end
