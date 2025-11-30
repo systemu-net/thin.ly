@@ -52,7 +52,7 @@ Rails.application.configure do
   config.action_mailer.smtp_settings = {
     address: "smtp.mailgun.org",
     port: 587,
-    domain: "mail.thin.ly",
+    domain: "thin.ly",
     user_name: Rails.application.credentials.dig(:smtp_user_name),
     password: Rails.application.credentials.dig(:smtp_password),
     authentication: "plain",
