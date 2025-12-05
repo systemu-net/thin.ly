@@ -2,12 +2,13 @@
 #
 # Table name: qr_codes
 #
-#  id         :bigint           not null, primary key
-#  image      :string
-#  created_at :datetime         not null
-#  updated_at :datetime         not null
-#  link_id    :bigint           not null
-#  user_id    :bigint           not null
+#  id          :bigint           not null, primary key
+#  image       :string
+#  scans_count :integer          default(0), not null
+#  created_at  :datetime         not null
+#  updated_at  :datetime         not null
+#  link_id     :bigint           not null
+#  user_id     :bigint           not null
 #
 # Indexes
 #
@@ -23,5 +24,6 @@ FactoryBot.define do
   factory :qr_code do
     link { nil }
     user { nil }
+    image { Rack::Test::UploadedFile.new(Rails.root.join('spec/fixtures/files/test_avatar.jpg'), 'image/jpeg') }
   end
 end
