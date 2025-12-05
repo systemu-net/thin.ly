@@ -2,12 +2,13 @@
 #
 # Table name: qr_codes
 #
-#  id         :bigint           not null, primary key
-#  image      :string
-#  created_at :datetime         not null
-#  updated_at :datetime         not null
-#  link_id    :bigint           not null
-#  user_id    :bigint           not null
+#  id          :bigint           not null, primary key
+#  image       :string
+#  scans_count :integer          default(0), not null
+#  created_at  :datetime         not null
+#  updated_at  :datetime         not null
+#  link_id     :bigint           not null
+#  user_id     :bigint           not null
 #
 # Indexes
 #
@@ -25,6 +26,7 @@ class QrCode < ApplicationRecord
   has_many :api_requests, as: :logable, dependent: :destroy
   has_many :resources, as: :linkable, dependent: :destroy
   has_many :brand_pages, through: :resources, source: :page
+  has_many :scans, -> { where(source: "qr") }, through: :link, source: :clicks
 
   validates :user_id, uniqueness: { scope: :link_id }
   validates :image, presence: true

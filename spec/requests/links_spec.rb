@@ -61,6 +61,7 @@ RSpec.describe "Links", type: :request do
 
     before do
       allow(LinkScannerJob).to receive(:perform_async).and_return(true)
+      allow(QrCodeGeneratorJob).to receive(:perform_async).and_return(true)
     end
 
     it "returns http success" do

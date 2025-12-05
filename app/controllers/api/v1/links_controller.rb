@@ -63,6 +63,7 @@ module Api
         end
 
         scan_link(@link)
+        generate_qr_code(@link)
         log_api_request(@link)
         render :create, status: :created
       end
@@ -103,11 +104,17 @@ module Api
       end
 
       def log_click(link)
-        ClickJob.new.perform(link.lookup_code, request.remote_ip, request.user_agent, request.referrer)
+        # Capture the 'r' parameter to track source (e.g., ?r=qr for QR code scans)
+        source = params[:r]
+        ClickJob.new.perform(link.lookup_code, request.remote_ip, request.user_agent, request.referrer, source)
       end
 
       def scan_link(link)
         LinkScannerJob.perform_async(link.id)
+      end
+
+      def generate_qr_code(link)
+        QrCodeGeneratorJob.perform_async(link.id)
       end
 
       def set_link

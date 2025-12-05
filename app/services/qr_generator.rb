@@ -28,7 +28,9 @@ class QrGenerator
   end
 
   def qr_code_svg
-    qr_code = RQRCode::QRCode.new(link.shortened_url)
+    # Add ?r=qr query parameter to track QR code scans
+    qr_code_url = "#{link.shortened_url}?r=qr"
+    qr_code = RQRCode::QRCode.new(qr_code_url)
 
     # Convert QR code to PNG
     png_data = qr_code.as_png(

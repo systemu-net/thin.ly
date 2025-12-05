@@ -8,6 +8,7 @@ module Api
 
       def index
         @qr_codes = current_user.qr_codes
+          .includes(:link)
           .order(created_at: :desc)
 
         render :index, status: :ok
@@ -60,7 +61,7 @@ module Api
       end
 
       def set_qr_code
-        @qr_code = current_user.qr_codes.find_by_id(params[:id])
+        @qr_code = current_user.qr_codes.includes(:link).find_by_id(params[:id])
 
         render json: { error: "Qr Code is not found" }, status: :not_found unless @qr_code
       end

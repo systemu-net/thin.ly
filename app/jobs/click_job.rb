@@ -5,14 +5,19 @@ class ClickJob
   include Sidekiq::Job
   queue_as :default
 
-  def perform(lookup_code, ip_address, user_agent, referrer)
+  def perform(lookup_code, ip_address, user_agent, referrer, source = nil)
     link = Link.find_by(lookup_code: lookup_code)
-    link.clicks.create(
+    click_attributes = {
       ip_address: ip_address,
       user_agent: user_agent,
       referrer: referrer,
       country: fetch_country(ip_address)
-    )
+    }
+
+    # Add source if it exists (e.g., 'qr' for QR code scans)
+    click_attributes[:source] = source if source.present?
+
+    link.clicks.create(click_attributes)
   end
 
   private

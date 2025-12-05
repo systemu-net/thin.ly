@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_11_30_172855) do
+ActiveRecord::Schema[7.2].define(version: 2025_12_05_225634) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -51,7 +51,9 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_30_172855) do
     t.string "country"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "source"
     t.index ["link_id"], name: "index_clicks_on_link_id"
+    t.index ["source"], name: "index_clicks_on_source"
   end
 
   create_table "links", force: :cascade do |t|
@@ -112,6 +114,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_11_30_172855) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "image"
+    t.integer "scans_count", default: 0, null: false
     t.index ["link_id"], name: "index_qr_codes_on_link_id"
     t.index ["user_id"], name: "index_qr_codes_on_user_id"
   end
