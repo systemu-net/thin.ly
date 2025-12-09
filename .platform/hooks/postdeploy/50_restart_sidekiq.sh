@@ -72,12 +72,13 @@ sleep 3
 echo "Starting Sidekiq..."
 logger -t "sidekiq" "Starting Sidekiq in ${RACK_ENV:-production} environment"
 
+# Use nohup with background process instead of -d flag
 su -s /bin/bash -c "cd $EB_APP_DEPLOY_DIR && \
-  bundle exec sidekiq \
+  nohup bundle exec sidekiq \
   -e ${RACK_ENV:-production} \
   -C $SIDEKIQ_CONFIG \
   -P $SIDEKIQ_PID \
-  -d >> $SIDEKIQ_LOG 2>&1" $EB_APP_USER
+  >> $SIDEKIQ_LOG 2>&1 &" $EB_APP_USER
 
 # Verify startup
 sleep 2
