@@ -1,9 +1,11 @@
 # config/initializers/cors.rb
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
-  # Health check endpoint - no origin restrictions
+  # Health check endpoint - unrestricted for ELB health checks
   allow do
     origins "*"
-    resource "/health", headers: :any, methods: [ :get ]
+    resource "/up",
+      headers: :any,
+      methods: [ :get, :head, :options ]
   end
 
   allow do
@@ -13,7 +15,8 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
       ENV["DEV_HOST"],
       "https://thin.ly",
       "https://www.thin.ly",
-      "https://app.thin.ly"
+      "https://app.thin.ly",
+      /.*\.elasticbeanstalk\.com$/ # Allow EB URLs
     )
     resource(
       "*",
