@@ -72,16 +72,15 @@ sleep 3
 echo "Starting Sidekiq..."
 logger -t "sidekiq" "Starting Sidekiq in ${RACK_ENV:-production} environment"
 
-# Use nohup with background process instead of -d flag
+# Sidekiq 8.0 removed -L and -P options, manage PID manually
 su -s /bin/bash -c "cd $EB_APP_DEPLOY_DIR && \
   nohup bundle exec sidekiq \
   -e ${RACK_ENV:-production} \
   -C $SIDEKIQ_CONFIG \
-  -P $SIDEKIQ_PID \
-  >> $SIDEKIQ_LOG 2>&1 &" $EB_APP_USER
+  >> $SIDEKIQ_LOG 2>&1 & echo \$! > $SIDEKIQ_PID" $EB_APP_USER
 
-# Verify startup
-sleep 2
+# Wait for process to initialize
+sleep 3
 if [ -f "$SIDEKIQ_PID" ]; then
   NEW_PID=$(cat $SIDEKIQ_PID)
   if ps -p $NEW_PID > /dev/null 2>&1; then
