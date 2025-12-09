@@ -76,9 +76,8 @@ su -s /bin/bash -c "cd $EB_APP_DEPLOY_DIR && \
   bundle exec sidekiq \
   -e ${RACK_ENV:-production} \
   -C $SIDEKIQ_CONFIG \
-  -L $SIDEKIQ_LOG \
   -P $SIDEKIQ_PID \
-  -d" $EB_APP_USER
+  -d >> $SIDEKIQ_LOG 2>&1" $EB_APP_USER
 
 # Verify startup
 sleep 2
