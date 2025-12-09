@@ -1,34 +1,31 @@
 #!/usr/bin/env bash
 set -e
 
-# Use fixed paths since app isn't deployed yet
-EB_APP_USER="webapp"
 SIDEKIQ_PID="/var/app/support/pids/sidekiq.pid"
 
-if [ -f $SIDEKIQ_PID ]; then
+if [ -f "$SIDEKIQ_PID" ]; then
   PID=$(cat $SIDEKIQ_PID)
-  echo "Stopping Sidekiq (PID: $PID) before deployment"
-  logger -t "sidekiq" "Stopping Sidekiq (PID: $PID)"
-  
-  # Graceful shutdown
-  su -s /bin/bash -c "kill -TERM $PID" $EB_APP_USER 2>/dev/null || true
-  
-  # Wait for shutdown (up to 60 seconds)
-  for i in {1..60}; do
-    if ! ps -p $PID > /dev/null 2>&1; then
-      echo "Sidekiq stopped successfully"
-      logger -t "sidekiq" "Sidekiq stopped successfully"
-      rm -f $SIDEKIQ_PID
-      exit 0
-    fi
-    sleep 1
-  done
-  
-  # Force kill if still running
-  echo "Force stopping Sidekiq after timeout"
-  logger -t "sidekiq" "Force stopping Sidekiq after timeout"
-  su -s /bin/bash -c "kill -9 $PID" $EB_APP_USER 2>/dev/null || true
-  rm -f $SIDEKIQ_PID
+  if ps -p $PID > /dev/null 2>&1; then
+    echo "Stopping Sidekiq (PID: $PID)"
+    logger -t "sidekiq" "Stopping Sidekiq before deployment"
+    
+    kill -TERM $PID 2>/dev/null || true
+    
+    # Wait for graceful shutdown
+    for i in {1..60}; do
+      if ! ps -p $PID > /dev/null 2>&1; then
+        echo "✓ Sidekiq stopped gracefully"
+        rm -f "$SIDEKIQ_PID"
+        exit 0
+      fi
+      sleep 1
+    done
+    
+    # Force kill if needed
+    echo "Force stopping Sidekiq"
+    kill -9 $PID 2>/dev/null || true
+    rm -f "$SIDEKIQ_PID"
+  fi
 else
   echo "No Sidekiq process to stop"
 fi
