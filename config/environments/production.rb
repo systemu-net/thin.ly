@@ -104,7 +104,7 @@ Rails.application.configure do
     "thin.ly",
     "app.thin.ly",
     ".elasticbeanstalk.com",
-    /^10\.\d+\.\d+\.\d+$/ # Allow AWS private network (10.0.0.0/8) for health checks
+    /^10\.\d+\.\d+\.\d+$/, # Allow AWS private network (10.0.0.0/8) for health checks
     /^34\.235\.33\.249$/  # Allow AWS public IPs for load balancer
     # Allow AWS public IPs for load balancer
   ]
