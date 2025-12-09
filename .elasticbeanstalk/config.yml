@@ -1,0 +1,19 @@
+branch-defaults:
+  develop:
+    environment: Thinly-env
+environment-defaults:
+  Thinly-env:
+    branch: null
+    repository: null
+global:
+  application_name: thinly
+  default_ec2_keyname: null
+  default_platform: Ruby 3.4 running on 64bit Amazon Linux 2023
+  default_region: us-east-1
+  include_git_submodules: true
+  instance_profile: null
+  platform_name: null
+  platform_version: null
+  profile: thinly-prod
+  sc: git
+  workspace_type: Application
