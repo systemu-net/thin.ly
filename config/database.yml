@@ -80,6 +80,5 @@ test:
 #
 production:
   <<: *default
-  database: thin_ly_production
-  username: thin_ly
-  password: <%= ENV["THIN_LY_DATABASE_PASSWORD"] %>
+  database: thinly
+  url: <%= ENV["DATABASE_URL"] %>
