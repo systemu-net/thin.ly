@@ -73,15 +73,20 @@ echo "Starting Sidekiq..."
 logger -t "sidekiq" "Starting Sidekiq in ${RACK_ENV:-production} environment"
 
 # Sidekiq 8.0 removed -L and -P options, manage PID manually
-# Use setsid to fully detach the process and avoid hanging
-su -s /bin/bash $EB_APP_USER << EOF
+# Fully detach the process to avoid blocking EB commands
 cd $EB_APP_DEPLOY_DIR
-setsid bundle exec sidekiq -e ${RACK_ENV:-production} -C $SIDEKIQ_CONFIG >> $SIDEKIQ_LOG 2>&1 &
-echo \$! > $SIDEKIQ_PID
-EOF
+
+# Start Sidekiq as webapp user, fully detached with closed file descriptors
+su -s /bin/bash $EB_APP_USER -c "
+  cd $EB_APP_DEPLOY_DIR && \
+  nohup bundle exec sidekiq -e ${RACK_ENV:-production} -C $SIDEKIQ_CONFIG \
+    </dev/null >>$SIDEKIQ_LOG 2>&1 & \
+  echo \$! > $SIDEKIQ_PID && \
+  disown
+" || true
 
 # Brief wait for PID file creation
-sleep 2
+sleep 1
 
 # Verify Sidekiq started (but don't fail deployment if it didn't)
 if [ -f "$SIDEKIQ_PID" ]; then
