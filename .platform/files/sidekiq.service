@@ -1,0 +1,38 @@
+[Unit]
+Description=Sidekiq Background Job Processor
+After=syslog.target network.target
+
+[Service]
+Type=notify
+NotifyAccess=all
+WatchdogSec=10
+
+WorkingDirectory=/var/app/current
+User=webapp
+Group=webapp
+UMask=0002
+
+# Load environment variables
+EnvironmentFile=/opt/elasticbeanstalk/deployment/env
+
+# Start Sidekiq
+ExecStart=/bin/bash -lc 'cd /var/app/current && bundle exec sidekiq -e production -C config/sidekiq.yml'
+
+# Graceful shutdown
+TimeoutStopSec=30
+KillMode=mixed
+
+# Restart policy
+RestartSec=5
+Restart=always
+
+# Reduce Ruby memory fragmentation
+Environment=MALLOC_ARENA_MAX=2
+
+# Logging
+StandardOutput=append:/var/app/current/log/sidekiq.log
+StandardError=inherit
+SyslogIdentifier=sidekiq
+
+[Install]
+WantedBy=multi-user.target
