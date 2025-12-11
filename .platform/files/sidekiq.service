@@ -3,20 +3,17 @@ Description=Sidekiq Background Job Processor
 After=syslog.target network.target
 
 [Service]
-Type=notify
-NotifyAccess=all
-WatchdogSec=10
-
+Type=simple
 WorkingDirectory=/var/app/current
 User=webapp
 Group=webapp
 UMask=0002
 
-# Load environment variables
-EnvironmentFile=/opt/elasticbeanstalk/deployment/env
+# Load environment variables - make it optional
+EnvironmentFile=-/opt/elasticbeanstalk/deployment/env
 
-# Start Sidekiq
-ExecStart=/bin/bash -lc 'cd /var/app/current && bundle exec sidekiq -e production -C config/sidekiq.yml'
+# Start Sidekiq - use simple exec without bash wrapper
+ExecStart=/usr/local/bin/bundle exec sidekiq -e production -C config/sidekiq.yml
 
 # Graceful shutdown
 TimeoutStopSec=30
