@@ -11,6 +11,7 @@ cd /var/app/current || exit 1
 export RAILS_ENV=production
 export RACK_ENV=production
 export BUNDLE_GEMFILE=/var/app/current/Gemfile
+export BUNDLE_WITHOUT="development:test"
 
 # Try to source Ruby environment setup if it exists
 if [ -f /opt/elasticbeanstalk/bin/use-app-ruby.sh ]; then
@@ -22,5 +23,5 @@ fi
 # Ensure bundler is in PATH
 export PATH="/var/app/current/bin:/var/app/current/vendor/bundle/ruby/3.4.0/bin:$PATH"
 
-# Start Sidekiq
-exec bundle exec sidekiq -e production -C config/sidekiq.yml
+# Start Sidekiq with explicit group exclusion
+exec bundle exec --without development test sidekiq -e production -C config/sidekiq.yml
