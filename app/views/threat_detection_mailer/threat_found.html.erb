@@ -15,9 +15,12 @@
       <h3 style="margin-top: 0;">Link Details:</h3>
       <p><strong>Title:</strong> <%= @link.title %></p>
       <p><strong>Short Code:</strong> <%= @link.lookup_code %></p>
-      <div style="background: #fff; padding: 10px; margin: 10px 0; border: 1px solid #ddd; word-break: break-all;">
-        <p style="margin: 0; color: #d32f2f; font-weight: bold;">⚠️ UNSAFE URL (Do not visit):</p>
-        <p style="margin: 5px 0 0 0; font-family: monospace; color: #666;"><%= @link.original_url %></p>
+      <div style="background: #fff3cd; padding: 15px; margin: 10px 0; border: 1px solid #ffc107;">
+        <p style="margin: 0; color: #d32f2f; font-weight: bold;">⚠️ WARNING: Malicious URL Detected</p>
+        <p style="margin: 10px 0 0 0; font-size: 12px; color: #856404;">
+          The destination URL has been flagged as dangerous and is not shown here to protect you.
+          Do not attempt to visit this URL manually.
+        </p>
       </div>
     </div>
     
