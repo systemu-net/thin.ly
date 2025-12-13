@@ -23,5 +23,5 @@ fi
 # Ensure bundler is in PATH
 export PATH="/var/app/current/bin:/var/app/current/vendor/bundle/ruby/3.4.0/bin:$PATH"
 
-# Start Sidekiq with explicit group exclusion
-exec bundle exec --without development test sidekiq -e production -C config/sidekiq.yml
+# Start Sidekiq (BUNDLE_WITHOUT env var will exclude dev/test gems)
+exec bundle exec sidekiq -e production -C config/sidekiq.yml
