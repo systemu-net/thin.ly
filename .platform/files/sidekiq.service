@@ -9,11 +9,8 @@ User=webapp
 Group=webapp
 UMask=0002
 
-# Load environment variables - make it optional
-EnvironmentFile=-/opt/elasticbeanstalk/deployment/env
-
-# Start Sidekiq - use bash to source Ruby environment
-ExecStart=/bin/bash -lc 'source /opt/elasticbeanstalk/bin/use-app-ruby.sh && cd /var/app/current && bundle exec sidekiq -e production -C config/sidekiq.yml'
+# Start Sidekiq using wrapper script
+ExecStart=/var/app/current/.platform/files/start-sidekiq.sh
 
 # Graceful shutdown
 TimeoutStopSec=30

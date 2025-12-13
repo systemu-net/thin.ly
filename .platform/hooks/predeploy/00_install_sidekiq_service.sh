@@ -4,10 +4,19 @@ set -e
 echo "=== Installing Sidekiq systemd service ==="
 
 SERVICE_FILE="/var/app/current/.platform/files/sidekiq.service"
+WRAPPER_SCRIPT="/var/app/current/.platform/files/start-sidekiq.sh"
 SYSTEMD_FILE="/etc/systemd/system/sidekiq.service"
 
 # Stop service if running with old config
 systemctl stop sidekiq 2>/dev/null || true
+
+# Make wrapper script executable
+if [ -f "$WRAPPER_SCRIPT" ]; then
+  echo "Making Sidekiq wrapper script executable..."
+  chmod +x "$WRAPPER_SCRIPT"
+else
+  echo "WARNING: Wrapper script not found at $WRAPPER_SCRIPT"
+fi
 
 if [ -f "$SERVICE_FILE" ]; then
   echo "Copying service file to systemd..."
