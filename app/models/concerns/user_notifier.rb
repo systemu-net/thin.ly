@@ -6,6 +6,6 @@ module UserNotifier
   end
 
   def send_created_email
-    UserMailer.created(self).deliver_later
+    UserNotificationWorker.perform_async(id)
   end
 end

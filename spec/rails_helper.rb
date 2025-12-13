@@ -9,6 +9,7 @@ abort("The Rails environment is running in production mode!") if Rails.env.produ
 # return unless Rails.env.test?
 require 'rspec/rails'
 require 'support/auth_helpers'
+require 'sidekiq/testing'
 # Add additional requires below this line. Rails is not loaded until this point!
 
 # Requires supporting ruby files with custom matchers and macros, etc, in
@@ -43,6 +44,15 @@ RSpec.configure do |config|
   config.include AuthHelpers, type: :request
   config.include Devise::Test::ControllerHelpers, type: :controller
   config.include Devise::Test::IntegrationHelpers, type: :request
+
+  # Configure Sidekiq to use inline mode in tests
+  config.before(:each) do
+    Sidekiq::Testing.inline!
+  end
+
+  config.after(:each) do
+    Sidekiq::Testing.fake!
+  end
 
   # If you're not using ActiveRecord, or you'd prefer not to run each of your
   # examples within a transaction, remove the following line or assign false
