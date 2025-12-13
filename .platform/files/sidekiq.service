@@ -9,6 +9,9 @@ User=webapp
 Group=webapp
 UMask=0002
 
+# Load Elastic Beanstalk environment variables
+EnvironmentFile=/opt/elasticbeanstalk/deployment/env
+
 # Start Sidekiq using wrapper script
 ExecStart=/var/app/current/.platform/files/start-sidekiq.sh
 
