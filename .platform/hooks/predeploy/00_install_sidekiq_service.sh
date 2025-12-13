@@ -18,11 +18,13 @@ rm -f "$SYSTEMD_FILE"
 
 # Make wrapper script executable
 if [ -f "$WRAPPER_SCRIPT" ]; then
-  echo "Making Sidekiq wrapper script executable..."
-  chmod +x "$WRAPPER_SCRIPT"
+  echo "Setting up Sidekiq wrapper script..."
+  chmod 755 "$WRAPPER_SCRIPT"
   chown webapp:webapp "$WRAPPER_SCRIPT"
+  ls -la "$WRAPPER_SCRIPT"
 else
-  echo "WARNING: Wrapper script not found at $WRAPPER_SCRIPT"
+  echo "ERROR: Wrapper script not found at $WRAPPER_SCRIPT"
+  exit 1
 fi
 
 if [ -f "$SERVICE_FILE" ]; then
