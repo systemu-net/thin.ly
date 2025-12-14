@@ -31,6 +31,9 @@
 
 /public/assets
 
+# Ignore uploaded files (development only)
+/public/uploads
+
 # Ignore master key for decrypting credentials and more.
 /config/master.key
 

@@ -112,7 +112,7 @@ RSpec.describe Api::V1::LinksController, type: :controller do
 
         expect(response).to have_http_status(:ok)
         links = assigns(:links)
-        expect(links.pluck(:id)).to eq([new_link.id, middle_link.id, old_link.id])
+        expect(links.pluck(:id)).to eq([ new_link.id, middle_link.id, old_link.id ])
       end
     end
 
@@ -122,7 +122,7 @@ RSpec.describe Api::V1::LinksController, type: :controller do
 
         expect(response).to have_http_status(:ok)
         links = assigns(:links)
-        expect(links.pluck(:id)).to eq([middle_link.id, old_link.id, new_link.id])
+        expect(links.pluck(:id)).to eq([ middle_link.id, old_link.id, new_link.id ])
       end
 
       it 'returns links sorted by clicks_count ascending' do
@@ -130,7 +130,7 @@ RSpec.describe Api::V1::LinksController, type: :controller do
 
         expect(response).to have_http_status(:ok)
         links = assigns(:links)
-        expect(links.pluck(:id)).to eq([new_link.id, old_link.id, middle_link.id])
+        expect(links.pluck(:id)).to eq([ new_link.id, old_link.id, middle_link.id ])
       end
     end
   end

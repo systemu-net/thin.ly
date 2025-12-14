@@ -110,28 +110,28 @@ RSpec.describe Link, type: :model do
     describe '.by_created_asc' do
       it 'sorts links by created_at in ascending order' do
         result = user.links.by_created_asc
-        expect(result.pluck(:id)).to eq([no_clicks_link.id, old_link.id, middle_link.id, new_link.id])
+        expect(result.pluck(:id)).to eq([ no_clicks_link.id, old_link.id, middle_link.id, new_link.id ])
       end
     end
 
     describe '.by_created_desc' do
       it 'sorts links by created_at in descending order' do
         result = user.links.by_created_desc
-        expect(result.pluck(:id)).to eq([new_link.id, middle_link.id, old_link.id, no_clicks_link.id])
+        expect(result.pluck(:id)).to eq([ new_link.id, middle_link.id, old_link.id, no_clicks_link.id ])
       end
     end
 
     describe '.by_clicks_asc' do
       it 'sorts links by clicks_count in ascending order' do
         result = user.links.by_clicks_asc
-        expect(result.pluck(:id)).to eq([no_clicks_link.id, new_link.id, old_link.id, middle_link.id])
+        expect(result.pluck(:id)).to eq([ no_clicks_link.id, new_link.id, old_link.id, middle_link.id ])
       end
     end
 
     describe '.by_clicks_desc' do
       it 'sorts links by clicks_count in descending order' do
         result = user.links.by_clicks_desc
-        expect(result.pluck(:id)).to eq([middle_link.id, old_link.id, new_link.id, no_clicks_link.id])
+        expect(result.pluck(:id)).to eq([ middle_link.id, old_link.id, new_link.id, no_clicks_link.id ])
       end
     end
 
@@ -149,7 +149,7 @@ RSpec.describe Link, type: :model do
         # Links with no clicks should appear first (NULLS FIRST)
         expect(result.first.id).to eq(no_clicks_link.id)
         # Then links ordered by oldest last click first
-        expect(result.pluck(:id)[1..]).to eq([old_link.id, middle_link.id, new_link.id])
+        expect(result.pluck(:id)[1..]).to eq([ old_link.id, middle_link.id, new_link.id ])
       end
     end
 
@@ -165,7 +165,7 @@ RSpec.describe Link, type: :model do
       it 'sorts links by last click timestamp in descending order' do
         result = user.links.by_last_clicked_desc.to_a
         # Links ordered by most recent last click first
-        expect(result[0..2].map(&:id)).to eq([new_link.id, middle_link.id, old_link.id])
+        expect(result[0..2].map(&:id)).to eq([ new_link.id, middle_link.id, old_link.id ])
         # Links with no clicks should appear last (NULLS LAST)
         expect(result.last.id).to eq(no_clicks_link.id)
       end
