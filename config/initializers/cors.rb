@@ -16,6 +16,7 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
       "https://thin.ly",
       "https://www.thin.ly",
       "https://app.thin.ly",
+      "https://thinly.ngrok.app",
       /.*\.elasticbeanstalk\.com$/ # Allow EB URLs
     )
     resource(

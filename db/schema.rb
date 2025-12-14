@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_12_05_225634) do
+ActiveRecord::Schema[7.2].define(version: 2025_12_14_025341) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -52,7 +52,31 @@ ActiveRecord::Schema[7.2].define(version: 2025_12_05_225634) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "source"
+    t.string "city"
+    t.string "region"
+    t.string "country_name"
+    t.string "postal_code"
+    t.decimal "latitude", precision: 10, scale: 6
+    t.decimal "longitude", precision: 10, scale: 6
+    t.string "timezone"
+    t.string "device_type"
+    t.string "browser"
+    t.string "browser_version"
+    t.string "os"
+    t.string "os_version"
+    t.boolean "is_mobile", default: false
+    t.boolean "is_tablet", default: false
+    t.boolean "is_desktop", default: false
+    t.boolean "is_bot", default: false
+    t.index ["city"], name: "index_clicks_on_city"
+    t.index ["country_name"], name: "index_clicks_on_country_name"
+    t.index ["device_type", "created_at"], name: "index_clicks_on_device_and_created"
+    t.index ["device_type"], name: "index_clicks_on_device_type"
+    t.index ["is_bot"], name: "index_clicks_on_is_bot"
+    t.index ["is_mobile"], name: "index_clicks_on_is_mobile"
+    t.index ["link_id", "created_at"], name: "index_clicks_on_link_and_created"
     t.index ["link_id"], name: "index_clicks_on_link_id"
+    t.index ["region"], name: "index_clicks_on_region"
     t.index ["source"], name: "index_clicks_on_source"
   end
 
