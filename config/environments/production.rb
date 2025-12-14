@@ -117,6 +117,8 @@ Rails.application.configure do
     "app.thin.ly",
     ".elasticbeanstalk.com",
     /.*\.elasticbeanstalk\.com$/, # Allow all Elastic Beanstalk hosts
+    /.*\.elb\.amazonaws\.com$/, # Allow ELB hostnames for health checks
+    /.*\.compute-1\.amazonaws\.com$/, # Allow EC2 compute hostnames
     /^10\.\d+\.\d+\.\d+$/, # Allow AWS private network (10.0.0.0/8) for health checks
     /^34\.235\.33\.249$/  # Allow AWS ELB public IP
   ]
