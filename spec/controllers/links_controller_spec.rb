@@ -38,37 +38,37 @@ RSpec.describe Api::V1::LinksController, type: :controller do
 
     context 'when sorting by created_at' do
       it 'returns links sorted by created_at descending by default' do
-        get :index, params: { sort: 'created_at', order: 'desc' }, as: :json
+        get :index, params: { sort_by: 'created_at', order: 'desc' }, as: :json
 
         expect(response).to have_http_status(:ok)
         links = assigns(:links)
-        expect(links.pluck(:id)).to eq([new_link.id, middle_link.id, old_link.id])
+        expect(links.pluck(:id)).to eq([ new_link.id, middle_link.id, old_link.id ])
       end
 
       it 'returns links sorted by created_at ascending' do
-        get :index, params: { sort: 'created_at', order: 'asc' }, as: :json
+        get :index, params: { sort_by: 'created_at', order: 'asc' }, as: :json
 
         expect(response).to have_http_status(:ok)
         links = assigns(:links)
-        expect(links.pluck(:id)).to eq([old_link.id, middle_link.id, new_link.id])
+        expect(links.pluck(:id)).to eq([ old_link.id, middle_link.id, new_link.id ])
       end
     end
 
     context 'when sorting by clicks_count' do
       it 'returns links sorted by clicks descending' do
-        get :index, params: { sort: 'clicks', order: 'desc' }, as: :json
+        get :index, params: { sort_by: 'clicks', order: 'desc' }, as: :json
 
         expect(response).to have_http_status(:ok)
         links = assigns(:links)
-        expect(links.pluck(:id)).to eq([middle_link.id, old_link.id, new_link.id])
+        expect(links.pluck(:id)).to eq([ middle_link.id, old_link.id, new_link.id ])
       end
 
       it 'returns links sorted by clicks ascending' do
-        get :index, params: { sort: 'clicks', order: 'asc' }, as: :json
+        get :index, params: { sort_by: 'clicks', order: 'asc' }, as: :json
 
         expect(response).to have_http_status(:ok)
         links = assigns(:links)
-        expect(links.pluck(:id)).to eq([new_link.id, old_link.id, middle_link.id])
+        expect(links.pluck(:id)).to eq([ new_link.id, old_link.id, middle_link.id ])
       end
     end
 
@@ -80,19 +80,19 @@ RSpec.describe Api::V1::LinksController, type: :controller do
       end
 
       it 'returns links sorted by last_clicked descending' do
-        get :index, params: { sort: 'last_clicked', order: 'desc' }, as: :json
+        get :index, params: { sort_by: 'last_clicked', order: 'desc' }, as: :json
 
         expect(response).to have_http_status(:ok)
         links = assigns(:links)
-        expect(links.pluck(:id)).to eq([new_link.id, middle_link.id, old_link.id])
+        expect(links.pluck(:id)).to eq([ new_link.id, middle_link.id, old_link.id ])
       end
 
       it 'returns links sorted by last_clicked ascending' do
-        get :index, params: { sort: 'last_clicked', order: 'asc' }, as: :json
+        get :index, params: { sort_by: 'last_clicked', order: 'asc' }, as: :json
 
         expect(response).to have_http_status(:ok)
         links = assigns(:links)
-        expect(links.pluck(:id)).to eq([old_link.id, middle_link.id, new_link.id])
+        expect(links.pluck(:id)).to eq([ old_link.id, middle_link.id, new_link.id ])
       end
     end
 
@@ -102,17 +102,35 @@ RSpec.describe Api::V1::LinksController, type: :controller do
 
         expect(response).to have_http_status(:ok)
         links = assigns(:links)
-        expect(links.pluck(:id)).to eq([new_link.id, middle_link.id, old_link.id])
+        expect(links.pluck(:id)).to eq([ new_link.id, middle_link.id, old_link.id ])
       end
     end
 
     context 'when invalid sort parameter provided' do
       it 'defaults to sorting by created_at descending' do
-        get :index, params: { sort: 'invalid_field', order: 'asc' }, as: :json
+        get :index, params: { sort_by: 'invalid_field', order: 'asc' }, as: :json
 
         expect(response).to have_http_status(:ok)
         links = assigns(:links)
         expect(links.pluck(:id)).to eq([new_link.id, middle_link.id, old_link.id])
+      end
+    end
+
+    context 'when using sort_by parameter instead of sort' do
+      it 'returns links sorted by clicks_count descending' do
+        get :index, params: { sort_by: 'clicks_count', order: 'desc' }, as: :json
+
+        expect(response).to have_http_status(:ok)
+        links = assigns(:links)
+        expect(links.pluck(:id)).to eq([middle_link.id, old_link.id, new_link.id])
+      end
+
+      it 'returns links sorted by clicks_count ascending' do
+        get :index, params: { sort_by: 'clicks_count', order: 'asc' }, as: :json
+
+        expect(response).to have_http_status(:ok)
+        links = assigns(:links)
+        expect(links.pluck(:id)).to eq([new_link.id, old_link.id, middle_link.id])
       end
     end
   end

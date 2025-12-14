@@ -12,7 +12,7 @@ module Api
         @links = current_user.links.includes(:qr_codes)
 
         # Apply sorting based on params
-        @links = apply_sorting(@links, params[:sort], params[:order])
+        @links = apply_sorting(@links, params[:sort_by], params[:order])
 
         render :index, status: :ok
       end
@@ -173,6 +173,8 @@ module Api
       end
 
       def apply_sorting(scope, sort_by, order)
+        # Normalize sort_by parameter
+        sort_by = sort_by&.to_s&.downcase
         sort_by ||= "created_at"
         order ||= "desc"
 
