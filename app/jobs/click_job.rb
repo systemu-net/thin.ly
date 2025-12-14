@@ -19,19 +19,19 @@ class ClickJob
       source: source,
 
       # Geolocation data from CloudFront headers
-      country: cloudfront_headers[:country],
-      country_name: cloudfront_headers[:country_name],
-      city: cloudfront_headers[:city],
-      region: cloudfront_headers[:region],
-      postal_code: cloudfront_headers[:postal_code],
-      latitude: cloudfront_headers[:latitude],
-      longitude: cloudfront_headers[:longitude],
-      timezone: cloudfront_headers[:timezone],
+      country: cloudfront_headers["country"],
+      country_name: cloudfront_headers["country_name"],
+      city: cloudfront_headers["city"],
+      region: cloudfront_headers["region"],
+      postal_code: cloudfront_headers["postal_code"],
+      latitude: cloudfront_headers["latitude"],
+      longitude: cloudfront_headers["longitude"],
+      timezone: cloudfront_headers["timezone"],
 
       # Device type from CloudFront headers
-      is_mobile: cloudfront_headers[:is_mobile] || false,
-      is_tablet: cloudfront_headers[:is_tablet] || false,
-      is_desktop: cloudfront_headers[:is_desktop] || false,
+      is_mobile: cloudfront_headers["is_mobile"] || false,
+      is_tablet: cloudfront_headers["is_tablet"] || false,
+      is_desktop: cloudfront_headers["is_desktop"] || false,
 
       # Determine primary device type
       device_type: determine_device_type(cloudfront_headers, parsed_ua),
@@ -126,10 +126,10 @@ class ClickJob
 
   def determine_device_type(cloudfront_headers, parsed_ua)
     return "bot" if parsed_ua[:is_bot]
-    return "smarttv" if cloudfront_headers[:is_smarttv]
-    return "tablet" if cloudfront_headers[:is_tablet]
-    return "mobile" if cloudfront_headers[:is_mobile]
-    return "desktop" if cloudfront_headers[:is_desktop]
+    return "smarttv" if cloudfront_headers["is_smarttv"]
+    return "tablet" if cloudfront_headers["is_tablet"]
+    return "mobile" if cloudfront_headers["is_mobile"]
+    return "desktop" if cloudfront_headers["is_desktop"]
 
     # Fallback based on User-Agent if CloudFront headers not available
     "unknown"
