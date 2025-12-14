@@ -20,6 +20,8 @@
 #  index_links_on_is_safe                      (is_safe)
 #  index_links_on_is_safe_and_last_scanned_at  (is_safe,last_scanned_at)
 #  index_links_on_last_scanned_at              (last_scanned_at)
+#  index_links_on_user_and_clicks_count        (user_id,clicks_count)
+#  index_links_on_user_and_created             (user_id,created_at)
 #  index_links_on_user_id                      (user_id)
 #
 # Foreign Keys

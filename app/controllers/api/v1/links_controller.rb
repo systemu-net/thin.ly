@@ -10,7 +10,9 @@ module Api
 
       def index
         @links = current_user.links.includes(:qr_codes)
-          .order(created_at: :desc)
+
+        # Apply sorting based on params
+        @links = apply_sorting(@links, params[:sort], params[:order])
 
         render :index, status: :ok
       end
@@ -167,6 +169,22 @@ module Api
       def check_link_authorization
         if current_user.id != @link.user_id
           render json: { error: "Unauthorized" }, status: :unauthorized
+        end
+      end
+
+      def apply_sorting(scope, sort_by, order)
+        sort_by ||= "created_at"
+        order ||= "desc"
+
+        case sort_by
+        when "created_at"
+          order == "asc" ? scope.by_created_asc : scope.by_created_desc
+        when "clicks", "clicks_count"
+          order == "asc" ? scope.by_clicks_asc : scope.by_clicks_desc
+        when "last_clicked"
+          order == "asc" ? scope.by_last_clicked_asc : scope.by_last_clicked_desc
+        else
+          scope.by_created_desc # default
         end
       end
 

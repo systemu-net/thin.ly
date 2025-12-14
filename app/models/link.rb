@@ -20,6 +20,8 @@
 #  index_links_on_is_safe                      (is_safe)
 #  index_links_on_is_safe_and_last_scanned_at  (is_safe,last_scanned_at)
 #  index_links_on_last_scanned_at              (last_scanned_at)
+#  index_links_on_user_and_clicks_count        (user_id,clicks_count)
+#  index_links_on_user_and_created             (user_id,created_at)
 #  index_links_on_user_id                      (user_id)
 #
 # Foreign Keys
@@ -53,6 +55,22 @@ class Link < ApplicationRecord
   scope :safe_links, -> { where(is_safe: true) }
   scope :unsafe_links, -> { where(is_safe: false) }
   scope :unscanned_links, -> { where(is_safe: nil) }
+
+  # Sorting scopes
+  scope :by_created_asc, -> { order(created_at: :asc) }
+  scope :by_created_desc, -> { order(created_at: :desc) }
+  scope :by_clicks_asc, -> { order(clicks_count: :asc) }
+  scope :by_clicks_desc, -> { order(clicks_count: :desc) }
+  scope :by_last_clicked_asc, -> {
+    left_joins(:clicks)
+      .group(:id)
+      .order(Arel.sql("MAX(clicks.created_at) ASC NULLS FIRST"))
+  }
+  scope :by_last_clicked_desc, -> {
+    left_joins(:clicks)
+      .group(:id)
+      .order(Arel.sql("MAX(clicks.created_at) DESC NULLS LAST"))
+  }
 
   private
 
