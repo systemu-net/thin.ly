@@ -109,19 +109,20 @@ Rails.application.configure do
   config.active_record.attributes_for_inspect = [ :id ]
 
   # Enable DNS rebinding protection and other `Host` header attacks.
+  # Allow requests to bypass host check for health checks and internal AWS traffic
   config.hosts = [
-    /.*\.thin\.ly/, # Allow requests from subdomains like `www.example.com`
-    # /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
+    /.*\.thin\.ly/, # Allow requests from subdomains like www.thin.ly
     "www.thin.ly",
     "thin.ly",
     "app.thin.ly",
     ".elasticbeanstalk.com",
+    /.*\.elasticbeanstalk\.com$/, # Allow all Elastic Beanstalk hosts
     /^10\.\d+\.\d+\.\d+$/, # Allow AWS private network (10.0.0.0/8) for health checks
-    /^34\.235\.33\.249$/  # Allow AWS public IPs for load balancer
-    # Allow AWS public IPs for load balancer
+    /^34\.235\.33\.249$/  # Allow AWS ELB public IP
   ]
-  # Skip DNS rebinding protection for the default health check endpoint.
-  # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+  # Skip DNS rebinding protection for the health check endpoint
+  # This allows ELB health checks to pass regardless of Host header
+  config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 
   config.action_mailer.default_url_options = { host: "thin.ly" }
 end
