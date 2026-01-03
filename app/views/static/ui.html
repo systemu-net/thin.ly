@@ -15,8 +15,16 @@
     crossorigin="anonymous" referrerpolicy="no-referrer" />
   <title>Thin.ly Landing page</title>
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2156606011003044" crossorigin="anonymous"></script>
-  <script type="module" crossorigin src="/assets/index-6kl_xsKl.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-B7kR3si9.css">
+  <script>
+    // Prevent flash of unstyled content by setting theme before React loads
+    (function() {
+      const theme = localStorage.getItem('theme') || 
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      document.documentElement.classList.add(theme);
+    })();
+  </script>
+  <script type="module" crossorigin src="/assets/index-GxWt_Ti1.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DbhSqkZl.css">
 </head>
 
 <body>
