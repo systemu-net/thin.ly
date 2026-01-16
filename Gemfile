@@ -43,7 +43,7 @@ group :development, :test do
   gem "annotate", "~> 3.2"
   # Static analysis for security vulnerabilities [https://brakemanscanner.org/]
   gem "brakeman", "~> 7.1", require: false
-  gem "byebug", "~> 12.0"
+  gem "byebug", "~> 13.0"
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
 
