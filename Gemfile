@@ -2,7 +2,7 @@ source "https://rubygems.org"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "devise", "~> 4.9"
-gem "devise-jwt", "~> 0.12.1"
+gem "devise-jwt", "~> 0.13.0"
 gem "carrierwave", "~> 3.1"
 gem "importmap-rails"
 gem "jbuilder"
@@ -42,8 +42,8 @@ gem "bootsnap", require: false
 group :development, :test do
   gem "annotate", "~> 3.2"
   # Static analysis for security vulnerabilities [https://brakemanscanner.org/]
-  gem "brakeman", "~> 7.1", require: false
-  gem "byebug", "~> 12.0"
+  gem "brakeman", "~> 8.0", require: false
+  gem "byebug", "~> 13.0"
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ], require: "debug/prelude"
 
