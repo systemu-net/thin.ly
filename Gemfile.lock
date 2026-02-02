@@ -113,10 +113,10 @@ GEM
       irb (~> 1.10)
       reline (>= 0.3.8)
     declarative (0.0.20)
-    devise (4.9.4)
+    devise (5.0.0)
       bcrypt (~> 3.0)
       orm_adapter (~> 0.1)
-      railties (>= 4.1.0)
+      railties (>= 7.0)
       responders
       warden (~> 1.2.3)
     devise-jwt (0.13.0)
@@ -549,7 +549,7 @@ DEPENDENCIES
   byebug (~> 13.0)
   carrierwave (~> 3.1)
   debug
-  devise (~> 4.9)
+  devise (~> 5.0)
   devise-jwt (~> 0.13.0)
   factory_bot_rails (~> 6.5)
   figaro (~> 1.3)
