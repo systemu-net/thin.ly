@@ -19,14 +19,15 @@ class Api::V1::WebhooksController < ApplicationController
 
     Rails.logger.info("[Stripe Webhook] Received: #{event.type} (#{event.id})")
 
-    if ProcessedStripeEvent.already_processed?(event.id)
+    begin
+      # Claim idempotency up-front so that only one process handles a given Stripe event.
+      ProcessedStripeEvent.mark_as_processed!(event.id, event.type)
+    rescue ActiveRecord::RecordNotUnique
       Rails.logger.info("[Stripe Webhook] Skipping duplicate: #{event.id}")
       return head :ok
     end
 
     handle_event(event)
-
-    ProcessedStripeEvent.mark_as_processed!(event.id, event.type)
     head :ok
   rescue => e
     Rails.logger.error("[Stripe Webhook] Unhandled error processing #{event&.type}: #{e.message}")
