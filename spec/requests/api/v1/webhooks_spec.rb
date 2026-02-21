@@ -242,9 +242,9 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
         expect(response).to have_http_status(:ok)
       end
 
-      it "does NOT record the event (exception fires before mark_as_processed!)" do
+      it "still records the event (claim-first idempotency marks before handle_event)" do
         expect { post_stripe_webhook(event) }
-          .not_to change(ProcessedStripeEvent, :count)
+          .to change(ProcessedStripeEvent, :count).by(1)
       end
     end
 
