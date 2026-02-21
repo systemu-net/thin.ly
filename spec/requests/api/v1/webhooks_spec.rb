@@ -509,6 +509,41 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
           expect(plan.reload.name).to eq(original_name)
         end
       end
+
+      context "when Stripe::Product.retrieve raises a Stripe API error" do
+        let(:invoice)    { build_invoice(billing_reason: "subscription_cycle") }
+        let(:event)      { build_event("invoice.paid", invoice) }
+        let(:stripe_sub) { build_stripe_subscription }
+
+        before do
+          user
+          subscription
+          plan
+          stub_stripe_api(stripe_sub: stripe_sub)
+          allow(Stripe::Product).to receive(:retrieve)
+            .and_raise(Stripe::APIConnectionError.new("Connection refused"))
+          ActionMailer::Base.deliveries.clear
+        end
+
+        it "returns 200 (graceful handling)" do
+          post_stripe_webhook(event)
+          expect(response).to have_http_status(:ok)
+        end
+
+        it "still syncs subscription status and periods despite the API error" do
+          post_stripe_webhook(event)
+          sub = subscription.reload
+          expect(sub.status).to eq("active")
+          expect(sub.current_period_start).to be_present
+          expect(sub.current_period_end).to be_present
+        end
+
+        it "does not update plan attributes when the product API call fails" do
+          original_name = plan.name
+          post_stripe_webhook(event)
+          expect(plan.reload.name).to eq(original_name)
+        end
+      end
     end
 
     # ── invoice.payment_succeeded ────────────────────────────────────────────
