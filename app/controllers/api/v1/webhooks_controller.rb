@@ -240,6 +240,16 @@ class Api::V1::WebhooksController < ApplicationController
     item = stripe_subscription.items.data[0]
     stripe_plan = item.plan
 
+    # Fetch product metadata before opening the transaction so that a Stripe API
+    # failure here does not roll back the subscription sync that follows.
+    stripe_product = stripe_plan.product
+    metadata = nil
+    begin
+      metadata = Stripe::Product.retrieve(stripe_product).metadata.as_json
+    rescue Stripe::StripeError => e
+      Rails.logger.error("[Stripe Webhook] Could not retrieve product #{stripe_product}: #{e.message}")
+    end
+
     ActiveRecord::Base.transaction do
       # Always sync subscription-level data regardless of product metadata
       subscription.update!(
@@ -253,11 +263,9 @@ class Api::V1::WebhooksController < ApplicationController
       )
 
       # Sync plan limits from Stripe product metadata
-      stripe_product = stripe_plan.product
-      metadata = Stripe::Product.retrieve(stripe_product).metadata.as_json
-
       unless metadata.present?
-        Rails.logger.error("[Stripe Webhook] No metadata on product: #{stripe_product}")
+        # nil means the API call failed (already logged); empty hash means no metadata on the product
+        Rails.logger.error("[Stripe Webhook] No metadata on product: #{stripe_product}") if metadata
         return
       end
 
