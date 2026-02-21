@@ -18,7 +18,7 @@ module Api
         active_stripe_sub = subscription&.subscription_id
 
         # ── User already has an active Stripe subscription → upgrade / downgrade ──
-        if active_stripe_sub.present? && subscription.status.in?(%w[active trialing past_due])
+        if active_stripe_sub.present? && subscription&.status&.in?(%w[active trialing past_due])
           handle_plan_change(subscription, active_stripe_sub, new_price)
         else
           # ── First purchase: create a Checkout Session ──
