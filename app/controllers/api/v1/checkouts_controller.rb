@@ -48,9 +48,15 @@ module Api
         end
 
         # Determine if this is an upgrade or downgrade by comparing unit amounts
-        current_amount = stripe_sub.items.data[0].price.unit_amount || 0
-        new_amount = new_price.unit_amount || 0
-        upgrading = new_amount > current_amount
+        current_amount = stripe_sub.items.data[0].price.unit_amount
+        new_amount = new_price.unit_amount
+        upgrading =
+          if current_amount.nil? || new_amount.nil?
+            # If either price has no unit_amount, avoid treating this as an upgrade based on a bogus comparison.
+            false
+          else
+            new_amount > current_amount
+          end
 
         # ── Upgrade: prorate immediately, Stripe auto-charges the payment method on file.
         #    If 3DS is needed, Stripe sends the customer an email to confirm.
