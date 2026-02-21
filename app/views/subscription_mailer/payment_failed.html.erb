@@ -1,15 +1,26 @@
-<!-- app/views/subscription_mailer -->
-<h1>Payment attempt failed</h1>
+<h1>Payment Failed <span class="accent-danger">&#10007;</span></h1>
 
 <p>Hi <%= @user.email %>,</p>
 
-<p>It looks like your latest automated payment attempt failed</p>
-
 <p>
-  To not see a lapse in your subscription, we suggest updating your billing
-  information as soon as possible
+  We were unable to process your latest subscription payment. This can happen
+  if your card has expired, has insufficient funds, or was declined by your bank.
 </p>
 
 <p>
-  <%= link_to "Update billing information", "#{ENV["DEV_HOST"]}/login", class: "underline", target: :_blank %>
+  To avoid any interruption to your service, please update your billing
+  information as soon as possible.
+</p>
+
+<hr class="divider">
+
+<p style="text-align: center; margin-bottom: 8px;">
+  <a href="<%= ENV['DEV_HOST'] || 'https://thin.ly' %>/settings" class="button">Update Billing Info</a>
+</p>
+
+<hr class="divider">
+
+<p style="font-size: 14px; color: #a8aaaf;">
+  If you believe this is an error, please contact us at
+  <a href="mailto:support@thin.ly" style="color: #a8aaaf;">support@thin.ly</a>.
 </p>

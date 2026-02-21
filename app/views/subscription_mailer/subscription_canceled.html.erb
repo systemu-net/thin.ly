@@ -1,14 +1,29 @@
-<!-- app/views/subscription_mailer -->
-<h1>Subscription cancelled</h1>
+<h1>Subscription Canceled</h1>
 
 <p>Hi <%= @user.email %>,</p>
 
-<p>Your subscription was cancelled either by you or due to its expiration.</p>
-
 <p>
-  Please send us an email at <%= ENV["NOTIFICATION_EMAIL"] %> if you have any questions or concerns regarding your subscription.
+  Your subscription has been canceled. Your account has been switched to the
+  Free plan, which includes 50 links and 50 QR codes.
 </p>
 
 <p>
-  <%= link_to "Check billing dashboard", "#{ENV["DEV_HOST"]}/login", class: "underline", target: :_blank %>
+  All your existing links and QR codes will continue to work. If you'd like
+  to upgrade again in the future, you can do so at any time.
+</p>
+
+<hr class="divider">
+
+<p style="text-align: center; margin-bottom: 8px;">
+  <a href="<%= ENV['DEV_HOST'] || 'https://thin.ly' %>/plans" class="button">View Plans</a>
+</p>
+<p style="text-align: center;">
+  <a href="<%= ENV['DEV_HOST'] || 'https://thin.ly' %>/" class="button button--secondary">Go to Dashboard</a>
+</p>
+
+<hr class="divider">
+
+<p style="font-size: 14px; color: #a8aaaf;">
+  We'd love to hear your feedback. Reply to this email or contact
+  <a href="mailto:support@thin.ly" style="color: #a8aaaf;">support@thin.ly</a>.
 </p>

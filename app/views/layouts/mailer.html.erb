@@ -1,13 +1,219 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <style>
-      /* Email styles need to be inline */
-    </style>
-  </head>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>thin.ly</title>
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:AllowPNG/>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
+  <style>
+    /* Reset */
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; }
+    body { height: 100% !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; line-height: inherit !important; }
 
-  <body>
-    <%= yield %>
-  </body>
+    /* Base */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f4f4f7;
+      color: #51545e;
+      margin: 0;
+      padding: 0;
+    }
+
+    .email-wrapper {
+      width: 100%;
+      background-color: #f4f4f7;
+      padding: 40px 0;
+    }
+
+    .email-content {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .email-header {
+      text-align: center;
+      padding: 25px 0;
+    }
+
+    .email-header a {
+      font-size: 24px;
+      font-weight: 700;
+      color: #333333;
+      text-decoration: none;
+      letter-spacing: -0.5px;
+    }
+
+    /* Body */
+    .email-body {
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .email-body-inner {
+      padding: 40px 48px;
+    }
+
+    .content-cell {
+      padding: 0;
+    }
+
+    /* Typography */
+    h1 {
+      margin-top: 0;
+      color: #333333;
+      font-size: 22px;
+      font-weight: 700;
+      text-align: left;
+    }
+
+    p {
+      margin: 0 0 16px;
+      font-size: 16px;
+      line-height: 1.625;
+      color: #51545e;
+    }
+
+    /* Buttons */
+    .button {
+      display: inline-block;
+      background-color: #333333;
+      color: #ffffff !important;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      text-align: center;
+      padding: 12px 32px;
+      border-radius: 6px;
+      -webkit-text-size-adjust: none;
+    }
+
+    .button--secondary {
+      background-color: #ffffff;
+      color: #333333 !important;
+      border: 1px solid #d0d0d0;
+    }
+
+    /* Info box */
+    .info-box {
+      background-color: #f9fafb;
+      border: 1px solid #eaedf1;
+      border-radius: 6px;
+      padding: 20px 24px;
+      margin: 24px 0;
+    }
+
+    .info-box table {
+      width: 100%;
+    }
+
+    .info-box td {
+      padding: 6px 0;
+      font-size: 15px;
+      line-height: 1.5;
+      color: #51545e;
+    }
+
+    .info-box .label {
+      font-weight: 600;
+      color: #333333;
+      width: 140px;
+    }
+
+    /* Divider */
+    .divider {
+      border: none;
+      border-top: 1px solid #eaedf1;
+      margin: 28px 0;
+    }
+
+    /* Footer */
+    .email-footer {
+      text-align: center;
+      padding: 25px 0;
+    }
+
+    .email-footer p {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #a8aaaf;
+    }
+
+    .email-footer a {
+      color: #a8aaaf;
+      text-decoration: underline;
+    }
+
+    /* Success accent */
+    .accent-success {
+      color: #22bc66;
+    }
+
+    .accent-danger {
+      color: #e54f4f;
+    }
+
+    /* Responsive */
+    @media only screen and (max-width: 620px) {
+      .email-body-inner { padding: 28px 24px !important; }
+      h1 { font-size: 20px !important; }
+      p { font-size: 15px !important; }
+      .button { padding: 10px 24px !important; font-size: 14px !important; }
+    }
+  </style>
+</head>
+<body>
+  <table class="email-wrapper" width="100%" cellpadding="0" cellspacing="0" role="presentation">
+    <tr>
+      <td align="center">
+        <table class="email-content" width="100%" cellpadding="0" cellspacing="0" role="presentation">
+          <!-- Header -->
+          <tr>
+            <td class="email-header">
+              <a href="<%= ENV['DEV_HOST'] || 'https://thin.ly' %>">thin.ly</a>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td class="email-body">
+              <div class="email-body-inner">
+                <%= yield %>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td class="email-footer">
+              <p>
+                &copy; <%= Date.today.year %> thin.ly &mdash; Smart URL Shortener
+              </p>
+              <p>
+                <a href="<%= ENV['DEV_HOST'] || 'https://thin.ly' %>/terms">Terms</a> &middot;
+                <a href="<%= ENV['DEV_HOST'] || 'https://thin.ly' %>/privacy">Privacy</a> &middot;
+                <a href="mailto:support@thin.ly">Support</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
 </html>

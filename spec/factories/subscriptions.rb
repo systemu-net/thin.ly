@@ -3,6 +3,7 @@
 # Table name: subscriptions
 #
 #  id                   :bigint           not null, primary key
+#  cancel_at_period_end :boolean          default(FALSE), not null
 #  current_period_end   :datetime
 #  current_period_start :datetime
 #  interval             :string
@@ -10,6 +11,7 @@
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
 #  customer_id          :string
+#  stripe_price_id      :string
 #  subscription_id      :string
 #  user_id              :bigint           not null
 #

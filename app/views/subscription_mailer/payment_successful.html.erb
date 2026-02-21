@@ -1,14 +1,61 @@
-<!-- app/views/subscription_mailer -->
-<h1>Payment attempt successful</h1>
+<h1>Payment Received <span class="accent-success">&#10003;</span></h1>
 
 <p>Hi <%= @user.email %>,</p>
 
-<p>It looks like your latest automated payment attempt successful</p>
-
 <p>
-  Congratulations
+  Thank you! Your subscription payment was successfully processed.
+  Your plan remains active and you can continue using all your thin.ly features without interruption.
 </p>
 
-<p>
-  <%= link_to "Check billing dashboard", "#{ENV["DEV_HOST"]}/login", class: "underline", target: :_blank %>
+<% if @invoice_data.present? %>
+<div class="info-box">
+  <table cellpadding="0" cellspacing="0" role="presentation">
+    <% if @invoice_data[:plan_name].present? %>
+    <tr>
+      <td class="label">Plan</td>
+      <td><%= @invoice_data[:plan_name] %></td>
+    </tr>
+    <% end %>
+    <% if @invoice_data[:amount_paid].present? %>
+    <tr>
+      <td class="label">Amount</td>
+      <td><strong><%= @invoice_data[:amount_paid] %></strong></td>
+    </tr>
+    <% end %>
+    <% if @invoice_data[:card_last4].present? %>
+    <tr>
+      <td class="label">Card</td>
+      <td>&bull;&bull;&bull;&bull; <%= @invoice_data[:card_last4] %></td>
+    </tr>
+    <% end %>
+    <% if @invoice_data[:period_end].present? %>
+    <tr>
+      <td class="label">Next renewal</td>
+      <td><%= @invoice_data[:period_end] %></td>
+    </tr>
+    <% end %>
+  </table>
+</div>
+<% end %>
+
+<% if @invoice_data[:invoice_pdf].present? %>
+<p style="font-size: 14px; color: #a8aaaf;">
+  A PDF receipt is attached to this email for your records.
+</p>
+<% end %>
+
+<hr class="divider">
+
+<p style="text-align: center; margin-bottom: 8px;">
+  <a href="<%= ENV['DEV_HOST'] || 'https://thin.ly' %>/" class="button">Go to Dashboard</a>
+</p>
+<p style="text-align: center;">
+  <a href="<%= ENV['DEV_HOST'] || 'https://thin.ly' %>/settings" class="button button--secondary">Account Settings</a>
+</p>
+
+<hr class="divider">
+
+<p style="font-size: 14px; color: #a8aaaf;">
+  If you have any questions about this charge, reply to this email or contact us at
+  <a href="mailto:support@thin.ly" style="color: #a8aaaf;">support@thin.ly</a>.
 </p>
