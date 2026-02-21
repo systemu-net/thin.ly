@@ -153,9 +153,14 @@ class Api::V1::WebhooksController < ApplicationController
     user = find_user_by_stripe_id(stripe_subscription.customer)
     return unless user
 
-    subscription = Subscription.find_by(customer_id: user.stripe_id)
+    subscription = Subscription.find_by(subscription_id: stripe_subscription.id) ||
+                   Subscription.find_by(customer_id: user.stripe_id)
+
     unless subscription
-      Rails.logger.error("[Stripe Webhook] Subscription not found for customer: #{user.stripe_id}")
+      Rails.logger.error(
+        "[Stripe Webhook] Subscription not found for subscription: #{stripe_subscription.id}, " \
+        "customer: #{user.stripe_id}"
+      )
       return
     end
 
