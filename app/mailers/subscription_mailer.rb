@@ -43,9 +43,25 @@ class SubscriptionMailer < ApplicationMailer
 
   private
 
+  ALLOWED_PDF_HOSTS = %w[pay.stripe.com invoice.stripe.com].freeze
+  PDF_OPEN_TIMEOUT  = 5  # seconds
+  PDF_READ_TIMEOUT  = 10 # seconds
+  PDF_MAX_SIZE      = 5.megabytes
+
   def attach_receipt_pdf
     pdf_url = @invoice_data[:invoice_pdf]
-    pdf_data = URI.open(pdf_url).read # rubocop:disable Security/Open — Stripe-hosted URL only
+    uri = URI.parse(pdf_url)
+
+    unless uri.is_a?(URI::HTTPS) && ALLOWED_PDF_HOSTS.include?(uri.host)
+      Rails.logger.warn("[SubscriptionMailer] Rejected non-Stripe PDF URL: #{uri.host}")
+      return
+    end
+
+    pdf_data = uri.open(
+      open_timeout: PDF_OPEN_TIMEOUT,
+      read_timeout: PDF_READ_TIMEOUT
+    ).read(PDF_MAX_SIZE)
+
     attachments["receipt.pdf"] = { mime_type: "application/pdf", content: pdf_data }
   rescue StandardError => e
     Rails.logger.error("[SubscriptionMailer] Failed to attach receipt PDF: #{e.message}")

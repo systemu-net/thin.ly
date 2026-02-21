@@ -98,7 +98,12 @@ class Api::V1::WebhooksController < ApplicationController
   # ─── Invoice Handlers ──────────────────────────────────────────
 
   def handle_invoice_paid(invoice)
+    # Stripe API 2024-12-18 moved subscription to invoice.parent.subscription_details,
+    # but older events (replays, test clocks) and some edge cases still use invoice.subscription.
+    # Try the modern path first, fall back to legacy, and only skip if both are blank.
     subscription_id = invoice.parent&.subscription_details&.subscription
+    subscription_id = invoice.try(:subscription) if subscription_id.blank?
+
     unless subscription_id.present?
       Rails.logger.info("[Stripe Webhook] invoice.paid is not subscription-related, skipping")
       return

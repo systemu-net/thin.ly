@@ -107,14 +107,24 @@ RSpec.describe SubscriptionMailer, type: :mailer do
       let(:mail) { SubscriptionMailer.with(user: user, invoice_data: invoice_data_with_pdf).payment_successful }
 
       before do
-        allow(URI).to receive(:open).with("https://pay.stripe.com/invoice/test/pdf")
-          .and_return(StringIO.new(pdf_content))
+        io = StringIO.new(pdf_content)
+        allow_any_instance_of(URI::HTTPS).to receive(:open).and_return(io)
       end
 
       it "attaches a receipt.pdf file" do
         expect(mail.attachments.count).to eq(1)
         expect(mail.attachments.first.filename).to eq("receipt.pdf")
         expect(mail.attachments.first.mime_type).to eq("application/pdf")
+      end
+    end
+
+    context "with a non-Stripe PDF URL" do
+      let(:invoice_data_with_bad_url) { invoice_data.merge(invoice_pdf: "https://evil.com/malware.pdf") }
+      let(:mail) { SubscriptionMailer.with(user: user, invoice_data: invoice_data_with_bad_url).payment_successful }
+
+      it "does not attach a PDF and does not make an HTTP request" do
+        expect_any_instance_of(URI::HTTPS).not_to receive(:open)
+        expect(mail.attachments).to be_empty
       end
     end
   end

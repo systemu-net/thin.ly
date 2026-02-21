@@ -86,6 +86,7 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
            billing_reason:     billing_reason,
            hosted_invoice_url: hosted_invoice_url,
            parent:             parent,
+           subscription:       subscription_id,
            amount_paid:        amount_paid,
            currency:           currency,
            charge:             charge,
