@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_12_14_084903) do
+ActiveRecord::Schema[7.2].define(version: 2026_02_20_055852) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -134,6 +134,17 @@ ActiveRecord::Schema[7.2].define(version: 2025_12_14_084903) do
     t.index ["subscription_id"], name: "index_plans_on_subscription_id"
   end
 
+  create_table "processed_stripe_events", force: :cascade do |t|
+    t.string "stripe_event_id", null: false
+    t.string "event_type", null: false
+    t.datetime "processed_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["event_type"], name: "index_processed_stripe_events_on_event_type"
+    t.index ["processed_at"], name: "index_processed_stripe_events_on_processed_at"
+    t.index ["stripe_event_id"], name: "index_processed_stripe_events_on_stripe_event_id", unique: true
+  end
+
   create_table "qr_codes", force: :cascade do |t|
     t.bigint "link_id", null: false
     t.bigint "user_id", null: false
@@ -169,6 +180,8 @@ ActiveRecord::Schema[7.2].define(version: 2025_12_14_084903) do
     t.string "subscription_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "cancel_at_period_end", default: false, null: false
+    t.string "stripe_price_id"
     t.index ["user_id"], name: "index_subscriptions_on_user_id"
   end
 

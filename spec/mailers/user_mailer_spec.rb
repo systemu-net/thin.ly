@@ -7,6 +7,7 @@ RSpec.describe UserMailer, type: :mailer do
     after { StripeMock.stop }
 
     before do
+      allow(ENV).to receive(:[]).and_call_original
       allow(ENV).to receive(:[]).with("NOTIFICATION_EMAIL").and_return("test@example.com")
     end
 

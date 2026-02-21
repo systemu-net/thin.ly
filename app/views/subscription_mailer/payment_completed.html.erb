@@ -1,14 +1,60 @@
-<!-- app/views/subscription_mailer -->
-<h1>Payment attempt completed</h1>
+<h1>Welcome to thin.ly! 🎉</h1>
 
 <p>Hi <%= @user.email %>,</p>
 
-<p>It looks like your latest automated payment attempt completed</p>
-
 <p>
-  Congratulations
+  Your payment has been confirmed and your subscription is now active.
+  You're all set to start creating short links, QR codes, and branded pages.
 </p>
 
-<p>
-  <%= link_to "Check billing dashboard", "#{ENV["DEV_HOST"]}/login", class: "underline", target: :_blank %>
+<% if @invoice_data.present? %>
+<div class="info-box">
+  <table cellpadding="0" cellspacing="0" role="presentation">
+    <% if @invoice_data[:plan_name].present? %>
+    <tr>
+      <td class="label">Plan</td>
+      <td><%= @invoice_data[:plan_name] %></td>
+    </tr>
+    <% end %>
+    <% if @invoice_data[:amount_paid].present? %>
+    <tr>
+      <td class="label">Amount</td>
+      <td><strong><%= @invoice_data[:amount_paid] %></strong></td>
+    </tr>
+    <% end %>
+    <% if @invoice_data[:period_end].present? %>
+    <tr>
+      <td class="label">Next renewal</td>
+      <td><%= @invoice_data[:period_end] %></td>
+    </tr>
+    <% end %>
+  </table>
+</div>
+<% end %>
+
+<hr class="divider">
+
+<p>Here's what you can do now:</p>
+
+<table cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom: 20px;">
+  <tr>
+    <td style="padding: 6px 0; font-size: 16px; color: #51545e;"><strong>1.</strong> Shorten your first link</td>
+  </tr>
+  <tr>
+    <td style="padding: 6px 0; font-size: 16px; color: #51545e;"><strong>2.</strong> Generate a QR code</td>
+  </tr>
+  <tr>
+    <td style="padding: 6px 0; font-size: 16px; color: #51545e;"><strong>3.</strong> Create a branded link-in-bio page</td>
+  </tr>
+</table>
+
+<p style="text-align: center; margin-bottom: 8px;">
+  <a href="<%= ENV['DEV_HOST'] || 'https://thin.ly' %>/" class="button">Get Started</a>
+</p>
+
+<hr class="divider">
+
+<p style="font-size: 14px; color: #a8aaaf;">
+  Need help getting started? Reply to this email or reach out at
+  <a href="mailto:support@thin.ly" style="color: #a8aaaf;">support@thin.ly</a>.
 </p>

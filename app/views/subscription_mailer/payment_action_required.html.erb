@@ -1,0 +1,28 @@
+<h1>Action Required <span class="accent-danger">&#9888;</span></h1>
+
+<p>Hi <%= @user.email %>,</p>
+
+<p>
+  Your recent payment requires additional authentication to complete.
+  This is a security step required by your bank (3D Secure verification).
+</p>
+
+<p>
+  Please click the button below to complete the verification. If you don't
+  complete this step, your payment will not be processed and your subscription
+  may be interrupted.
+</p>
+
+<hr class="divider">
+
+<p style="text-align: center; margin-bottom: 8px;">
+  <%= link_to "Complete Payment", @hosted_invoice_url, class: "button" %>
+</p>
+
+<hr class="divider">
+
+<p style="font-size: 14px; color: #a8aaaf;">
+  This link will take you to a secure Stripe-hosted page to verify your payment.
+  If you didn't initiate this payment, please contact us at
+  <a href="mailto:support@thin.ly" style="color: #a8aaaf;">support@thin.ly</a>.
+</p>
