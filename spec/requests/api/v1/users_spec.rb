@@ -86,7 +86,7 @@ RSpec.describe 'Api::V1::Users', type: :request do
               params: {},
               headers: auth_headers
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         json = JSON.parse(response.body)
         expect(json['error']).to eq('No avatar file provided')
       end
@@ -138,7 +138,7 @@ RSpec.describe 'Api::V1::Users', type: :request do
         it 'returns error' do
           delete '/api/v1/user/avatar', headers: auth_headers
 
-          expect(response).to have_http_status(:unprocessable_entity)
+          expect(response).to have_http_status(:unprocessable_content)
           json = JSON.parse(response.body)
           expect(json['error']).to eq('No avatar to remove')
         end

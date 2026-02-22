@@ -11,7 +11,7 @@ module Api
             return_url: root_url
           })
         rescue => e
-          render json: { 'error': { message: e.error.message } }.to_json, status: 400
+          return render json: { 'error': { message: e.error.message } }.to_json, status: 400
         end
 
         render json: { url: session.url }.to_json, status: 200

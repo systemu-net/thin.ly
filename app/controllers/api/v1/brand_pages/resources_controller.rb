@@ -31,7 +31,7 @@ module Api
             @link = current_user.links.build(link_params)
 
             unless @link.save
-              render json: { errors: @link.errors.full_messages }, status: :unprocessable_entity
+              render json: { errors: @link.errors.full_messages }, status: :unprocessable_content
               raise ActiveRecord::Rollback
               return
             end
@@ -44,7 +44,7 @@ module Api
             )
 
             unless @resource.save
-              render json: { errors: @resource.errors.full_messages }, status: :unprocessable_entity
+              render json: { errors: @resource.errors.full_messages }, status: :unprocessable_content
               raise ActiveRecord::Rollback
               return
             end
@@ -88,7 +88,7 @@ module Api
         rescue ActiveRecord::RecordNotFound => e
           render json: { error: "Resource not found" }, status: :not_found
         rescue ActiveRecord::RecordInvalid => e
-          render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+          render json: { errors: e.record.errors.full_messages }, status: :unprocessable_content
         end
 
         # PATCH/PUT /api/v1/brand_pages/:brand_page_lookup_code/resources/:id
@@ -107,7 +107,7 @@ module Api
               }
             }, status: :ok
           else
-            render json: { errors: @resource.linkable.errors.full_messages }, status: :unprocessable_entity
+            render json: { errors: @resource.linkable.errors.full_messages }, status: :unprocessable_content
           end
         end
 

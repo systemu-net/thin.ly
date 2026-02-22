@@ -61,7 +61,7 @@ module Api
         @link = shortener.generate_short_link
 
         if @link.errors.any?
-          return render json: { errors: @link.errors.full_messages }, status: :unprocessable_entity
+          return render json: { errors: @link.errors.full_messages }, status: :unprocessable_content
         end
 
         scan_link(@link)
@@ -74,7 +74,7 @@ module Api
         @link.update(link_params)
 
         if @link.errors.any?
-          return render json: { errors: @link.errors.full_messages }, status: :unprocessable_entity
+          return render json: { errors: @link.errors.full_messages }, status: :unprocessable_content
         end
 
         scan_link(@link)
@@ -89,7 +89,7 @@ module Api
         if @link.destroy
           render json: {}, status: :no_content
         else
-          render json: { errors: @link.errors.full_messages }, status: :unprocessable_entity
+          render json: { errors: @link.errors.full_messages }, status: :unprocessable_content
         end
       end
 

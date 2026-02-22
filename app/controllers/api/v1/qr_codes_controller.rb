@@ -23,7 +23,7 @@ module Api
         ).generate_qr_code
 
         if @qr_code.errors.full_messages.any?
-          return render json: { errors: @qr_code.errors.full_messages }, status: :unprocessable_entity
+          return render json: { errors: @qr_code.errors.full_messages }, status: :unprocessable_content
         end
 
         log_api_request(@qr_code)
@@ -43,7 +43,7 @@ module Api
         if @qr_code.destroy
           render json: {}, status: :no_content
         else
-          render json: { errors: @qr_code.errors.full_messages }, status: :unprocessable_entity
+          render json: { errors: @qr_code.errors.full_messages }, status: :unprocessable_content
         end
       end
 

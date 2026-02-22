@@ -44,7 +44,7 @@ module Api
 
         # ── Block same-plan purchase ──
         if current_price_id == new_price.id
-          return render json: { error: "You are already subscribed to this plan" }, status: :unprocessable_entity
+          return render json: { error: "You are already subscribed to this plan" }, status: :unprocessable_content
         end
 
         # Determine if this is an upgrade or downgrade by comparing unit amounts

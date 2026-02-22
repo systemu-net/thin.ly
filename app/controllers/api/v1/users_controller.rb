@@ -16,7 +16,7 @@ module Api
         if @user.update(user_params)
           render :show, status: :ok
         else
-          render json: { errors: @user.errors.full_messages }, status: :unprocessable_entity
+          render json: { errors: @user.errors.full_messages }, status: :unprocessable_content
         end
       end
 
@@ -33,10 +33,10 @@ module Api
               avatar_url: current_user.avatar.url
             }, status: :ok
           else
-            render json: { errors: current_user.errors.full_messages }, status: :unprocessable_entity
+            render json: { errors: current_user.errors.full_messages }, status: :unprocessable_content
           end
         else
-          render json: { error: "No avatar file provided" }, status: :unprocessable_entity
+          render json: { error: "No avatar file provided" }, status: :unprocessable_content
         end
       rescue ActionController::BadRequest => e
         render json: { error: "Invalid file upload: #{e.message}" }, status: :bad_request
@@ -49,7 +49,7 @@ module Api
           current_user.save
           render json: { message: "Avatar removed successfully" }, status: :ok
         else
-          render json: { error: "No avatar to remove" }, status: :unprocessable_entity
+          render json: { error: "No avatar to remove" }, status: :unprocessable_content
         end
       end
 

@@ -18,7 +18,7 @@ RSpec.describe 'User Registrations', type: :request do
           post '/users', params: payload, as: :json
         }.not_to change(User, :count)
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(response.body).to include('must be accepted')
       end
     end
