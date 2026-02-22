@@ -67,8 +67,9 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
 
   # ── Stripe object builders ────────────────────────────────────────────────
 
-  def build_checkout_session(customer: stripe_customer_id, id: "cs_test123")
-    double("Stripe::CheckoutSession", id: id, customer: customer)
+  def build_checkout_session(customer: stripe_customer_id, id: "cs_test123",
+                              mode: "subscription", subscription: stripe_subscription_id)
+    double("Stripe::CheckoutSession", id: id, customer: customer, mode: mode, subscription: subscription)
   end
 
   # Pass `subscription_id: nil` to simulate a one-off (non-subscription) invoice.
@@ -251,51 +252,65 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
     # ── checkout.session.completed ───────────────────────────────────────────
 
     describe "checkout.session.completed" do
-      let(:obj)   { build_checkout_session }
+      let(:obj)   { build_checkout_session(customer: user.stripe_id) }
       let(:event) { build_event("checkout.session.completed", obj) }
+
+      before do
+        subscription # ensure the DB subscription exists
+        stub_stripe_api
+        ActionMailer::Base.deliveries.clear
+      end
 
       it "returns 200" do
         post_stripe_webhook(event)
         expect(response).to have_http_status(:ok)
       end
 
-      it "does not send any emails (fulfillment is handled by invoice.paid)" do
+      it "syncs the subscription from the checkout session" do
         post_stripe_webhook(event)
-        expect(ActionMailer::Base.deliveries).to be_empty
-      end
-
-      it "does not call Stripe Subscription or Product APIs" do
-        expect(Stripe::Subscription).not_to receive(:retrieve)
-        expect(Stripe::Product).not_to      receive(:retrieve)
-        post_stripe_webhook(event)
+        subscription.reload
+        expect(subscription.status).to eq("active")
+        expect(subscription.subscription_id).to eq(stripe_subscription_id)
       end
 
       it "records the event as processed" do
         expect { post_stripe_webhook(event) }
           .to change(ProcessedStripeEvent, :count).by(1)
       end
+
+      context "when mode is not subscription" do
+        let(:obj) { build_checkout_session(customer: user.stripe_id, mode: "payment", subscription: nil) }
+
+        it "does not call Stripe Subscription API" do
+          expect(Stripe::Subscription).not_to receive(:retrieve)
+          post_stripe_webhook(event)
+          expect(response).to have_http_status(:ok)
+        end
+      end
     end
 
     # ── checkout.session.async_payment_succeeded ─────────────────────────────
 
     describe "checkout.session.async_payment_succeeded" do
-      let(:obj)   { build_checkout_session }
+      let(:obj)   { build_checkout_session(customer: user.stripe_id) }
       let(:event) { build_event("checkout.session.async_payment_succeeded", obj) }
+
+      before do
+        subscription
+        stub_stripe_api
+        ActionMailer::Base.deliveries.clear
+      end
 
       it "returns 200" do
         post_stripe_webhook(event)
         expect(response).to have_http_status(:ok)
       end
 
-      it "does not send emails (fulfillment is handled by invoice.paid)" do
+      it "syncs the subscription from the checkout session" do
         post_stripe_webhook(event)
-        expect(ActionMailer::Base.deliveries).to be_empty
-      end
-
-      it "does not call Stripe APIs" do
-        expect(Stripe::Subscription).not_to receive(:retrieve)
-        expect(Stripe::Product).not_to      receive(:retrieve)
-        post_stripe_webhook(event)
+        subscription.reload
+        expect(subscription.status).to eq("active")
+        expect(subscription.subscription_id).to eq(stripe_subscription_id)
       end
     end
 
@@ -547,25 +562,48 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
     end
 
     # ── invoice.payment_succeeded ────────────────────────────────────────────
+    # Handled identically to invoice.paid (covers the case where only
+    # invoice.payment_succeeded is enabled on the Stripe webhook endpoint).
 
     describe "invoice.payment_succeeded" do
-      let(:invoice) { build_invoice }
-      let(:event)   { build_event("invoice.payment_succeeded", invoice) }
+      let(:invoice)    { build_invoice(billing_reason: "subscription_cycle") }
+      let(:event)      { build_event("invoice.payment_succeeded", invoice) }
+      let(:stripe_sub) { build_stripe_subscription }
+
+      before do
+        user
+        subscription
+        plan
+        stub_stripe_api(stripe_sub: stripe_sub)
+        ActionMailer::Base.deliveries.clear
+      end
 
       it "returns 200" do
         post_stripe_webhook(event)
         expect(response).to have_http_status(:ok)
       end
 
-      it "does not send any email (handled exclusively by invoice.paid)" do
+      it "syncs the subscription (same as invoice.paid)" do
         post_stripe_webhook(event)
-        expect(ActionMailer::Base.deliveries).to be_empty
+        sub = subscription.reload
+        expect(sub.status).to          eq("active")
+        expect(sub.subscription_id).to eq(stripe_sub.id)
       end
 
-      it "does not call Stripe Subscription or Product APIs" do
-        expect(Stripe::Subscription).not_to receive(:retrieve)
-        expect(Stripe::Product).not_to      receive(:retrieve)
+      it "updates plan limits from Stripe product metadata" do
         post_stripe_webhook(event)
+        plan.reload
+        expect(plan.name).to        eq("Pro")
+        expect(plan.links).to       eq(200)
+        expect(plan.qr_codes).to    eq(100)
+        expect(plan.brand_pages).to eq(10)
+      end
+
+      it "sends a payment_successful email" do
+        post_stripe_webhook(event)
+        expect(ActionMailer::Base.deliveries.count).to eq(1)
+        mail = ActionMailer::Base.deliveries.first
+        expect(mail.to).to include(user.email)
       end
     end
 

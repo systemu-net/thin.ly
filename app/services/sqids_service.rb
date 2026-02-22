@@ -11,8 +11,8 @@ class SqidsService
     @mutex = Mutex.new
   end
 
-  def generate(link_id, user_id)
-    @mutex.synchronize { @sqids.encode([ user_id, link_id ]) }
+  def generate(link_id, user_id = nil)
+    @mutex.synchronize { @sqids.encode([ link_id ]) }
   end
 
   def decode(lookup_code)

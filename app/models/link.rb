@@ -94,8 +94,8 @@ class Link < ApplicationRecord
   end
 
   def find_by_lookup_code(lookup_code)
-    user_id, link_id = decode(lookup_code)
-    Rails.logger.info("Decoded link_id: #{link_id}, user_id: #{user_id}")
+    link_id = decode(lookup_code).first
+    Rails.logger.info("Decoded link_id: #{link_id}")
     Link.find_by(id: link_id)
   end
 

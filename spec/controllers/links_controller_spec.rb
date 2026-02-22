@@ -20,6 +20,7 @@ RSpec.describe Api::V1::LinksController, type: :controller do
     expect(link.original_url).to eq(url)
     expect(link.valid?).to eq(true)
     expect(link.persisted?).to eq(true)
+
     expect(link.lookup_code.length).to eq(7)
     expect(link.user_id).to eq(user.id)
 

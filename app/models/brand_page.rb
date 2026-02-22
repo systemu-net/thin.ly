@@ -139,8 +139,8 @@ class BrandPage < ApplicationRecord
   end
 
   def find_by_lookup_code(lookup_code)
-    user_id, brand_page_id = decode(lookup_code)
-    Rails.logger.info("Decoded brand_page_id: #{brand_page_id}, user_id: #{user_id}")
+    brand_page_id = decode(lookup_code).first
+    Rails.logger.info("Decoded brand_page_id: #{brand_page_id}")
     BrandPage.find_by(id: brand_page_id)
   end
 

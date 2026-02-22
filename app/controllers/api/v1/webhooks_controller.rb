@@ -46,14 +46,16 @@ class Api::V1::WebhooksController < ApplicationController
 
     # ── Checkout Session Events ──────────────────────────────────
     when "checkout.session.completed"
-      # Initial checkout succeeded. For card payments the invoice is already paid,
-      # so invoice.paid handles fulfillment. We only log here.
       Rails.logger.info("[Stripe Webhook] Checkout completed: #{obj.id}, customer: #{obj.customer}")
+      # For subscription checkouts, sync the subscription immediately.
+      # This is the primary fulfillment point — invoice.paid may not fire
+      # reliably across all Stripe API versions and webhook configurations.
+      fulfill_checkout_subscription(obj) if obj.mode == "subscription"
 
     when "checkout.session.async_payment_succeeded"
       # Delayed payment method (e.g. bank debit) confirmed after checkout.
-      # invoice.paid fires separately and handles fulfillment.
       Rails.logger.info("[Stripe Webhook] Async payment succeeded: #{obj.id}, customer: #{obj.customer}")
+      fulfill_checkout_subscription(obj) if obj.mode == "subscription"
 
     when "checkout.session.async_payment_failed"
       # Delayed payment method failed after checkout.
@@ -66,9 +68,10 @@ class Api::V1::WebhooksController < ApplicationController
       handle_invoice_paid(obj)
 
     when "invoice.payment_succeeded"
-      # Contains the same data as invoice.paid but does NOT fire for out-of-band
-      # payments. Since we handle invoice.paid, we only log here to avoid duplication.
-      Rails.logger.info("[Stripe Webhook] invoice.payment_succeeded: #{obj.id} (handled by invoice.paid)")
+      # Essentially the same as invoice.paid (minus out-of-band payments).
+      # Handle it identically so it works regardless of which event is
+      # enabled on the Stripe webhook endpoint.
+      handle_invoice_paid(obj)
 
     when "invoice.payment_failed"
       # A payment attempt on an invoice failed.
@@ -94,6 +97,31 @@ class Api::V1::WebhooksController < ApplicationController
     else
       Rails.logger.warn("[Stripe Webhook] Unhandled event type: #{event.type}")
     end
+  end
+
+  # ─── Checkout Fulfillment ────────────────────────────────────
+
+  def fulfill_checkout_subscription(session)
+    subscription_id = session.subscription
+    unless subscription_id.present?
+      Rails.logger.warn("[Stripe Webhook] Checkout session #{session.id} has no subscription ID")
+      return
+    end
+
+    user = find_user_by_stripe_id(session.customer)
+    return unless user
+
+    stripe_subscription = Stripe::Subscription.retrieve(subscription_id)
+    subscription = Subscription.find_by(subscription_id: stripe_subscription.id) ||
+                   Subscription.find_by(customer_id: user.stripe_id)
+
+    unless subscription
+      Rails.logger.error("[Stripe Webhook] Subscription not found for customer: #{user.stripe_id}")
+      return
+    end
+
+    sync_subscription(subscription, stripe_subscription)
+    Rails.logger.info("[Stripe Webhook] Subscription synced from checkout for #{user.email} (sub: #{subscription_id})")
   end
 
   # ─── Invoice Handlers ──────────────────────────────────────────
