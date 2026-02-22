@@ -118,7 +118,8 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
            plan:                 plan_double,
            items:                double("items", data: [ item_double ]),
            trial_end:            trial_end,
-           cancel_at_period_end: cancel_at_period_end)
+           cancel_at_period_end: cancel_at_period_end,
+           latest_invoice:       "in_checkout_test123")
   end
 
   # Stubs Stripe::Subscription.retrieve (used by invoice.paid),
@@ -139,6 +140,22 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
     pm_details    = double("payment_method_details", card: card_double)
     charge_double = double("Stripe::Charge", payment_method_details: pm_details)
     allow(Stripe::Charge).to receive(:retrieve).and_return(charge_double)
+
+    # Stub invoice retrieval for checkout confirmation emails
+    sub_details_double = double("subscription_details", subscription: stripe_sub.id)
+    parent_double      = double("parent", subscription_details: sub_details_double)
+    invoice_double = double("Stripe::Invoice",
+                            id:                 "in_checkout_test123",
+                            customer:           stripe_sub.customer,
+                            billing_reason:     "subscription_create",
+                            hosted_invoice_url: "https://invoice.stripe.com/x",
+                            parent:             parent_double,
+                            subscription:       stripe_sub.id,
+                            amount_paid:        1999,
+                            currency:           "usd",
+                            charge:             "ch_test123",
+                            invoice_pdf:        "https://pay.stripe.com/invoice/test/pdf")
+    allow(Stripe::Invoice).to receive(:retrieve).and_return(invoice_double)
 
     stripe_sub
   end
@@ -273,6 +290,27 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
         expect(subscription.subscription_id).to eq(stripe_subscription_id)
       end
 
+      it "sends a payment_completed welcome email" do
+        post_stripe_webhook(event)
+        expect(ActionMailer::Base.deliveries.count).to eq(1)
+        mail = ActionMailer::Base.deliveries.first
+        expect(mail.to).to      include(user.email)
+        expect(mail.subject).to eq("Welcome to thin.ly - Payment Confirmed")
+      end
+
+      it "attaches the invoice PDF to the welcome email" do
+        # Stub the PDF download so it doesn't hit the real URL
+        pdf_content = "%PDF-1.4 fake"
+        fake_io = StringIO.new(pdf_content)
+        allow(URI).to receive(:parse).and_call_original
+        allow_any_instance_of(URI::HTTPS).to receive(:open).and_return(fake_io)
+
+        post_stripe_webhook(event)
+        mail = ActionMailer::Base.deliveries.first
+        expect(mail.attachments.count).to eq(1)
+        expect(mail.attachments.first.filename).to eq("receipt.pdf")
+      end
+
       it "records the event as processed" do
         expect { post_stripe_webhook(event) }
           .to change(ProcessedStripeEvent, :count).by(1)
@@ -311,6 +349,14 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
         subscription.reload
         expect(subscription.status).to eq("active")
         expect(subscription.subscription_id).to eq(stripe_subscription_id)
+      end
+
+      it "sends a payment_completed welcome email" do
+        post_stripe_webhook(event)
+        expect(ActionMailer::Base.deliveries.count).to eq(1)
+        mail = ActionMailer::Base.deliveries.first
+        expect(mail.to).to      include(user.email)
+        expect(mail.subject).to eq("Welcome to thin.ly - Payment Confirmed")
       end
     end
 
@@ -401,12 +447,9 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
           expect(plan.brand_pages).to eq(10)
         end
 
-        it "sends a payment_completed email (first purchase)" do
+        it "does not send a duplicate email (checkout fulfillment handles it)" do
           post_stripe_webhook(event)
-          expect(ActionMailer::Base.deliveries.count).to eq(1)
-          mail = ActionMailer::Base.deliveries.first
-          expect(mail.to).to      include(user.email)
-          expect(mail.subject).to eq("Welcome to thin.ly - Payment Confirmed")
+          expect(ActionMailer::Base.deliveries).to be_empty
         end
       end
 
@@ -810,6 +853,14 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
           expect(plan.name).to eq("Pro")
           expect(plan.links).to eq(200)
         end
+
+        it "sends a cancellation_scheduled email" do
+          post_stripe_webhook(event)
+          expect(ActionMailer::Base.deliveries.count).to eq(1)
+          mail = ActionMailer::Base.deliveries.first
+          expect(mail.to).to      include(user.email)
+          expect(mail.subject).to eq("thin.ly - Subscription Cancellation Scheduled")
+        end
       end
 
       context "when cancel_at_period_end changes from true to false (reactivation)" do
@@ -838,6 +889,14 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
         it "keeps the subscription active" do
           post_stripe_webhook(event)
           expect(subscription.reload.status).to eq("active")
+        end
+
+        it "sends a subscription_reactivated email" do
+          post_stripe_webhook(event)
+          expect(ActionMailer::Base.deliveries.count).to eq(1)
+          mail = ActionMailer::Base.deliveries.first
+          expect(mail.to).to      include(user.email)
+          expect(mail.subject).to eq("thin.ly - Subscription Reactivated")
         end
       end
     end

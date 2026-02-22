@@ -16,6 +16,8 @@ class SubscriptionMailer < ApplicationMailer
     @user = params[:user]
     @invoice_data = params[:invoice_data] || {}
 
+    attach_receipt_pdf if @invoice_data[:invoice_pdf].present?
+
     mail to: @user.email, subject: "Welcome to thin.ly - Payment Confirmed"
   end
 
@@ -41,6 +43,19 @@ class SubscriptionMailer < ApplicationMailer
     mail to: @user.email, subject: "thin.ly - Subscription Canceled"
   end
 
+  def cancellation_scheduled
+    @user = params[:user]
+    @period_end = params[:period_end]
+
+    mail to: @user.email, subject: "thin.ly - Subscription Cancellation Scheduled"
+  end
+
+  def subscription_reactivated
+    @user = params[:user]
+
+    mail to: @user.email, subject: "thin.ly - Subscription Reactivated"
+  end
+
   private
 
   ALLOWED_PDF_HOSTS = %w[pay.stripe.com invoice.stripe.com].freeze
@@ -57,10 +72,22 @@ class SubscriptionMailer < ApplicationMailer
       return
     end
 
-    pdf_data = uri.open(
+    # Disallow redirects to prevent SSRF via open-redirect on an allowed host.
+    # open-uri's :redirect option accepts a proc — returning false rejects the redirect.
+    io = uri.open(
       open_timeout: PDF_OPEN_TIMEOUT,
-      read_timeout: PDF_READ_TIMEOUT
-    ).read(PDF_MAX_SIZE)
+      read_timeout: PDF_READ_TIMEOUT,
+      redirect:     false
+    )
+
+    pdf_data = io.read(PDF_MAX_SIZE)
+
+    # If there's still data left in the stream the PDF exceeds our size limit —
+    # skip it rather than attaching a truncated/corrupt file.
+    unless io.eof?
+      Rails.logger.warn("[SubscriptionMailer] Receipt PDF exceeds #{PDF_MAX_SIZE} bytes, skipping attachment")
+      return
+    end
 
     attachments["receipt.pdf"] = { mime_type: "application/pdf", content: pdf_data }
   rescue StandardError => e

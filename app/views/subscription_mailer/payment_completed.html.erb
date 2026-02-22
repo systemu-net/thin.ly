@@ -22,6 +22,12 @@
       <td><strong><%= @invoice_data[:amount_paid] %></strong></td>
     </tr>
     <% end %>
+    <% if @invoice_data[:card_last4].present? %>
+    <tr>
+      <td class="label">Card</td>
+      <td>&bull;&bull;&bull;&bull; <%= @invoice_data[:card_last4] %></td>
+    </tr>
+    <% end %>
     <% if @invoice_data[:period_end].present? %>
     <tr>
       <td class="label">Next renewal</td>
@@ -30,6 +36,12 @@
     <% end %>
   </table>
 </div>
+<% end %>
+
+<% if @invoice_data[:invoice_pdf].present? %>
+<p style="font-size: 14px; color: #a8aaaf;">
+  A PDF receipt is attached to this email for your records.
+</p>
 <% end %>
 
 <hr class="divider">

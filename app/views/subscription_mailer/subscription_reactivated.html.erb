@@ -1,0 +1,24 @@
+<h1>Subscription Reactivated</h1>
+
+<p>Hi <%= @user.email %>,</p>
+
+<p>
+  Great news! Your subscription has been reactivated. Your cancellation has
+  been reversed and you'll continue to enjoy all your current plan features
+  without interruption.
+</p>
+
+<p>No further action is needed — everything is back to normal.</p>
+
+<hr class="divider">
+
+<p style="text-align: center;">
+  <a href="<%= ENV['DEV_HOST'] || 'https://thin.ly' %>/" class="button">Go to Dashboard</a>
+</p>
+
+<hr class="divider">
+
+<p style="font-size: 14px; color: #a8aaaf;">
+  If you have any questions, reply to this email or contact
+  <a href="mailto:support@thin.ly" style="color: #a8aaaf;">support@thin.ly</a>.
+</p>
