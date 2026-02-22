@@ -1,4 +1,4 @@
-require "open-uri"
+require "net/http"
 
 class SubscriptionMailer < ApplicationMailer
   # Subject can be set in your I18n file at config/locales/en.yml
@@ -62,6 +62,7 @@ class SubscriptionMailer < ApplicationMailer
   PDF_OPEN_TIMEOUT  = 5  # seconds
   PDF_READ_TIMEOUT  = 10 # seconds
   PDF_MAX_SIZE      = 5.megabytes
+  MAX_REDIRECTS     = 3
 
   def attach_receipt_pdf
     pdf_url = @invoice_data[:invoice_pdf]
@@ -72,19 +73,10 @@ class SubscriptionMailer < ApplicationMailer
       return
     end
 
-    # Disallow redirects to prevent SSRF via open-redirect on an allowed host.
-    # open-uri's :redirect option accepts a proc — returning false rejects the redirect.
-    io = uri.open(
-      open_timeout: PDF_OPEN_TIMEOUT,
-      read_timeout: PDF_READ_TIMEOUT,
-      redirect:     false
-    )
+    pdf_data = fetch_pdf_with_redirects(uri)
+    return unless pdf_data
 
-    pdf_data = io.read(PDF_MAX_SIZE)
-
-    # If there's still data left in the stream the PDF exceeds our size limit —
-    # skip it rather than attaching a truncated/corrupt file.
-    unless io.eof?
+    if pdf_data.bytesize > PDF_MAX_SIZE
       Rails.logger.warn("[SubscriptionMailer] Receipt PDF exceeds #{PDF_MAX_SIZE} bytes, skipping attachment")
       return
     end
@@ -93,5 +85,37 @@ class SubscriptionMailer < ApplicationMailer
   rescue StandardError => e
     Rails.logger.error("[SubscriptionMailer] Failed to attach receipt PDF: #{e.message}")
     # Don't block sending the email if PDF download fails
+  end
+
+  # Follows redirects while enforcing HTTPS-only to prevent protocol-downgrade SSRF.
+  # The initial URL is already validated against ALLOWED_PDF_HOSTS; redirects are
+  # trusted as long as they stay on HTTPS (Stripe redirects to its own CDN).
+  def fetch_pdf_with_redirects(uri, limit = MAX_REDIRECTS)
+    raise "Too many redirects" if limit <= 0
+
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = true
+    http.open_timeout = PDF_OPEN_TIMEOUT
+    http.read_timeout = PDF_READ_TIMEOUT
+
+    response = http.request(Net::HTTP::Get.new(uri))
+
+    case response
+    when Net::HTTPSuccess
+      response.body
+    when Net::HTTPRedirection
+      location = response["location"]
+      redirect_uri = URI.parse(location)
+
+      unless redirect_uri.is_a?(URI::HTTPS)
+        Rails.logger.warn("[SubscriptionMailer] Rejected non-HTTPS redirect: #{redirect_uri}")
+        return nil
+      end
+
+      fetch_pdf_with_redirects(redirect_uri, limit - 1)
+    else
+      Rails.logger.error("[SubscriptionMailer] PDF download failed: #{response.code} #{response.message}")
+      nil
+    end
   end
 end

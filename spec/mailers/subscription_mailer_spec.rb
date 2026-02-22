@@ -107,8 +107,15 @@ RSpec.describe SubscriptionMailer, type: :mailer do
       let(:mail) { SubscriptionMailer.with(user: user, invoice_data: invoice_data_with_pdf).payment_successful }
 
       before do
-        io = StringIO.new(pdf_content)
-        allow_any_instance_of(URI::HTTPS).to receive(:open).and_return(io)
+        http_response = Net::HTTPSuccess.allocate
+        allow(http_response).to receive(:body).and_return(pdf_content)
+
+        http_double = instance_double(Net::HTTP)
+        allow(Net::HTTP).to receive(:new).and_return(http_double)
+        allow(http_double).to receive(:use_ssl=)
+        allow(http_double).to receive(:open_timeout=)
+        allow(http_double).to receive(:read_timeout=)
+        allow(http_double).to receive(:request).and_return(http_response)
       end
 
       it "attaches a receipt.pdf file" do
@@ -123,7 +130,7 @@ RSpec.describe SubscriptionMailer, type: :mailer do
       let(:mail) { SubscriptionMailer.with(user: user, invoice_data: invoice_data_with_bad_url).payment_successful }
 
       it "does not attach a PDF and does not make an HTTP request" do
-        expect_any_instance_of(URI::HTTPS).not_to receive(:open)
+        expect(Net::HTTP).not_to receive(:new)
         expect(mail.attachments).to be_empty
       end
     end

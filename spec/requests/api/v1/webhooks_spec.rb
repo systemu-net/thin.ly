@@ -78,6 +78,7 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
                     subscription_id: stripe_subscription_id,
                     amount_paid: 1999, currency: "usd",
                     charge: "ch_test123",
+                    payment_intent: "pi_test123",
                     invoice_pdf: "https://pay.stripe.com/invoice/test/pdf")
     sub_details = double("subscription_details", subscription: subscription_id)
     parent      = double("parent", subscription_details: sub_details)
@@ -91,6 +92,7 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
            amount_paid:        amount_paid,
            currency:           currency,
            charge:             charge,
+           payment_intent:     payment_intent,
            invoice_pdf:        invoice_pdf)
   end
 
@@ -105,7 +107,7 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
                                 plan_nickname: "Pro",
                                 price_nickname: "Pro Monthly")
     plan_double = double("stripe_plan", product: product_id, interval: interval, nickname: plan_nickname)
-    price_double = double("stripe_price", id: price_id, nickname: price_nickname)
+    price_double = double("stripe_price", id: price_id, nickname: price_nickname, product: product_id)
     item_double = double("stripe_item",
                          plan:                 plan_double,
                          price:                price_double,
@@ -131,7 +133,7 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
                       card_last4: "4242")
     stripe_sub ||= build_stripe_subscription
     meta_double    = double("metadata", as_json: metadata)
-    product_double = double("Stripe::Product", metadata: meta_double)
+    product_double = double("Stripe::Product", metadata: meta_double, name: "Pro")
     allow(Stripe::Subscription).to receive(:retrieve).and_return(stripe_sub)
     allow(Stripe::Product).to receive(:retrieve).and_return(product_double)
 
@@ -140,6 +142,10 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
     pm_details    = double("payment_method_details", card: card_double)
     charge_double = double("Stripe::Charge", payment_method_details: pm_details)
     allow(Stripe::Charge).to receive(:retrieve).and_return(charge_double)
+
+    # Stub payment intent retrieval (fallback for card details)
+    pi_double = double("Stripe::PaymentIntent", latest_charge: "ch_test123")
+    allow(Stripe::PaymentIntent).to receive(:retrieve).and_return(pi_double)
 
     # Stub invoice retrieval for checkout confirmation emails
     sub_details_double = double("subscription_details", subscription: stripe_sub.id)
@@ -154,6 +160,7 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
                             amount_paid:        1999,
                             currency:           "usd",
                             charge:             "ch_test123",
+                            payment_intent:     "pi_test123",
                             invoice_pdf:        "https://pay.stripe.com/invoice/test/pdf")
     allow(Stripe::Invoice).to receive(:retrieve).and_return(invoice_double)
 
@@ -299,11 +306,17 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
       end
 
       it "attaches the invoice PDF to the welcome email" do
-        # Stub the PDF download so it doesn't hit the real URL
+        # Stub Net::HTTP to return fake PDF content instead of hitting the real URL
         pdf_content = "%PDF-1.4 fake"
-        fake_io = StringIO.new(pdf_content)
-        allow(URI).to receive(:parse).and_call_original
-        allow_any_instance_of(URI::HTTPS).to receive(:open).and_return(fake_io)
+        http_response = Net::HTTPSuccess.allocate
+        allow(http_response).to receive(:body).and_return(pdf_content)
+
+        http_double = instance_double(Net::HTTP)
+        allow(Net::HTTP).to receive(:new).and_return(http_double)
+        allow(http_double).to receive(:use_ssl=)
+        allow(http_double).to receive(:open_timeout=)
+        allow(http_double).to receive(:read_timeout=)
+        allow(http_double).to receive(:request).and_return(http_response)
 
         post_stripe_webhook(event)
         mail = ActionMailer::Base.deliveries.first

@@ -344,19 +344,38 @@ class Api::V1::WebhooksController < ApplicationController
     amount_cents = invoice.respond_to?(:amount_paid) ? invoice.amount_paid : nil
     currency = invoice.respond_to?(:currency) ? invoice.currency&.upcase : "USD"
 
-    # Try to get card last4 from the charge's payment method
+    # Plan name: try nickname first, then fall back to the Stripe product name
+    plan_name = item&.plan&.nickname || item&.price&.nickname
+    if plan_name.blank? && item&.price&.product.present?
+      begin
+        product = Stripe::Product.retrieve(item.price.product)
+        plan_name = product.name
+      rescue Stripe::StripeError => e
+        Rails.logger.warn("[Stripe Webhook] Could not retrieve product name: #{e.message}")
+      end
+    end
+
+    # Card last4: try charge first, fall back to payment_intent's latest_charge
     card_last4 = nil
     begin
       if invoice.respond_to?(:charge) && invoice.charge.present?
         charge = Stripe::Charge.retrieve(invoice.charge)
         card_last4 = charge.payment_method_details&.card&.last4
       end
+
+      if card_last4.nil? && invoice.respond_to?(:payment_intent) && invoice.payment_intent.present?
+        pi = Stripe::PaymentIntent.retrieve(invoice.payment_intent)
+        if pi.respond_to?(:latest_charge) && pi.latest_charge.present?
+          charge = Stripe::Charge.retrieve(pi.latest_charge)
+          card_last4 = charge.payment_method_details&.card&.last4
+        end
+      end
     rescue StandardError => e
       Rails.logger.warn("[Stripe Webhook] Could not retrieve card details: #{e.message}")
     end
 
     {
-      plan_name: item&.plan&.nickname || item&.price&.nickname,
+      plan_name: plan_name,
       amount_paid: amount_cents ? format_amount(amount_cents, currency) : nil,
       card_last4: card_last4,
       period_end: item&.current_period_end ? Time.at(item.current_period_end).strftime("%B %d, %Y") : nil,
