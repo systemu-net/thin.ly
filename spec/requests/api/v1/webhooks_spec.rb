@@ -853,6 +853,14 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
           expect(plan.name).to eq("Pro")
           expect(plan.links).to eq(200)
         end
+
+        it "sends a cancellation_scheduled email" do
+          post_stripe_webhook(event)
+          expect(ActionMailer::Base.deliveries.count).to eq(1)
+          mail = ActionMailer::Base.deliveries.first
+          expect(mail.to).to      include(user.email)
+          expect(mail.subject).to eq("thin.ly - Subscription Cancellation Scheduled")
+        end
       end
 
       context "when cancel_at_period_end changes from true to false (reactivation)" do
@@ -881,6 +889,14 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
         it "keeps the subscription active" do
           post_stripe_webhook(event)
           expect(subscription.reload.status).to eq("active")
+        end
+
+        it "sends a subscription_reactivated email" do
+          post_stripe_webhook(event)
+          expect(ActionMailer::Base.deliveries.count).to eq(1)
+          mail = ActionMailer::Base.deliveries.first
+          expect(mail.to).to      include(user.email)
+          expect(mail.subject).to eq("thin.ly - Subscription Reactivated")
         end
       end
     end

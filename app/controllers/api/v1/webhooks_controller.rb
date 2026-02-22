@@ -209,10 +209,10 @@ class Api::V1::WebhooksController < ApplicationController
     # Notify user when cancellation is scheduled or reactivated
     if !was_canceling && is_canceling
       Rails.logger.info("[Stripe Webhook] Subscription scheduled to cancel at period end for #{user.email}")
-      # TODO: SubscriptionMailer.with(user: user, period_end: subscription.current_period_end).cancellation_scheduled.deliver_now
+      SubscriptionMailer.with(user: user, period_end: subscription.current_period_end).cancellation_scheduled.deliver_later
     elsif was_canceling && !is_canceling
       Rails.logger.info("[Stripe Webhook] Subscription reactivated for #{user.email}")
-      # TODO: SubscriptionMailer.with(user: user).subscription_reactivated.deliver_now
+      SubscriptionMailer.with(user: user).subscription_reactivated.deliver_later
     end
 
     Rails.logger.info(

@@ -43,6 +43,19 @@ class SubscriptionMailer < ApplicationMailer
     mail to: @user.email, subject: "thin.ly - Subscription Canceled"
   end
 
+  def cancellation_scheduled
+    @user = params[:user]
+    @period_end = params[:period_end]
+
+    mail to: @user.email, subject: "thin.ly - Subscription Cancellation Scheduled"
+  end
+
+  def subscription_reactivated
+    @user = params[:user]
+
+    mail to: @user.email, subject: "thin.ly - Subscription Reactivated"
+  end
+
   private
 
   ALLOWED_PDF_HOSTS = %w[pay.stripe.com invoice.stripe.com].freeze
