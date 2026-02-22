@@ -77,13 +77,11 @@ RSpec.describe Resource, type: :model do
       expect(resource.errors[:linkable]).to include("can't be blank")
     end
 
-    # TODO: Fix - ActiveRecord tries to resolve InvalidType as a constant
-    xit 'validates linkable_type is in allowed list' do
-      resource = Resource.new(page: brand_page)
-      resource.linkable_type = 'InvalidType'
-      resource.linkable_id = 1
-      expect(resource.valid?).to be false
-      expect(resource.errors[:linkable_type]).to include("InvalidType is not a valid linkable type")
+    it 'validates linkable_type is in allowed list' do
+      validators = Resource.validators_on(:linkable_type)
+      inclusion_validator = validators.find { |v| v.is_a?(ActiveModel::Validations::InclusionValidator) }
+      expect(inclusion_validator).to be_present
+      expect(inclusion_validator.options[:in]).to eq(%w[Link QrCode Image])
     end
 
     it 'allows Link as linkable_type' do
@@ -117,17 +115,16 @@ RSpec.describe Resource, type: :model do
   end
 
   describe 'through associations' do
-    # TODO: Associations need Rails reload - works in practice but not in tests
-    xit 'allows BrandPage to access Links through resources' do
+    it 'allows BrandPage to access Links through resources' do
       create(:resource, page: brand_page, linkable: link)
-      brand_page.reload
-      expect(brand_page.resource_links).to include(link)
+      # Use a fresh query to avoid cached association
+      expect(BrandPage.find(brand_page.id).resource_links).to include(link)
     end
 
-    xit 'allows BrandPage to access QrCodes through resources' do
+    it 'allows BrandPage to access QrCodes through resources' do
       create(:resource, page: brand_page, linkable: qr_code)
-      brand_page.reload
-      expect(brand_page.resource_qr_codes).to include(qr_code)
+      # Use a fresh query to avoid cached association
+      expect(BrandPage.find(brand_page.id).resource_qr_codes).to include(qr_code)
     end
 
     it 'allows Link to access BrandPages through resources' do

@@ -28,14 +28,45 @@ RSpec.describe QrCode, type: :model do
   let(:link) { create(:link, user: user) }
   let(:qr_code) { create(:qr_code, user: user, link: link) }
 
-  xit 'always has an image' do
-    qr_code = QrCode.new(
-      image: 'image',
-      user_id: user.id,
-      link_id: link.id
-    )
-    expect { qr_code.save }.to(change(QrCode, :count).by(1))
-    expect(qr_code.valid?).to eq(true)
+  it 'validates presence of image' do
+    qr_code = QrCode.new(user_id: user.id, link_id: link.id, image: nil)
+    expect(qr_code).not_to be_valid
+    expect(qr_code.errors[:image]).to include("can't be blank")
+  end
+
+  it 'validates uniqueness of user_id scoped to link_id' do
+    create(:qr_code, user: user, link: link)
+    duplicate = build(:qr_code, user: user, link: link)
+    expect(duplicate).not_to be_valid
+    expect(duplicate.errors[:user_id]).to include('has already been taken')
+  end
+
+  describe 'associations' do
+    it 'belongs to a link' do
+      assoc = described_class.reflect_on_association(:link)
+      expect(assoc.macro).to eq(:belongs_to)
+    end
+
+    it 'belongs to a user' do
+      assoc = described_class.reflect_on_association(:user)
+      expect(assoc.macro).to eq(:belongs_to)
+    end
+
+    it 'has many api_requests' do
+      assoc = described_class.reflect_on_association(:api_requests)
+      expect(assoc.macro).to eq(:has_many)
+    end
+
+    it 'has many resources' do
+      assoc = described_class.reflect_on_association(:resources)
+      expect(assoc.macro).to eq(:has_many)
+    end
+
+    it 'has many brand_pages through resources' do
+      assoc = described_class.reflect_on_association(:brand_pages)
+      expect(assoc.macro).to eq(:has_many)
+      expect(assoc.options[:through]).to eq(:resources)
+    end
   end
 
   describe '#scans_count' do

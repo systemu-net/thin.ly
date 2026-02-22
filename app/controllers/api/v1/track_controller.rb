@@ -38,7 +38,7 @@ class Api::V1::TrackController < ApplicationController
     if page_view.persisted?
       render json: { success: true }, status: :ok
     else
-      render json: { error: "Failed to track view", details: page_view.errors.full_messages }, status: :unprocessable_entity
+      render json: { error: "Failed to track view", details: page_view.errors.full_messages }, status: :unprocessable_content
     end
   end
 

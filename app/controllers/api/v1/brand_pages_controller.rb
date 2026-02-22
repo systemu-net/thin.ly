@@ -22,7 +22,7 @@ module Api
         @brand_page.save
 
         if @brand_page.errors.full_messages.any?
-          return render json: { errors: @brand_page.errors.full_messages }, status: :unprocessable_entity
+          return render json: { errors: @brand_page.errors.full_messages }, status: :unprocessable_content
         end
 
         log_api_request(@brand_page)
@@ -32,13 +32,13 @@ module Api
       def update
         if @brand_page.published?
           render json: { error: "Cannot update a published brand page. Please create a draft version first." },
-                 status: :unprocessable_entity and return
+                 status: :unprocessable_content and return
         end
 
         if @brand_page.update(brand_page_params)
           render :show, status: :ok
         else
-          render json: { errors: @brand_page.errors.full_messages }, status: :unprocessable_entity
+          render json: { errors: @brand_page.errors.full_messages }, status: :unprocessable_content
         end
       end
 
@@ -63,9 +63,9 @@ module Api
         @brand_page = @published_version
         render :show, status: :ok
       rescue StandardError => e
-        render json: { error: e.message }, status: :unprocessable_entity
+        render json: { error: e.message }, status: :unprocessable_content
       rescue ActiveRecord::RecordInvalid => e
-        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+        render json: { errors: e.record.errors.full_messages }, status: :unprocessable_content
       end
 
       def unpublish
@@ -75,7 +75,7 @@ module Api
         @brand_page = draft_version
         render :show, status: :ok
       rescue StandardError => e
-        render json: { error: e.message }, status: :unprocessable_entity
+        render json: { error: e.message }, status: :unprocessable_content
       end
 
       private

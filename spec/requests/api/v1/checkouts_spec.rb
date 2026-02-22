@@ -122,7 +122,7 @@ RSpec.describe "Api::V1::Checkouts", type: :request do
       it "returns 422 with an error message" do
         post CHECKOUT_URL, params: { lookup_key: "creator_monthly" }
 
-        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response).to have_http_status(:unprocessable_content)
         expect(response.parsed_body["error"]).to eq("You are already subscribed to this plan")
       end
 
