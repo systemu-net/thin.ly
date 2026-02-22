@@ -38,8 +38,8 @@ Rails.application.configure do
   # caching is enabled.
   config.action_mailer.perform_caching = false
 
-  # Ensure Active Jobs are executed immediately during Rails test environments
-  config.active_job.queue_adapter = :test
+  # Ensure Active Jobs (including deliver_later) execute immediately in tests
+  config.active_job.queue_adapter = :inline
 
   # Tell Action Mailer not to deliver emails to the real world.
   # The :test delivery method accumulates sent emails in the

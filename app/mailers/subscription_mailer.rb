@@ -16,6 +16,8 @@ class SubscriptionMailer < ApplicationMailer
     @user = params[:user]
     @invoice_data = params[:invoice_data] || {}
 
+    attach_receipt_pdf if @invoice_data[:invoice_pdf].present?
+
     mail to: @user.email, subject: "Welcome to thin.ly - Payment Confirmed"
   end
 

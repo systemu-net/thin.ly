@@ -121,6 +121,11 @@ class Api::V1::WebhooksController < ApplicationController
     end
 
     sync_subscription(subscription, stripe_subscription)
+
+    # Send the welcome / payment-confirmed email with invoice details.
+    # The latest_invoice on the subscription points to the checkout invoice.
+    send_checkout_confirmation_email(user, stripe_subscription)
+
     Rails.logger.info("[Stripe Webhook] Subscription synced from checkout for #{user.email} (sub: #{subscription_id})")
   end
 
@@ -152,11 +157,14 @@ class Api::V1::WebhooksController < ApplicationController
 
     invoice_data = extract_invoice_data(invoice, stripe_subscription)
 
-    # Send the right email: first payment vs recurring renewal
+    # Send the right email: first payment vs recurring renewal.
+    # Skip the first-payment email here because checkout.session.completed
+    # already sends it via send_checkout_confirmation_email. This avoids
+    # duplicate welcome emails when both events fire (the normal case).
     if invoice.billing_reason == "subscription_create"
-      SubscriptionMailer.with(user: user, invoice_data: invoice_data).payment_completed.deliver_now
+      Rails.logger.info("[Stripe Webhook] Skipping email for subscription_create — handled by checkout fulfillment")
     else
-      SubscriptionMailer.with(user: user, invoice_data: invoice_data).payment_successful.deliver_now
+      SubscriptionMailer.with(user: user, invoice_data: invoice_data).payment_successful.deliver_later
     end
 
     Rails.logger.info("[Stripe Webhook] invoice.paid processed for #{user.email} (reason: #{invoice.billing_reason})")
@@ -172,7 +180,7 @@ class Api::V1::WebhooksController < ApplicationController
       "Invoice: #{invoice.id}, URL: #{invoice.hosted_invoice_url}"
     )
 
-    SubscriptionMailer.with(user: user, url: invoice.hosted_invoice_url).payment_action_required.deliver_now
+    SubscriptionMailer.with(user: user, url: invoice.hosted_invoice_url).payment_action_required.deliver_later
   end
 
   # ─── Subscription Handlers ─────────────────────────────────────
@@ -231,7 +239,7 @@ class Api::V1::WebhooksController < ApplicationController
     )
     subscription.plan.update(Plan::DEFAULT_PLAN)
 
-    SubscriptionMailer.with(user: user).subscription_canceled.deliver_now
+    SubscriptionMailer.with(user: user).subscription_canceled.deliver_later
     Rails.logger.info("[Stripe Webhook] Subscription canceled for #{user.email}")
   end
 
@@ -252,8 +260,30 @@ class Api::V1::WebhooksController < ApplicationController
     user = find_user_by_stripe_id(customer_id)
     return unless user
 
-    SubscriptionMailer.with(user: user).payment_failed.deliver_now
+    SubscriptionMailer.with(user: user).payment_failed.deliver_later
     Rails.logger.info("[Stripe Webhook] Payment failed email sent to #{user.email}")
+  end
+
+  # Retrieve the checkout invoice from the subscription and send
+  # the welcome / payment-confirmed email with invoice PDF attached.
+  def send_checkout_confirmation_email(user, stripe_subscription)
+    invoice_id = stripe_subscription.respond_to?(:latest_invoice) ? stripe_subscription.latest_invoice : nil
+
+    invoice_data = {}
+    if invoice_id.present?
+      begin
+        invoice = Stripe::Invoice.retrieve(invoice_id)
+        invoice_data = extract_invoice_data(invoice, stripe_subscription)
+      rescue Stripe::StripeError => e
+        Rails.logger.warn("[Stripe Webhook] Could not retrieve invoice #{invoice_id}: #{e.message}")
+      end
+    end
+
+    SubscriptionMailer.with(user: user, invoice_data: invoice_data).payment_completed.deliver_later
+    Rails.logger.info("[Stripe Webhook] Welcome email queued for #{user.email}")
+  rescue StandardError => e
+    # Never let an email failure prevent subscription fulfillment
+    Rails.logger.error("[Stripe Webhook] Failed to send checkout confirmation email: #{e.message}")
   end
 
   def find_user_by_stripe_id(stripe_customer_id)
