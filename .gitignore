@@ -52,3 +52,6 @@ dump.rdb
 !.elasticbeanstalk/config.yml
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+
+# Ignore docs/ folder for the Agentic workflow documentation
+docs/
