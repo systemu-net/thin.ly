@@ -108,7 +108,7 @@ class RoutingRulesEngine
       total   = rules.sum(&:weight)
       return nil if total.zero?
 
-      ceiling = [total, 100].max
+      ceiling = [ total, 100 ].max
       roll    = rand(1..ceiling)
       cursor  = 0
       rules.each do |rule|
