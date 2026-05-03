@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_02_20_055852) do
+ActiveRecord::Schema[7.2].define(version: 2026_04_30_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -80,6 +80,58 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_20_055852) do
     t.index ["source"], name: "index_clicks_on_source"
   end
 
+  create_table "link_campaigns", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "name", null: false
+    t.string "state", default: "active", null: false
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "accent_color", default: "#7c3aed", null: false
+    t.index ["accent_color"], name: "index_link_campaigns_on_accent_color"
+    t.index ["user_id"], name: "index_link_campaigns_on_user_id"
+  end
+
+  create_table "link_destination_histories", force: :cascade do |t|
+    t.bigint "link_id", null: false
+    t.string "destination_url", null: false
+    t.datetime "active_from", null: false
+    t.datetime "active_until"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["link_id", "active_from"], name: "index_link_destination_histories_on_link_id_and_active_from"
+    t.index ["link_id"], name: "index_link_destination_histories_on_link_id"
+  end
+
+  create_table "link_governance_logs", force: :cascade do |t|
+    t.bigint "link_id", null: false
+    t.bigint "user_id"
+    t.string "action", null: false
+    t.jsonb "before_state", default: {}
+    t.jsonb "after_state", default: {}
+    t.string "reason"
+    t.string "ip_address"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["link_id", "created_at"], name: "index_link_governance_logs_on_link_id_and_created_at"
+    t.index ["link_id"], name: "index_link_governance_logs_on_link_id"
+    t.index ["user_id"], name: "index_link_governance_logs_on_user_id"
+  end
+
+  create_table "link_routing_rules", force: :cascade do |t|
+    t.bigint "link_id", null: false
+    t.string "rule_type", null: false
+    t.jsonb "conditions", default: {}
+    t.string "destination_url", null: false
+    t.integer "weight"
+    t.integer "priority", default: 0, null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["link_id", "priority"], name: "index_link_routing_rules_on_link_id_and_priority"
+    t.index ["link_id"], name: "index_link_routing_rules_on_link_id"
+  end
+
   create_table "links", force: :cascade do |t|
     t.string "lookup_code"
     t.string "original_url"
@@ -92,9 +144,23 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_20_055852) do
     t.datetime "last_scanned_at"
     t.integer "scan_failures", default: 0
     t.integer "clicks_count", default: 0, null: false
+    t.string "state", default: "active", null: false
+    t.boolean "governance_enabled", default: false, null: false
+    t.datetime "activates_at"
+    t.datetime "expires_at"
+    t.integer "click_cap"
+    t.string "expired_redirect_url"
+    t.string "paused_redirect_url"
+    t.boolean "password_protected", default: false, null: false
+    t.string "password_digest"
+    t.bigint "link_campaign_id"
+    t.index ["activates_at"], name: "index_links_on_activates_at"
+    t.index ["expires_at"], name: "index_links_on_expires_at"
     t.index ["is_safe", "last_scanned_at"], name: "index_links_on_is_safe_and_last_scanned_at"
     t.index ["is_safe"], name: "index_links_on_is_safe"
     t.index ["last_scanned_at"], name: "index_links_on_last_scanned_at"
+    t.index ["link_campaign_id"], name: "index_links_on_link_campaign_id"
+    t.index ["state"], name: "index_links_on_state"
     t.index ["user_id", "clicks_count"], name: "index_links_on_user_and_clicks_count"
     t.index ["user_id", "created_at"], name: "index_links_on_user_and_created"
     t.index ["user_id"], name: "index_links_on_user_id"
@@ -224,6 +290,12 @@ ActiveRecord::Schema[7.2].define(version: 2026_02_20_055852) do
   add_foreign_key "brand_pages", "brand_pages", column: "published_version_id"
   add_foreign_key "brand_pages", "users"
   add_foreign_key "clicks", "links"
+  add_foreign_key "link_campaigns", "users"
+  add_foreign_key "link_destination_histories", "links"
+  add_foreign_key "link_governance_logs", "links"
+  add_foreign_key "link_governance_logs", "users"
+  add_foreign_key "link_routing_rules", "links"
+  add_foreign_key "links", "link_campaigns"
   add_foreign_key "links", "users"
   add_foreign_key "page_views", "brand_pages"
   add_foreign_key "plans", "subscriptions"

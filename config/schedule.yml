@@ -1,0 +1,4 @@
+governance:
+  cron: "*/1 * * * *" # At every minute
+  class: "LinkLifecycleManagerJob"
+  queue: governance

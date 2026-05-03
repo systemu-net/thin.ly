@@ -1,4 +1,5 @@
 require "sidekiq/web"
+require "sidekiq/cron/web"
 
 Rails.application.routes.draw do
   devise_for :users, defaults: { format: :json }, path: "users", controllers: {
@@ -24,9 +25,29 @@ Rails.application.routes.draw do
       resources :links, only: %i[index show create update destroy], param: :lookup_code do
         collection do
           get :search
+
+          scope :governance, as: :governance, controller: "link_governance" do
+            post :pause_all
+          end
         end
         member do
           get :analytics
+
+          # Governance sub-endpoints on each link
+          scope :governance, as: :governance, controller: "link_governance" do
+            patch :transition
+            patch :destination
+            get :audit_log
+            get :destination_history
+          end
+        end
+        resources :routing_rules, only: %i[index show create update destroy]
+      end
+
+      resources :campaigns, only: %i[index show create update destroy] do
+        member do
+          post :pause
+          post :resume
         end
       end
 

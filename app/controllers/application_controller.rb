@@ -1,4 +1,6 @@
 class ApplicationController < ActionController::Base
+  include Pagy::Backend
+
   # Use null_session instead of exception for API compatibility
   # This allows API endpoints to skip CSRF without raising exceptions
   protect_from_forgery with: :null_session

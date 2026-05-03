@@ -9,10 +9,24 @@ module Api
       before_action :check_api_limit, only: %i[create]
 
       def index
-        @links = current_user.links.includes(:qr_codes)
+        scope = current_user.links.includes(:qr_codes, :routing_rules)
+        scope = scope.where(state: params[:state]) if params[:state].present?
+        if params[:search].present?
+          q = "%#{params[:search].strip}%"
+          scope = scope.where("title ILIKE ? OR original_url ILIKE ?", q, q)
+        end
+        scope = apply_sorting(scope, params[:sort_by], params[:order])
 
-        # Apply sorting based on params
-        @links = apply_sorting(@links, params[:sort_by], params[:order])
+        @pagy, @links = pagy(scope, limit: 25)
+        @pagination   = pagy_metadata(@pagy)
+
+        state_counts  = current_user.links.group(:state).count
+        @stats = {
+          total:        current_user.links.count,
+          active:       state_counts["active"].to_i,
+          paused:       state_counts["paused"].to_i,
+          total_clicks: current_user.links.sum(:clicks_count)
+        }
 
         render :index, status: :ok
       end
@@ -38,9 +52,16 @@ module Api
             return redirect_to unsafe_link_path
           end
 
-          Rails.logger.debug("Redirecting to: #{@link.original_url}")
+          destination = resolve_governance_destination(@link)
+
+          # Nil destination means the link is paused/expired with no fallback URL
+          if destination.nil?
+            return redirect_to link_not_found_path
+          end
+
+          Rails.logger.debug("Redirecting to: #{destination}")
           log_click(@link)
-          redirect_to @link.original_url, allow_other_host: true
+          redirect_to destination, allow_other_host: true
         else
           redirect_to link_not_found_path
         end
@@ -57,7 +78,11 @@ module Api
       end
 
       def create
-        shortener = Shortener.new(link_params[:original_url], current_user.id)
+        shortener = Shortener.new(
+          link_params[:original_url],
+          current_user.id,
+          link_params.except(:original_url).to_h
+        )
         @link = shortener.generate_short_link
 
         if @link.errors.any?
@@ -77,6 +102,7 @@ module Api
           return render json: { errors: @link.errors.full_messages }, status: :unprocessable_content
         end
 
+        log_campaign_assignment_change if @link.saved_change_to_link_campaign_id?
         scan_link(@link)
         render :update, status: :ok
       end
@@ -155,6 +181,19 @@ module Api
           .map { |date, count| { date: date.to_s, clicks: count } }
           .sort_by { |d| d[:date] }
 
+        # Referrer sources — group by domain, human traffic only
+        @referrer_sources = clicks_in_range.human_traffic
+          .where.not(referrer: [ nil, "" ])
+          .group(Arel.sql(
+            "CASE WHEN referrer ~ '^https?://' " \
+            "THEN regexp_replace(referrer, '^https?://([^/?#]+).*', '\\1') " \
+            "ELSE referrer END"
+          ))
+          .order(Arel.sql("COUNT(*) DESC"))
+          .limit(10)
+          .count
+          .map { |src, cnt| { source: src, clicks: cnt } }
+
         # Recent clicks with full details (last 20)
         @recent_clicks = clicks_in_range
           .order(created_at: :desc)
@@ -190,8 +229,29 @@ module Api
         end
       end
 
+      def log_campaign_assignment_change
+        before_id, after_id = @link.saved_change_to_link_campaign_id
+        campaign_names = LinkCampaign.where(id: [ before_id, after_id ].compact).pluck(:id, :name).to_h
+        before_name = campaign_names[before_id] || "Unassigned"
+        after_name = campaign_names[after_id] || "Unassigned"
+
+        @link.governance_logs.create!(
+          user: current_user,
+          action: "campaign_changed",
+          before_state: { link_campaign_id: before_id, campaign_name: before_name },
+          after_state: { link_campaign_id: after_id, campaign_name: after_name },
+          reason: "#{before_name} → #{after_name}",
+          ip_address: request.remote_ip
+        )
+      end
+
       def link_params
-        params.require(:link).permit(:original_url, :title, :description)
+        params.require(:link).permit(
+          :original_url, :title, :description,
+          :state, :governance_enabled, :activates_at, :expires_at,
+          :click_cap, :expired_redirect_url, :paused_redirect_url,
+          :password_protected, :link_campaign_id
+        )
       end
 
       def log_click(link)
@@ -250,6 +310,26 @@ module Api
       def set_link_for_lookup
         @link = Link.find_by(lookup_code: params[:lookup_code])
         # Don't render anything here - let lookup_code action handle the response
+      end
+
+      def resolve_governance_destination(link)
+        return link.original_url unless link.governance_enabled?
+
+        cloudfront = extract_cloudfront_headers
+        context = {
+          country: cloudfront["country"],
+          device_type: detect_device_type(cloudfront),
+          referrer: request.referrer,
+          timestamp: Time.current
+        }
+        link.resolve_destination(context)
+      end
+
+      def detect_device_type(cf)
+        return "mobile"  if cf["is_mobile"]
+        return "tablet"  if cf["is_tablet"]
+        return "desktop" if cf["is_desktop"]
+        "unknown"
       end
     end
   end

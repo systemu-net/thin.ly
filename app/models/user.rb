@@ -31,6 +31,7 @@ class User < ApplicationRecord
          :jwt_authenticatable, jwt_revocation_strategy: self
 
   has_many :links, dependent: :destroy
+  has_many :link_campaigns, dependent: :destroy
   has_many :qr_codes, dependent: :destroy
   has_many :subscriptions, dependent: :destroy
   has_many :plans, through: :subscriptions

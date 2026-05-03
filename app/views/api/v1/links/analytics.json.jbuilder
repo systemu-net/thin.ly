@@ -53,6 +53,12 @@ json.analytics do
     json.clicks day_data[:clicks]
   end
 
+  # Referrer sources (top domains sending traffic)
+  json.referrer_sources @referrer_sources do |ref_data|
+    json.source ref_data[:source]
+    json.clicks ref_data[:clicks]
+  end
+
   # Recent clicks with details
   json.recent_clicks @recent_clicks do |click|
     json.id click.id
