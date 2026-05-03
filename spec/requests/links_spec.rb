@@ -89,6 +89,43 @@ RSpec.describe "Links", type: :request do
       expect(response_body['link']['clicks_count']).to eq(0)
       expect(response_body['link']).to have_key('is_safe')
     end
+
+    it "persists governance params when provided on create" do
+      sign_in(user)
+
+      post "/api/v1/links", params: {
+        link: {
+          original_url: 'https://docs.cline.bot/mcp/adding-and-configuring-servers',
+          state: 'active',
+          governance_enabled: true
+        }
+      }
+
+      expect(response).to have_http_status(:created)
+      created_link = Link.find_by!(lookup_code: response_body['link']['lookup_code'])
+      expect(created_link.governance_enabled).to eq(true)
+      expect(created_link.state).to eq('active')
+      expect(response_body['link']['governance_enabled']).to eq(true)
+      expect(response_body['link']['state']).to eq('active')
+    end
+
+    it "persists click_cap when provided on create" do
+      sign_in(user)
+
+      post "/api/v1/links", params: {
+        link: {
+          original_url: 'https://docs.cline.bot/mcp/adding-and-configuring-servers',
+          state: 'active',
+          governance_enabled: true,
+          click_cap: 2500
+        }
+      }
+
+      expect(response).to have_http_status(:created)
+      created_link = Link.find_by!(lookup_code: response_body['link']['lookup_code'])
+      expect(created_link.click_cap).to eq(2500)
+      expect(response_body['link']['click_cap']).to eq(2500)
+    end
   end
 
   describe "GET /api/v1/links/search" do
@@ -225,6 +262,57 @@ RSpec.describe "Links", type: :request do
         expect(response_body['link']['title']).to eq('Updated Title')
         expect(response_body['link']['clicks_count']).to eq(3)
         expect(response_body['link']['is_safe']).to eq(true)
+      end
+
+      it "updates fallback redirect URLs" do
+        patch "/api/v1/links/#{link.lookup_code}", params: {
+          link: {
+            paused_redirect_url: 'https://paused.example.com',
+            expired_redirect_url: 'https://expired.example.com'
+          }
+        }
+
+        expect(response).to have_http_status(:success)
+        link.reload
+        expect(link.paused_redirect_url).to eq('https://paused.example.com')
+        expect(link.expired_redirect_url).to eq('https://expired.example.com')
+        expect(response_body['link']['paused_redirect_url']).to eq('https://paused.example.com')
+        expect(response_body['link']['expired_redirect_url']).to eq('https://expired.example.com')
+      end
+
+      it "updates click_cap" do
+        patch "/api/v1/links/#{link.lookup_code}", params: {
+          link: {
+            click_cap: 1500
+          }
+        }
+
+        expect(response).to have_http_status(:success)
+        link.reload
+        expect(link.click_cap).to eq(1500)
+        expect(response_body['link']['click_cap']).to eq(1500)
+      end
+
+      it "creates a governance audit log when campaign assignment changes" do
+        campaign = create(:link_campaign, user: user, name: 'Green way')
+
+        expect {
+          patch "/api/v1/links/#{link.lookup_code}", params: {
+            link: {
+              link_campaign_id: campaign.id,
+              governance_enabled: true
+            }
+          }
+        }.to change(LinkGovernanceLog, :count).by(1)
+
+        expect(response).to have_http_status(:success)
+
+        log = LinkGovernanceLog.last
+        expect(log.action).to eq('campaign_changed')
+        expect(log.before_state).to eq({ 'link_campaign_id' => nil, 'campaign_name' => 'Unassigned' })
+        expect(log.after_state).to eq({ 'link_campaign_id' => campaign.id, 'campaign_name' => 'Green way' })
+        expect(log.reason).to eq('Unassigned → Green way')
+        expect(log.user).to eq(user)
       end
     end
   end
