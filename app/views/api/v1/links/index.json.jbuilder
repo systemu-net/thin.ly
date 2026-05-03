@@ -6,18 +6,22 @@ json.links @links do |link|
   json.partial! "governance_fields", link: link
 end
 
-json.pagination do
-  json.count    @pagination[:count]
-  json.page     @pagination[:page]
-  json.limit    @pagination[:limit]
-  json.pages    @pagination[:pages]
-  json.next     @pagination[:next]
-  json.prev     @pagination[:prev]
+if defined?(@pagination) && @pagination.present?
+  json.pagination do
+    json.count    @pagination[:count]
+    json.page     @pagination[:page]
+    json.limit    @pagination[:limit]
+    json.pages    @pagination[:pages]
+    json.next     @pagination[:next]
+    json.prev     @pagination[:prev]
+  end
 end
 
-json.stats do
-  json.total        @stats[:total]
-  json.active       @stats[:active]
-  json.paused       @stats[:paused]
-  json.total_clicks @stats[:total_clicks]
+if defined?(@stats) && @stats.present?
+  json.stats do
+    json.total        @stats[:total]
+    json.active       @stats[:active]
+    json.paused       @stats[:paused]
+    json.total_clicks @stats[:total_clicks]
+  end
 end

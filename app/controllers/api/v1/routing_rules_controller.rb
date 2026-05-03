@@ -11,8 +11,11 @@ module Api
       def index
         @rules = @link.routing_rules.order(:priority).limit(100)
 
+        serialized_rules = @rules.map { |r| serialize_rule(r) }
+
         render json: {
-          routing_rules: @rules.map { |r| serialize_rule(r) }
+          routing_rules: serialized_rules,
+          rules: serialized_rules
         }
       end
 
