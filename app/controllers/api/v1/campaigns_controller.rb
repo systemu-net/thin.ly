@@ -23,12 +23,18 @@ module Api
 
       # POST /api/v1/campaigns
       def create
+        if current_user.plan.campaigns_limit_exceeded?(current_user)
+          return render json: {
+            error: "Campaign limit reached for #{current_user.plan.name} plan. Maximum allowed: #{current_user.plan.campaigns}."
+          }, status: :too_many_requests
+        end
+
         @campaign = current_user.link_campaigns.build(campaign_params)
 
         if @campaign.save
           render json: serialize_campaign(@campaign), status: :created
         else
-          render json: { errors: @campaign.errors.full_messages }, status: :unprocessable_content
+          render json: { errors: @campaign.errors.full_messages }, status: :unprocessable_entity
         end
       end
 

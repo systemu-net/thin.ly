@@ -42,4 +42,13 @@ RSpec.describe Shortener do
     link2 = shortener.generate_short_link
     expect(link2.valid?).to eq(true)
   end
+
+  it 'assigns links to the Default campaign when none is provided' do
+    url = 'https://www.example.com/default-campaign'
+    link = Shortener.new(url, user.id).generate_short_link
+
+    expect(link.link_campaign).to be_present
+    expect(link.link_campaign.default).to eq(true)
+    expect(link.link_campaign.name).to eq('Default')
+  end
 end

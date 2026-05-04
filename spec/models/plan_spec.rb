@@ -4,6 +4,7 @@
 #
 #  id              :bigint           not null, primary key
 #  brand_pages     :integer
+#  campaigns       :integer
 #  links           :integer
 #  name            :string           default("Free"), not null
 #  qr_codes        :integer
@@ -43,6 +44,7 @@ RSpec.describe Plan, type: :model do
         links: 50,
         qr_codes: 50,
         brand_pages: 1,
+        campaigns: 1,
         name: "Free"
       })
     end
@@ -142,6 +144,18 @@ RSpec.describe Plan, type: :model do
       plan.brand_pages.times { ApiRequest.create!(plan: plan, logable: brand_page) }
 
       expect(plan.brand_pages_limit_exceeded?).to be true
+    end
+  end
+
+  describe '#campaigns' do
+    it 'returns Free limit by default' do
+      expect(plan.campaigns).to eq(1)
+    end
+  end
+
+  describe '#campaigns_limit_exceeded?' do
+    it 'returns true when campaign count reaches the plan cap' do
+      expect(plan.campaigns_limit_exceeded?(user)).to be true
     end
   end
 end

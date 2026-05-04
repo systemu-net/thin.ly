@@ -65,6 +65,12 @@ RSpec.describe User, type: :model do
       expect(assoc.options[:dependent]).to eq(:destroy)
     end
 
+    it 'has many link_campaigns' do
+      assoc = described_class.reflect_on_association(:link_campaigns)
+      expect(assoc.macro).to eq(:has_many)
+      expect(assoc.options[:dependent]).to eq(:destroy)
+    end
+
     it 'has many qr_codes' do
       assoc = described_class.reflect_on_association(:qr_codes)
       expect(assoc.macro).to eq(:has_many)
@@ -100,6 +106,13 @@ RSpec.describe User, type: :model do
       user = create(:user)
       expect(user.plan).to be_present
       expect(user.plan.name).to eq('Free')
+    end
+
+    it 'creates a default campaign on creation' do
+      user = create(:user)
+
+      expect(user.link_campaigns.count).to eq(1)
+      expect(user.link_campaigns.first.default).to be true
     end
   end
 

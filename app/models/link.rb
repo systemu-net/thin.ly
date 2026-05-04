@@ -54,11 +54,13 @@ class Link < ApplicationRecord
   has_many :brand_pages, through: :resources, source: :page
   has_many :threat_detections, as: :detectable, dependent: :destroy
 
+
   validates_presence_of :original_url, :lookup_code
   validates_uniqueness_of :lookup_code
   validate :original_url_format
 
   after_create :update_lookup_code
+  before_validation :assign_default_campaign, on: :create
   before_validation :set_lookup_code, on: :create
 
   def shortened_url
@@ -96,6 +98,12 @@ class Link < ApplicationRecord
     errors.add(:original_url, "Invalid URL format") if uri.host.nil?
   rescue URI::InvalidURIError => e
     Rails.logger.error(e.message)
+  end
+
+  def assign_default_campaign
+    return if link_campaign.present? || user.blank?
+
+    self.link_campaign = user.link_campaigns.find_by(default: true)
   end
 
   def set_lookup_code

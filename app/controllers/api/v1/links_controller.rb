@@ -25,6 +25,8 @@ module Api
           total:        current_user.links.count,
           active:       state_counts["active"].to_i,
           paused:       state_counts["paused"].to_i,
+          expired:      state_counts["expired"].to_i,
+          draft:        state_counts["draft"].to_i,
           total_clicks: current_user.links.sum(:clicks_count)
         }
 

@@ -331,7 +331,8 @@ class Api::V1::WebhooksController < ApplicationController
         name: metadata["name"],
         links: metadata["links"].to_i,
         qr_codes: metadata["qr_codes"].to_i,
-        brand_pages: metadata["brand_pages"].to_i
+        brand_pages: metadata["brand_pages"].to_i,
+        campaigns: metadata["campaigns"].to_i
       )
     end
   end

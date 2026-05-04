@@ -4,6 +4,7 @@
 #
 #  id              :bigint           not null, primary key
 #  brand_pages     :integer
+#  campaigns       :integer
 #  links           :integer
 #  name            :string           default("Free"), not null
 #  qr_codes        :integer

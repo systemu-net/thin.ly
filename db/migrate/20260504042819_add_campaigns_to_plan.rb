@@ -1,0 +1,5 @@
+class AddCampaignsToPlan < ActiveRecord::Migration[7.2]
+  def change
+    add_column :plans, :campaigns, :integer
+  end
+end
