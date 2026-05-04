@@ -67,6 +67,7 @@ gem "ostruct", "~> 0.6.3"
 gem "octokit", "~> 10.0"
 
 gem "google-apis-safebrowsing_v4", "~> 0.21.0"
+gem "json", "2.18.0"
 
 gem "sidekiq-cron", "~> 2.3"
 
