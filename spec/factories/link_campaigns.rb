@@ -4,6 +4,7 @@
 #
 #  id           :bigint           not null, primary key
 #  accent_color :string           default("#7c3aed"), not null
+#  default      :boolean          default(FALSE), not null
 #  description  :text
 #  name         :string           not null
 #  state        :string           default("active"), not null

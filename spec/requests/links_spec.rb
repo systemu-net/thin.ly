@@ -295,6 +295,7 @@ RSpec.describe "Links", type: :request do
 
       it "creates a governance audit log when campaign assignment changes" do
         campaign = create(:link_campaign, user: user, name: 'Green way')
+        default_campaign = link.link_campaign
 
         expect {
           patch "/api/v1/links/#{link.lookup_code}", params: {
@@ -309,9 +310,9 @@ RSpec.describe "Links", type: :request do
 
         log = LinkGovernanceLog.last
         expect(log.action).to eq('campaign_changed')
-        expect(log.before_state).to eq({ 'link_campaign_id' => nil, 'campaign_name' => 'Unassigned' })
+        expect(log.before_state).to eq({ 'link_campaign_id' => default_campaign.id, 'campaign_name' => 'Default' })
         expect(log.after_state).to eq({ 'link_campaign_id' => campaign.id, 'campaign_name' => 'Green way' })
-        expect(log.reason).to eq('Unassigned → Green way')
+        expect(log.reason).to eq('Default → Green way')
         expect(log.user).to eq(user)
       end
     end

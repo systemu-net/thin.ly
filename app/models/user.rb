@@ -42,6 +42,7 @@ class User < ApplicationRecord
   before_validation :create_stripe_customer, on: :create
   before_validation :generate_default_avatar, on: :create, if: -> { avatar.blank? }
   before_commit :create_default_subscription, on: :create
+  after_commit :create_default_campaign, on: :create
   after_destroy :delete_stripe_customer
 
   # Persisted column `terms_accepted` records explicit acceptance of terms.
@@ -83,6 +84,14 @@ class User < ApplicationRecord
       subscriptions.create(
         customer_id: stripe_id
       )
+    end
+  end
+
+  def create_default_campaign
+    link_campaigns.find_or_create_by!(default: true) do |campaign|
+      campaign.name = "Default"
+      campaign.description = "Default campaign"
+      campaign.state = "active"
     end
   end
 

@@ -4,6 +4,7 @@
 #
 #  id              :bigint           not null, primary key
 #  brand_pages     :integer
+#  campaigns       :integer
 #  links           :integer
 #  name            :string           default("Free"), not null
 #  qr_codes        :integer
@@ -27,6 +28,7 @@ class Plan < ApplicationRecord
     links: 50,
     qr_codes: 50,
     brand_pages: 1,
+    campaigns: 1,
     name: "Free"
   }
 
@@ -52,5 +54,9 @@ class Plan < ApplicationRecord
 
   def brand_pages_limit_exceeded?
     brand_pages_created_within_last_30_days >= brand_pages
+  end
+
+  def campaigns_limit_exceeded?(user)
+    user.link_campaigns.count >= campaigns
   end
 end

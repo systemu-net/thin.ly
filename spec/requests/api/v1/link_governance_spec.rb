@@ -232,7 +232,7 @@ RSpec.describe "Campaigns API", type: :request do
 
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
-      expect(json["campaigns"].length).to eq(2)
+      expect(json["campaigns"].length).to eq(3)
       summer_sale = json["campaigns"].find { |item| item["id"] == campaign.id }
       expect(summer_sale["total_clicks"]).to eq(12)
       expect(summer_sale["links"]).to include(
@@ -247,14 +247,14 @@ RSpec.describe "Campaigns API", type: :request do
   end
 
   describe "POST /api/v1/campaigns" do
-    it "creates a campaign" do
+    it "returns 429 when campaign limit is reached" do
       post "/api/v1/campaigns",
-           params: { campaign: { name: "Black Friday", description: "Annual sale" } },
+           params: { campaign: { name: "Second Campaign", description: "Should fail" } },
            headers: headers
 
-      expect(response).to have_http_status(:created)
+      expect(response).to have_http_status(:too_many_requests)
       json = JSON.parse(response.body)
-      expect(json["name"]).to eq("Black Friday")
+      expect(json["error"]).to include("Campaign limit reached")
     end
   end
 
