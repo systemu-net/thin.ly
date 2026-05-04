@@ -13,6 +13,11 @@ module Api
             used: @plan.send("#{feature}_created_within_last_30_days")
           }
         end
+        @features << {
+          name: :campaigns,
+          limit: @plan.campaigns,
+          used: current_user.link_campaigns.count
+        }
         render :index, status: :ok
       end
     end
