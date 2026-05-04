@@ -49,6 +49,10 @@ module Api
 
       # DELETE /api/v1/campaigns/:id
       def destroy
+        if @campaign.default?
+          return render json: { error: "The default campaign cannot be deleted." }, status: :unprocessable_entity
+        end
+
         @campaign.destroy!
         head :no_content
       end
@@ -74,6 +78,7 @@ module Api
       end
 
       def campaign_params
+        # :default is intentionally excluded — the default flag cannot be changed via the API
         params.require(:campaign).permit(:name, :description, :state, :accent_color)
       end
 
@@ -87,6 +92,7 @@ module Api
           description:  campaign.description,
           state:        campaign.state,
           accent_color: campaign.accent_color,
+          default:      campaign.default,
           links_count:  links_count,
           total_clicks: total_clicks,
           created_at:   campaign.created_at,
