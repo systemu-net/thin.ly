@@ -32,5 +32,7 @@ class PublishJob
     else
       Rails.logger.error "Failed to publish brand page #{brand_page.lookup_code}: #{result[:error]}"
     end
+  rescue LoadError, StandardError => e
+    Rails.logger.error "PublishJob failed for #{lookup_code}: #{e.class}: #{e.message}"
   end
 end
