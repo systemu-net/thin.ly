@@ -1,4 +1,6 @@
 # app/services/github_pages_publisher.rb
+require "net/http"
+require "base64"
 
 class GithubPagesPublisher
   def initialize(user, page)
@@ -62,76 +64,61 @@ class GithubPagesPublisher
 
   def push_to_github(html_content)
     return { success: false, error: "GITHUB_PAGES_REPO is not configured" } if repository.blank?
+    return { success: false, error: "GITHUB_TOKEN is not configured" } if github_token.blank?
 
     file_path = "#{page_subdomain}/index.html"
+    encoded_content = Base64.strict_encode64(html_content)
 
-    begin
-      # Try to get existing file
-      existing_file = github_client.contents(repository, path: file_path, ref: branch)
+    get = github_api_request(:get, "/contents/#{file_path}?ref=#{branch}")
 
-      # Update existing file
-      github_client.update_contents(
-        repository,
-        file_path,
-        "Update #{@page.title} Link-in-Bio page",
-        existing_file.sha,
-        html_content,
+    if get[:status] == 200
+      sha = get[:body]["sha"]
+      put = github_api_request(:put, "/contents/#{file_path}", {
+        message: "Update #{@page.title} Link-in-Bio page",
+        content: encoded_content,
+        sha: sha,
         branch: branch
-      )
-
-      { success: true }
-    rescue Octokit::NotFound
-      # Create new file (and directory structure)
-      github_client.create_contents(
-        repository,
-        file_path,
-        "Create #{@page.title} Link-in-Bio page",
-        html_content,
+      })
+      put[:status].in?([200, 201]) ? { success: true } : { success: false, error: "GitHub API Error: #{put[:body]['message']}" }
+    elsif get[:status] == 404
+      put = github_api_request(:put, "/contents/#{file_path}", {
+        message: "Create #{@page.title} Link-in-Bio page",
+        content: encoded_content,
         branch: branch
-      )
-
-      { success: true }
-    rescue LoadError => e
-      Rails.logger.error "GitHub publishing load error: #{e.class}: #{e.message}"
-      { success: false, error: "GitHub publishing load error: #{e.message}" }
-    rescue Octokit::Error => e
-      Rails.logger.error "GitHub API Error: #{e.message}"
-      { success: false, error: "GitHub API Error: #{e.message}" }
-    rescue StandardError => e
-      Rails.logger.error "Publishing Error: #{e.message}"
-      { success: false, error: "Publishing failed: #{e.message}" }
+      })
+      put[:status].in?([200, 201]) ? { success: true } : { success: false, error: "GitHub API Error: #{put[:body]['message']}" }
+    else
+      { success: false, error: "GitHub API Error: #{get[:body]['message']}" }
     end
+  rescue => e
+    Rails.logger.error "Publishing Error: #{e.class}: #{e.message}"
+    { success: false, error: "Publishing failed: #{e.message}" }
   end
 
   def delete_from_github
     return { success: false, error: "GITHUB_PAGES_REPO is not configured" } if repository.blank?
+    return { success: false, error: "GITHUB_TOKEN is not configured" } if github_token.blank?
 
     file_path = "#{page_subdomain}/index.html"
 
-    begin
-      existing_file = github_client.contents(repository, path: file_path, ref: branch)
-      github_client.delete_contents(
-        repository,
-        file_path,
-        "Delete #{@page.title} Link-in-Bio page",
-        existing_file.sha,
-        branch: branch
-      )
+    get = github_api_request(:get, "/contents/#{file_path}?ref=#{branch}")
 
+    if get[:status] == 200
+      sha = get[:body]["sha"]
+      del = github_api_request(:delete, "/contents/#{file_path}", {
+        message: "Delete #{@page.title} Link-in-Bio page",
+        sha: sha,
+        branch: branch
+      })
+      [200, 201, 204].include?(del[:status]) ? { success: true } : { success: false, error: "GitHub API Error: #{del[:body]['message']}" }
+    elsif get[:status] == 404
       { success: true }
-    rescue Octokit::NotFound
-      # Already deleted or never existed
-      { success: true }
-    rescue LoadError => e
-      Rails.logger.error "GitHub unpublishing load error: #{e.class}: #{e.message}"
-      { success: false, error: "GitHub unpublishing load error: #{e.message}" }
-    rescue Octokit::Error => e
-      Rails.logger.error "GitHub API Error: #{e.message}"
-      { success: false, error: "GitHub API Error: #{e.message}" }
-    rescue StandardError => e
-      Rails.logger.error "Unpublishing Error: #{e.message}"
-      { success: false, error: "Unpublishing failed: #{e.message}" }
+    else
+      { success: false, error: "GitHub API Error: #{get[:body]['message']}" }
     end
+  rescue => e
+    Rails.logger.error "Unpublishing Error: #{e.class}: #{e.message}"
+    { success: false, error: "Unpublishing failed: #{e.message}" }
   end
 
   def page_subdomain
@@ -151,10 +138,26 @@ class GithubPagesPublisher
     @github_token ||= ENV["GITHUB_TOKEN"] || Rails.application.credentials.dig(:github_token)
   end
 
-  def github_client
-    raise ArgumentError, "GITHUB_TOKEN is not configured" if github_token.blank?
+  def github_api_request(method, path, body = nil)
+    uri = URI("https://api.github.com/repos/#{repository}#{path}")
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = true
 
-    @github_client ||= Octokit::Client.new(access_token: github_token)
+    req = case method
+          when :get    then Net::HTTP::Get.new(uri)
+          when :put    then Net::HTTP::Put.new(uri)
+          when :delete then Net::HTTP::Delete.new(uri)
+          end
+
+    req["Authorization"]  = "Bearer #{github_token}"
+    req["Accept"]         = "application/vnd.github.v3+json"
+    req["Content-Type"]   = "application/json"
+    req["User-Agent"]     = "thin.ly/1.0"
+    req.body = body.to_json if body
+
+    response = http.request(req)
+    response_body = response.body.present? ? JSON.parse(response.body) : {}
+    { status: response.code.to_i, body: response_body }
   end
 
   def page_resources
