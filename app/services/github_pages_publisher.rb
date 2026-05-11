@@ -79,14 +79,14 @@ class GithubPagesPublisher
         sha: sha,
         branch: branch
       })
-      put[:status].in?([200, 201]) ? { success: true } : { success: false, error: "GitHub API Error: #{put[:body]['message']}" }
+      put[:status].in?([ 200, 201 ]) ? { success: true } : { success: false, error: "GitHub API Error: #{put[:body]['message']}" }
     elsif get[:status] == 404
       put = github_api_request(:put, "/contents/#{file_path}", {
         message: "Create #{@page.title} Link-in-Bio page",
         content: encoded_content,
         branch: branch
       })
-      put[:status].in?([200, 201]) ? { success: true } : { success: false, error: "GitHub API Error: #{put[:body]['message']}" }
+      put[:status].in?([ 200, 201 ]) ? { success: true } : { success: false, error: "GitHub API Error: #{put[:body]['message']}" }
     else
       { success: false, error: "GitHub API Error: #{get[:body]['message']}" }
     end
@@ -110,7 +110,7 @@ class GithubPagesPublisher
         sha: sha,
         branch: branch
       })
-      [200, 201, 204].include?(del[:status]) ? { success: true } : { success: false, error: "GitHub API Error: #{del[:body]['message']}" }
+      [ 200, 201, 204 ].include?(del[:status]) ? { success: true } : { success: false, error: "GitHub API Error: #{del[:body]['message']}" }
     elsif get[:status] == 404
       { success: true }
     else
@@ -144,10 +144,10 @@ class GithubPagesPublisher
     http.use_ssl = true
 
     req = case method
-          when :get    then Net::HTTP::Get.new(uri)
-          when :put    then Net::HTTP::Put.new(uri)
-          when :delete then Net::HTTP::Delete.new(uri)
-          end
+    when :get    then Net::HTTP::Get.new(uri)
+    when :put    then Net::HTTP::Put.new(uri)
+    when :delete then Net::HTTP::Delete.new(uri)
+    end
 
     req["Authorization"]  = "Bearer #{github_token}"
     req["Accept"]         = "application/vnd.github.v3+json"
