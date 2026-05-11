@@ -44,7 +44,7 @@ RSpec.describe Plan, type: :model do
         links: 50,
         qr_codes: 50,
         brand_pages: 1,
-        campaigns: 1,
+        campaigns: 3,
         name: "Free"
       })
     end

@@ -22,7 +22,7 @@ module Api
 
         state_counts  = current_user.links.group(:state).count
         @stats = {
-          total:        current_user.links.count,
+          total:        state_counts.values.sum,
           active:       state_counts["active"].to_i,
           paused:       state_counts["paused"].to_i,
           expired:      state_counts["expired"].to_i,
@@ -41,6 +41,7 @@ module Api
         end
 
         @links = current_user.links
+          .includes(:qr_codes, :routing_rules)
           .where("original_url ILIKE ? OR title ILIKE ?", "%#{query}%", "%#{query}%")
           .order(created_at: :desc)
 
