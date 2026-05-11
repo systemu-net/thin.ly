@@ -30,6 +30,12 @@ class Users::SessionsController < Devise::SessionsController
   #   devise_parameter_sanitizer.permit(:sign_in, keys: [:attribute])
   # end
   def respond_with(resource, _opts = {})
+    if resource&.persisted? &&
+       ActiveModel::Type::Boolean.new.cast(params.dig(:user, :remember_me))
+      # JwtRememberMe middleware extends the auto-issued JWT's exp claim
+      # downstream once devise-jwt has written the Authorization header.
+      request.env[JwtRememberMe::ENV_FLAG] = true
+    end
     render :create, status: :ok
   end
 

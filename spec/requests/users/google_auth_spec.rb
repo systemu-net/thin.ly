@@ -42,6 +42,17 @@ RSpec.describe 'Google Auth', type: :request do
         expect(user.uid).to eq(google_sub)
       end
 
+      it 'records the terms acceptance audit fields on a new Google user' do
+        post '/users/auth/google',
+             params: { id_token: id_token, terms_accepted: true },
+             as: :json
+
+        user = User.find_by(email: google_email)
+        expect(user.terms_accepted).to be true
+        expect(user.terms_accepted_at).to be_present
+        expect(user.terms_accepted_version).to eq(User::TERMS_VERSION)
+      end
+
       it 'signs in an existing google-linked user without creating a new one' do
         create(:user, email: google_email, provider: 'google_oauth2', uid: google_sub)
 

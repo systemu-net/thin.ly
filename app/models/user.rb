@@ -7,10 +7,14 @@
 #  email                  :string           default(""), not null
 #  encrypted_password     :string           default(""), not null
 #  jti                    :string           not null
+#  provider               :string
 #  remember_created_at    :datetime
 #  reset_password_sent_at :datetime
 #  reset_password_token   :string
 #  terms_accepted         :boolean          default(FALSE), not null
+#  terms_accepted_at      :datetime
+#  terms_accepted_version :string
+#  uid                    :string
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
 #  stripe_id              :string
@@ -19,6 +23,7 @@
 #
 #  index_users_on_email                 (email) UNIQUE
 #  index_users_on_jti                   (jti) UNIQUE
+#  index_users_on_provider_and_uid      (provider,uid) UNIQUE
 #  index_users_on_reset_password_token  (reset_password_token) UNIQUE
 #
 class User < ApplicationRecord
@@ -41,6 +46,7 @@ class User < ApplicationRecord
 
   before_validation :create_stripe_customer, on: :create
   before_validation :generate_default_avatar, on: :create, if: -> { avatar.blank? }
+  before_validation :stamp_terms_acceptance, on: :create
   before_commit :create_default_subscription, on: :create
   after_commit :create_default_campaign, on: :create
   after_destroy :delete_stripe_customer
@@ -52,6 +58,10 @@ class User < ApplicationRecord
             on: :create
 
   GOOGLE_PROVIDER = "google_oauth2".freeze
+  # Bump this when the Terms of Service / Privacy Policy / User Policy change.
+  # Stored on the user record so we have an audit trail of which version each
+  # user accepted, and can detect stale acceptances to re-prompt.
+  TERMS_VERSION = "2026-05-10".freeze
 
   # Find or create a user from a verified Google ID token payload.
   # Auto-links by email only when Google asserts the email is verified.
@@ -119,6 +129,13 @@ class User < ApplicationRecord
       campaign.description = "Default campaign"
       campaign.state = "active"
     end
+  end
+
+  def stamp_terms_acceptance
+    return unless terms_accepted
+
+    self.terms_accepted_at ||= Time.current
+    self.terms_accepted_version ||= TERMS_VERSION
   end
 
   def generate_default_avatar

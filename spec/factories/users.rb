@@ -7,10 +7,14 @@
 #  email                  :string           default(""), not null
 #  encrypted_password     :string           default(""), not null
 #  jti                    :string           not null
+#  provider               :string
 #  remember_created_at    :datetime
 #  reset_password_sent_at :datetime
 #  reset_password_token   :string
 #  terms_accepted         :boolean          default(FALSE), not null
+#  terms_accepted_at      :datetime
+#  terms_accepted_version :string
+#  uid                    :string
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
 #  stripe_id              :string
@@ -19,6 +23,7 @@
 #
 #  index_users_on_email                 (email) UNIQUE
 #  index_users_on_jti                   (jti) UNIQUE
+#  index_users_on_provider_and_uid      (provider,uid) UNIQUE
 #  index_users_on_reset_password_token  (reset_password_token) UNIQUE
 #
 FactoryBot.define do
