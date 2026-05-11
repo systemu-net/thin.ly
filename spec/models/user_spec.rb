@@ -7,10 +7,14 @@
 #  email                  :string           default(""), not null
 #  encrypted_password     :string           default(""), not null
 #  jti                    :string           not null
+#  provider               :string
 #  remember_created_at    :datetime
 #  reset_password_sent_at :datetime
 #  reset_password_token   :string
 #  terms_accepted         :boolean          default(FALSE), not null
+#  terms_accepted_at      :datetime
+#  terms_accepted_version :string
+#  uid                    :string
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
 #  stripe_id              :string
@@ -19,6 +23,7 @@
 #
 #  index_users_on_email                 (email) UNIQUE
 #  index_users_on_jti                   (jti) UNIQUE
+#  index_users_on_provider_and_uid      (provider,uid) UNIQUE
 #  index_users_on_reset_password_token  (reset_password_token) UNIQUE
 #
 require 'rails_helper'
@@ -150,6 +155,34 @@ RSpec.describe User, type: :model do
     it 'generates a JTI on creation' do
       user = create(:user)
       expect(user.jti).to be_present
+    end
+  end
+
+  describe 'terms acceptance audit' do
+    it 'stamps terms_accepted_at and terms_accepted_version on create when accepted' do
+      before_create = Time.current
+      user = create(:user)
+
+      expect(user.terms_accepted).to be true
+      expect(user.terms_accepted_at).to be_present
+      expect(user.terms_accepted_at).to be >= before_create
+      expect(user.terms_accepted_version).to eq(User::TERMS_VERSION)
+    end
+
+    it 'does not stamp audit fields if terms were not accepted' do
+      user = build(:user, terms_accepted: false)
+      user.valid?
+      expect(user.terms_accepted_at).to be_nil
+      expect(user.terms_accepted_version).to be_nil
+    end
+
+    it 'preserves an explicitly-set acceptance time and version' do
+      explicit_time = 1.year.ago
+      explicit_version = "2025-01-01"
+      user = create(:user, terms_accepted_at: explicit_time, terms_accepted_version: explicit_version)
+
+      expect(user.terms_accepted_at).to be_within(1.second).of(explicit_time)
+      expect(user.terms_accepted_version).to eq(explicit_version)
     end
   end
 end
