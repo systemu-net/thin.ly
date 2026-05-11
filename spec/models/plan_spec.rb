@@ -149,12 +149,13 @@ RSpec.describe Plan, type: :model do
 
   describe '#campaigns' do
     it 'returns Free limit by default' do
-      expect(plan.campaigns).to eq(1)
+      expect(plan.campaigns).to eq(3)
     end
   end
 
   describe '#campaigns_limit_exceeded?' do
     it 'returns true when campaign count reaches the plan cap' do
+      plan.campaigns.times { create(:link_campaign, user: user) }
       expect(plan.campaigns_limit_exceeded?(user)).to be true
     end
   end

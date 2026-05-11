@@ -248,6 +248,8 @@ RSpec.describe "Campaigns API", type: :request do
 
   describe "POST /api/v1/campaigns" do
     it "returns 429 when campaign limit is reached" do
+      Plan::DEFAULT_PLAN[:campaigns].times { create(:link_campaign, user: user) }
+
       post "/api/v1/campaigns",
            params: { campaign: { name: "Second Campaign", description: "Should fail" } },
            headers: headers
