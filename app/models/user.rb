@@ -51,6 +51,32 @@ class User < ApplicationRecord
             acceptance: { accept: true, message: "must be accepted" },
             on: :create
 
+  GOOGLE_PROVIDER = "google_oauth2".freeze
+
+  # Find or create a user from a verified Google ID token payload.
+  # Auto-links by email only when Google asserts the email is verified.
+  def self.from_google(payload, terms_accepted: nil)
+    return nil unless payload && payload["email_verified"]
+
+    uid = payload["sub"].to_s
+    email = payload["email"].to_s.downcase
+
+    user = find_by(provider: GOOGLE_PROVIDER, uid: uid) || find_by(email: email)
+
+    if user
+      user.update(provider: GOOGLE_PROVIDER, uid: uid) if user.uid.blank?
+      user
+    else
+      create(
+        provider: GOOGLE_PROVIDER,
+        uid: uid,
+        email: email,
+        password: Devise.friendly_token[0, 20],
+        terms_accepted: ActiveModel::Type::Boolean.new.cast(terms_accepted) || false
+      )
+    end
+  end
+
   def retrieve_stripe_customer
     Stripe::Customer.retrieve(stripe_id)
   end

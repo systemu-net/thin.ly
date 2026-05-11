@@ -66,6 +66,7 @@ gem "ostruct", "~> 0.6.3"
 
 gem "octokit", "~> 10.0"
 
+gem "googleauth", "~> 1.14"
 gem "google-apis-safebrowsing_v4", "~> 0.21.0"
 gem "json", "2.18.0"
 gem "bigdecimal", "4.0.1"

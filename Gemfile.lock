@@ -556,6 +556,7 @@ DEPENDENCIES
   figaro (~> 1.3)
   fog-aws (~> 3.33)
   google-apis-safebrowsing_v4 (~> 0.21.0)
+  googleauth (~> 1.14)
   importmap-rails
   jbuilder
   json (= 2.18.0)

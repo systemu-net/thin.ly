@@ -6,6 +6,9 @@ Rails.application.routes.draw do
     sessions: "users/sessions",
     registrations: "users/registrations"
   }
+  devise_scope :user do
+    post "users/auth/google", to: "users/google_auth#create", defaults: { format: :json }
+  end
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
   mount Sidekiq::Web => "/sidekiq" if Rails.env.development?
 

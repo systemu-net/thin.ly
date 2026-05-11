@@ -315,7 +315,8 @@ Devise.setup do |config|
     jwt.secret = ENV["SECRET_KEY_BASE"] || Rails.application.credentials.fetch(:secret_key_base)
     jwt.dispatch_requests = [
       [ "POST", %r{^/users/sign_in$} ],
-      [ "POST", %r{^/users$} ]
+      [ "POST", %r{^/users$} ],
+      [ "POST", %r{^/users/auth/google$} ]
     ]
     jwt.revocation_requests = [
       [ "DELETE", %r{^/users/sign_out$} ]
