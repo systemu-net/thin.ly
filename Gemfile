@@ -72,6 +72,6 @@ gem "json", "2.18.0"
 gem "bigdecimal", "4.0.1"
 gem "bcrypt", "3.1.21"
 
-gem "sidekiq-cron", "~> 2.3"
+gem "sidekiq-cron", "~> 2.4"
 
 gem "redis", "~> 5.4"
