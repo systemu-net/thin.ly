@@ -70,7 +70,7 @@ gem "googleauth", "~> 1.16"
 gem "google-apis-safebrowsing_v4", "~> 0.21.0"
 gem "json", "2.18.0"
 gem "bigdecimal", "4.0.1"
-gem "bcrypt", "3.1.21"
+gem "bcrypt", "3.1.22"
 
 gem "sidekiq-cron", "~> 2.4"
 
