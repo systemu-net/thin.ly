@@ -81,7 +81,7 @@ GEM
       rake (>= 10.4, < 14.0)
     ast (2.4.3)
     base64 (0.3.0)
-    bcrypt (3.1.22)
+    bcrypt (3.1.21)
     benchmark (0.5.0)
     bigdecimal (4.0.1)
     bindex (0.8.1)
@@ -233,7 +233,7 @@ GEM
     jbuilder (2.14.1)
       actionview (>= 7.0.0)
       activesupport (>= 7.0.0)
-    json (2.19.5)
+    json (2.18.0)
     jwt (3.1.2)
       base64
     language_server-protocol (3.17.0.5)
@@ -544,7 +544,7 @@ PLATFORMS
 
 DEPENDENCIES
   annotate (~> 3.2)
-  bcrypt (= 3.1.22)
+  bcrypt (= 3.1.21)
   bigdecimal (= 4.0.1)
   brakeman (~> 8.0)
   byebug (~> 13.0)
@@ -559,7 +559,7 @@ DEPENDENCIES
   googleauth (~> 1.16)
   importmap-rails
   jbuilder
-  json (= 2.19.5)
+  json (= 2.18.0)
   mini_magick (~> 5.3)
   octokit (~> 10.0)
   ostruct (~> 0.6.3)
