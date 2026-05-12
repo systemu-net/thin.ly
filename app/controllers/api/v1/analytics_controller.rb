@@ -70,10 +70,10 @@ module Api
         Array.new(count) do |i|
           offset = count - 1 - i # i=0 → oldest, i=count-1 → newest (anchor)
           starts_at = case granularity
-                      when :hour then anchor - offset.hours
-                      when :day then anchor - offset.days
-                      when :month then anchor.advance(months: -offset)
-                      end
+          when :hour then anchor - offset.hours
+          when :day then anchor - offset.days
+          when :month then anchor.advance(months: -offset)
+          end
           {
             label: bucket_label(starts_at, granularity),
             starts_at: starts_at,
@@ -95,10 +95,10 @@ module Api
       # PG date_trunc output back to our Ruby-side bucket anchors.
       def bucket_counts_by_epoch(scope, granularity)
         sql_expr = case granularity
-                   when :hour then "date_trunc('hour', clicks.created_at)"
-                   when :day then "date_trunc('day', clicks.created_at)"
-                   when :month then "date_trunc('month', clicks.created_at)"
-                   end
+        when :hour then "date_trunc('hour', clicks.created_at)"
+        when :day then "date_trunc('day', clicks.created_at)"
+        when :month then "date_trunc('month', clicks.created_at)"
+        end
         scope.group(Arel.sql(sql_expr)).count.transform_keys do |k|
           t = k.is_a?(Time) || k.is_a?(ActiveSupport::TimeWithZone) ? k : Time.zone.parse(k.to_s)
           t.to_i
