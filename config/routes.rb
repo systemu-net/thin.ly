@@ -91,6 +91,9 @@ Rails.application.routes.draw do
 
       get "/current_user", to: "current_user#index"
 
+      # Aggregate analytics across the current user's links
+      get "/analytics/clicks_timeline", to: "analytics#clicks_timeline"
+
       # Track page views
       match "/track/view", to: "track#cors_preflight", via: [ :options ]
       post "/track/view", to: "track#view"
