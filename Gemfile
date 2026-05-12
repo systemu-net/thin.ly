@@ -68,7 +68,7 @@ gem "octokit", "~> 10.0"
 
 gem "googleauth", "~> 1.16"
 gem "google-apis-safebrowsing_v4", "~> 0.21.0"
-gem "json", "2.18.0"
+gem "json", "2.19.5"
 gem "bigdecimal", "4.0.1"
 gem "bcrypt", "3.1.21"
 
