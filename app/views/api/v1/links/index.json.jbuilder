@@ -22,6 +22,8 @@ if defined?(@stats) && @stats.present?
     json.total        @stats[:total]
     json.active       @stats[:active]
     json.paused       @stats[:paused]
+    json.expired      @stats[:expired]
+    json.draft        @stats[:draft]
     json.total_clicks @stats[:total_clicks]
   end
 end
