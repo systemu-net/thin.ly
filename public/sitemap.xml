@@ -71,7 +71,7 @@
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://thin.ly/contact</loc>
+    <loc>https://thin.ly/contact_us</loc>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -86,7 +86,7 @@
     <priority>0.5</priority>
   </url>
   <url>
-    <loc>https://thin.ly/cookies</loc>
+    <loc>https://thin.ly/cookie_policy</loc>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
