@@ -1,1 +1,30 @@
-# See https://www.robotstxt.org/robotstxt.html for documentation on how to use the robots.txt file
+# thin.ly robots policy
+#
+# thin.ly is a URL shortener. The short-code redirect endpoints (e.g. /aB3xY9q)
+# are tool surfaces, not content, and must not be indexed by search engines or
+# crawled as content pages. The marketing, legal and informational pages on the
+# domain root and named paths are content and are intended to be crawled.
+
+User-agent: *
+
+# Disallow short-code redirect surfaces and operational endpoints.
+Disallow: /api/
+Disallow: /up
+Disallow: /sidekiq
+Disallow: /service-worker
+Disallow: /manifest
+Disallow: /link-not-found
+Disallow: /unsafe-link
+Disallow: /uploads/
+
+# Allow the AdSense and Google verification crawlers full access to public pages.
+User-agent: Mediapartners-Google
+Allow: /
+
+User-agent: AdsBot-Google
+Allow: /
+
+User-agent: AdsBot-Google-Mobile
+Allow: /
+
+Sitemap: https://thin.ly/sitemap.xml

@@ -1,0 +1,22 @@
+source "https://rubygems.org"
+
+# Pin Jekyll to a version whose `json` dependency builds cleanly on the
+# Ruby 3.3.x toolchains commonly used in dev and CI. Jekyll 4.4.x pulls
+# in json 2.19.x which has a native-extension build that breaks on some
+# macOS Xcode/clang combinations.
+gem "jekyll", "~> 4.4.1"
+gem "kramdown-parser-gfm"
+gem "rouge"
+gem "webrick"
+
+# json 2.19.x re-declares helpers (`rb_hash_bulk_insert`,
+# `rb_str_to_interned_str`) as `static`, conflicting with Ruby 3.3+ headers
+# and failing to compile. 2.7.x is the bundled-default for Ruby 3.3 and
+# builds cleanly.
+gem "json", "~> 2.7.2"
+
+group :jekyll_plugins do
+  gem "jekyll-paginate"
+  gem "jekyll-sitemap"
+  gem "jekyll-feed"
+end

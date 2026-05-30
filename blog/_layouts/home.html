@@ -1,0 +1,51 @@
+---
+layout: default
+---
+<section class="home-intro">
+  <p class="eyebrow">thin.ly Blog</p>
+  <h1>Guides on link shortening, QR codes and analytics.</h1>
+  <p class="lede">
+    Practical, opinionated writing on how to actually use short links — from
+    UTM tracking and QR codes for print, through link governance and security,
+    to the trade-offs between branded and generic shorteners.
+  </p>
+</section>
+
+<section class="post-list">
+  {% for post in paginator.posts %}
+    <article class="post-card {% if post.image %}has-thumb{% endif %}">
+      {% if post.image %}
+        <a class="post-card-thumb" href="{{ post.url | relative_url }}" aria-hidden="true" tabindex="-1">
+          <img src="{{ post.image }}"
+               alt=""
+               loading="lazy">
+        </a>
+      {% endif %}
+      <div class="post-card-body">
+        <h2><a href="{{ post.url | relative_url }}">{{ post.title | escape }}</a></h2>
+        <p class="post-card-meta">
+          <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: "%B %-d, %Y" }}</time>
+          {% if post.read_time %} &middot; {{ post.read_time }} min read{% endif %}
+        </p>
+        {% if post.summary %}
+          <p class="post-card-summary">{{ post.summary }}</p>
+        {% else %}
+          <p class="post-card-summary">{{ post.excerpt | strip_html | truncate: 200 }}</p>
+        {% endif %}
+        <a class="post-card-cta" href="{{ post.url | relative_url }}">Read article &rarr;</a>
+      </div>
+    </article>
+  {% endfor %}
+</section>
+
+{% if paginator.total_pages > 1 %}
+  <nav class="pagination">
+    {% if paginator.previous_page %}
+      <a class="page-prev" href="{{ paginator.previous_page_path | relative_url }}">&larr; Newer</a>
+    {% endif %}
+    <span class="page-meta">Page {{ paginator.page }} of {{ paginator.total_pages }}</span>
+    {% if paginator.next_page %}
+      <a class="page-next" href="{{ paginator.next_page_path | relative_url }}">Older &rarr;</a>
+    {% endif %}
+  </nav>
+{% endif %}

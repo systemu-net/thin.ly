@@ -49,6 +49,11 @@ module Api
       end
 
       def lookup_code
+        # Short-code endpoints are a redirect surface, not content. Tell crawlers
+        # not to index them and not to follow them as content links — this is
+        # what keeps a URL shortener out of Google's "doorway pages" bucket.
+        response.set_header("X-Robots-Tag", "noindex, nofollow")
+
         if @link
           # Block unsafe links and show warning page
           if @link.is_safe == false
