@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Using UTM Parameters with Shortened Links: A Practical Guide — thin.ly Blog</title>
+  <meta name="description" content="UTM parameters and short links are two of the oldest tools in the digitalmarketer’s kit, and most teams use them badly together. The usual symptom is aGoogle...">
+  <link rel="canonical" href="https://thin.ly/blog/utm-parameters-with-shortened-links/">
+  <link rel="alternate" type="application/atom+xml" title="thin.ly Blog" href="https://thin.ly/blog/feed.xml">
+  <link rel="stylesheet" href="/blog/assets/css/main.css">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Using UTM Parameters with Shortened Links: A Practical Guide">
+  <meta property="og:description" content="UTM parameters and short links are two of the oldest tools in the digitalmarketer’s kit, and most teams use them badly together. The usual symptom is aGoogle...">
+  <meta property="og:url" content="https://thin.ly/blog/utm-parameters-with-shortened-links/">
+  <meta property="og:site_name" content="thin.ly Blog">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2156606011003044" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="site-header">
+  <div class="container">
+    <a class="site-brand" href="/">thin.ly</a>
+    <nav class="site-nav">
+      <a href="/features">Features</a>
+      <a href="/plans">Plans</a>
+      <a href="/blog/" class="active">Blog</a>
+      <a href="/about">About</a>
+      <a href="/register" class="btn">Sign up</a>
+    </nav>
+  </div>
+</header>
+
+
+  <main class="site-main">
+    <article class="post" itemscope itemtype="https://schema.org/BlogPosting">
+  <header class="post-header">
+    <p class="post-eyebrow">thin.ly Blog</p>
+    <h1 class="post-title" itemprop="headline">Using UTM Parameters with Shortened Links: A Practical Guide</h1>
+    <p class="post-meta">
+      <time datetime="2026-05-25T00:00:00-04:00" itemprop="datePublished">
+        May 25, 2026
+      </time>
+       &middot; <span itemprop="author">Thinly team</span>
+       &middot; 7 min read
+    </p>
+    
+      <p class="post-summary">UTM parameters and short links solve different problems. Used together they give you per-campaign attribution that survives copy-paste, redirects, and stripped referrers. Here's how to combine them without breaking your analytics.</p>
+    
+  </header>
+
+  
+    <figure class="post-hero">
+      <img src="/blog/assets/images/utm-parameters/hero.jpg"
+           alt="Analytics dashboard showing campaign attribution data"
+           loading="eager"
+           itemprop="image">
+      
+        <figcaption>UTM parameters and short links are two layers of the same campaign-attribution stack — most teams misuse one or both.</figcaption>
+      
+    </figure>
+  
+
+  <div class="post-content" itemprop="articleBody">
+    <p>UTM parameters and short links are two of the oldest tools in the digital
+marketer’s kit, and most teams use them badly together. The usual symptom is a
+Google Analytics report that lumps every paid campaign into a single
+<code class="language-plaintext highlighter-rouge">utm_source=newsletter</code> bucket because someone reused the same UTM string
+across six different sends, or the opposite — twenty subtly different
+<code class="language-plaintext highlighter-rouge">utm_campaign</code> values for what should have been one campaign. Both problems
+have the same root cause: nobody on the team owns the link-generation step.</p>
+
+<p>This article walks through the model we recommend for combining UTM tagging
+with a short-link service, with the specific failure modes we see in support
+tickets and how to design around them.</p>
+
+<h2 id="what-each-tool-actually-does">What each tool actually does</h2>
+
+<p>A short link is a redirect. A user clicks <code class="language-plaintext highlighter-rouge">thin.ly/launch-q3</code>, the server
+looks up <code class="language-plaintext highlighter-rouge">launch-q3</code> in a database, finds the destination, and issues an HTTP
+302 to that URL. The destination URL can contain anything — including UTM
+parameters.</p>
+
+<p>UTM parameters are query-string key/value pairs (<code class="language-plaintext highlighter-rouge">utm_source</code>,
+<code class="language-plaintext highlighter-rouge">utm_medium</code>, <code class="language-plaintext highlighter-rouge">utm_campaign</code>, <code class="language-plaintext highlighter-rouge">utm_content</code>, <code class="language-plaintext highlighter-rouge">utm_term</code>) that Google
+Analytics and most other analytics tools recognize as campaign metadata.
+They’re read at the destination, on the landing page itself, after the
+redirect has already happened.</p>
+
+<p>This means <strong>UTM parameters live on the destination URL, not on the short
+link</strong>. The short link is the wrapper; the UTMs ride inside it.</p>
+
+<figure>
+  <img src="/blog/assets/images/utm-parameters/utm-stack.jpg" alt="Diagram of UTM parameters layered on a destination URL" loading="lazy" />
+  <figcaption>UTMs live on the destination URL, inside the wrapper of the short link. The shortener is the carrier, not the carrier of the tags themselves.</figcaption>
+</figure>
+
+<h2 id="the-basic-pattern">The basic pattern</h2>
+
+<p>If your campaign destination is:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://acme.com/pricing
+</code></pre></div></div>
+
+<p>and you want it tagged for a paid social campaign, the destination URL you
+shorten is:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>https://acme.com/pricing?utm_source=linkedin&amp;utm_medium=cpc&amp;utm_campaign=q3-launch&amp;utm_content=carousel-a
+</code></pre></div></div>
+
+<p>Then you shorten <em>that</em> — full string with UTMs — into something like
+<code class="language-plaintext highlighter-rouge">thin.ly/q3-launch-li</code>. The user clicks the short link, the server redirects
+to the long URL with UTMs intact, the destination page records the visit
+under the correct campaign in your analytics.</p>
+
+<p>The mistake we see most often is shortening the bare URL and then trying to
+“add UTMs in the short link” by appending them after the slug, like
+<code class="language-plaintext highlighter-rouge">thin.ly/q3-launch?utm_source=linkedin</code>. Most shorteners (including
+thin.ly) strip those because they’re meaningless to the lookup engine —
+the slug is <code class="language-plaintext highlighter-rouge">q3-launch</code>, the query string is noise. The redirect goes to the
+bare destination and your analytics records “direct traffic.”</p>
+
+<h2 id="picking-values-that-aggregate-cleanly">Picking values that aggregate cleanly</h2>
+
+<p>Google Analytics doesn’t normalize UTM values. <code class="language-plaintext highlighter-rouge">Linkedin</code>, <code class="language-plaintext highlighter-rouge">linkedin</code>,
+<code class="language-plaintext highlighter-rouge">LinkedIn</code>, and <code class="language-plaintext highlighter-rouge">LINKEDIN</code> are four different sources in your reports.
+Adopt a small convention and write it down:</p>
+
+<ul>
+  <li><code class="language-plaintext highlighter-rouge">utm_source</code> — always lowercase, no spaces (<code class="language-plaintext highlighter-rouge">linkedin</code>, <code class="language-plaintext highlighter-rouge">newsletter</code>,
+<code class="language-plaintext highlighter-rouge">partner-acme</code>).</li>
+  <li><code class="language-plaintext highlighter-rouge">utm_medium</code> — pick from a short, fixed vocabulary: <code class="language-plaintext highlighter-rouge">cpc</code>, <code class="language-plaintext highlighter-rouge">email</code>,
+<code class="language-plaintext highlighter-rouge">social</code>, <code class="language-plaintext highlighter-rouge">affiliate</code>, <code class="language-plaintext highlighter-rouge">referral</code>, <code class="language-plaintext highlighter-rouge">print</code>. If a new value feels needed,
+add it to the vocabulary first; don’t invent it in a campaign.</li>
+  <li><code class="language-plaintext highlighter-rouge">utm_campaign</code> — date or version prefix is your friend
+(<code class="language-plaintext highlighter-rouge">2026-q3-launch</code>, <code class="language-plaintext highlighter-rouge">winter-promo-v2</code>). It groups campaign reports
+chronologically and survives reuse later.</li>
+  <li><code class="language-plaintext highlighter-rouge">utm_content</code> — variant identifier (<code class="language-plaintext highlighter-rouge">headline-a</code>, <code class="language-plaintext highlighter-rouge">carousel-bg-purple</code>).
+This is where A/B variants live.</li>
+  <li><code class="language-plaintext highlighter-rouge">utm_term</code> — paid-search keyword. Leave it empty for non-search traffic.</li>
+</ul>
+
+<p>If you’re using thin.ly, the link’s title field is a good place to write
+the human-readable name of the campaign while the destination URL holds the
+machine-readable UTM string.</p>
+
+<figure>
+  <img src="/blog/assets/images/utm-parameters/vocabulary.jpg" alt="Marketer reviewing a UTM vocabulary list on a whiteboard" loading="lazy" />
+  <figcaption>A small, written-down vocabulary for `utm_source`, `utm_medium` and `utm_campaign` saves more reporting time than any analytics tool can.</figcaption>
+</figure>
+
+<h2 id="where-short-links-genuinely-help">Where short links genuinely help</h2>
+
+<p>The reason to shorten a UTM-tagged URL at all comes down to four things:</p>
+
+<ol>
+  <li><strong>Length.</strong> A fully tagged destination URL is often 200+ characters. It
+won’t fit on a printed flyer, in an SMS, or comfortably in a tweet.</li>
+  <li><strong>Stability.</strong> If a campaign destination needs to change — pricing page
+gets a new path, the landing page moves — you can swap the short link’s
+destination without re-printing materials or asking partners to update
+their copy.</li>
+  <li><strong>Click analytics independent of the destination.</strong> UTMs only fire if
+the user reaches the landing page and the analytics script loads. The
+short link records the click the moment the redirect happens, before any
+page-load or ad-blocker can interfere.</li>
+  <li><strong>Per-link governance.</strong> A short link lets you pause a campaign by
+pointing the link at a “campaign ended” page, or expire it on a
+schedule, without touching the underlying site.</li>
+</ol>
+
+<h2 id="failure-modes-to-design-around">Failure modes to design around</h2>
+
+<p>A few problems we see repeatedly:</p>
+
+<p><strong>Email clients stripping query strings.</strong> Some corporate mail security
+products rewrite URLs in inbound mail, and a few of them strip query
+parameters they don’t recognize. UTMs vanish. The fix is to put the UTMs
+inside the short link’s destination so the user clicks <code class="language-plaintext highlighter-rouge">thin.ly/launch-q3</code>
+and the redirect — fired from your server, not the mail rewriter — carries
+the UTMs through. Add an HTTP-level test by sending one mail and clicking
+through to confirm.</p>
+
+<p><strong>Social platforms appending their own parameters.</strong> LinkedIn and Facebook
+sometimes append a <code class="language-plaintext highlighter-rouge">?trk=…</code> or <code class="language-plaintext highlighter-rouge">fbclid=…</code> to outbound links. Most analytics
+tools handle these without issue, but if you build a report by URL the
+appended noise will split your rows. Either filter <code class="language-plaintext highlighter-rouge">fbclid</code>/<code class="language-plaintext highlighter-rouge">gclid</code>/<code class="language-plaintext highlighter-rouge">trk</code>
+in your analytics view, or strip them in your destination router.</p>
+
+<p><strong>The “two-shortener” problem.</strong> Marketing shortens a tagged URL, then a
+partner re-shortens <em>that</em> with a different service for their newsletter.
+You now have two redirects in series, and the analytics on the first hop
+record one click while the second hop’s analytics record a different one.
+Pick a single source of truth before launching a campaign, and tell
+partners to use that link as-is.</p>
+
+<p><strong>Reusing campaign values.</strong> Every report becomes harder to interpret when
+<code class="language-plaintext highlighter-rouge">utm_campaign=launch</code> appears in three different quarters. Treat the
+campaign string as a version number. Future-you will thank you when
+year-over-year comparisons stop requiring a SQL pivot.</p>
+
+<figure>
+  <img src="/blog/assets/images/utm-parameters/workflow.jpg" alt="Workflow diagram from campaign brief through tagged short link to analytics report" loading="lazy" />
+  <figcaption>The end-to-end workflow: brief → tagged destination → shortened link → distributed artifact → attributed click.</figcaption>
+</figure>
+
+<h2 id="a-practical-workflow">A practical workflow</h2>
+
+<ol>
+  <li>Decide on a campaign name and write it in your link-management tool’s
+title field.</li>
+  <li>Build the destination URL with full UTM parameters using your vocabulary.</li>
+  <li>Shorten the full URL (with UTMs). Give the short link a memorable slug.</li>
+  <li>Test the click path: short link → expected destination, UTMs intact, the
+visit appears in your analytics under the right campaign.</li>
+  <li>Distribute the short link, not the long one. Never distribute both — if
+anyone has the long URL, half your clicks will arrive untagged.</li>
+</ol>
+
+<p>Done well, the combination gives you a clean campaign roll-up, a stable
+short link you can swap if anything changes, and click counts that don’t
+depend on the destination’s analytics being healthy. That last property is
+what makes the pairing worth the setup time.</p>
+
+  </div>
+
+  <footer class="post-footer">
+    <p>
+      Found this useful? <a href="https://thin.ly/register">Create a free thin.ly account</a> and try it on your next link.
+    </p>
+    
+      <p class="post-tags">
+        Tagged: <span class="tag">analytics</span><span class="tag">utm</span><span class="tag">campaigns</span>
+      </p>
+    
+  </footer>
+</article>
+
+
+
+  <aside class="related">
+    <h2>More from the thin.ly blog</h2>
+    <ul>
+      
+        <li>
+          <a href="/blog/link-governance-for-marketing-teams/">Link Governance for Marketing Teams: Pause, Route, Expire, Audit</a>
+          <p>Once you have more than ten campaign links, you have a governance problem. A campaign ends, a destination breaks, a partner needs the lin...</p>
+        </li>
+      
+        <li>
+          <a href="/blog/branded-vs-generic-shorteners/">Branded vs. Generic Short Links: When Each One Makes Sense</a>
+          <p>A branded short domain isn't just vanity — it changes click-through rates, deliverability, and brand defensibility. But it has real costs...</p>
+        </li>
+      
+        <li>
+          <a href="/blog/url-shortener-security/">URL Shortener Security: Threats, Defenses, and What Users Don&#39;t See</a>
+          <p>Every short link is a request to trust a destination you can't see. URL shorteners earn that trust with threat detection, sandboxing, and...</p>
+        </li>
+      
+    </ul>
+  </aside>
+
+
+  </main>
+
+  <footer class="site-footer">
+  <div class="container">
+    <div class="footer-cols">
+      <div>
+        <h4>thin.ly</h4>
+        <p>Short links, QR codes and analytics for marketers, creators and developers.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/features">Features</a></li>
+          <li><a href="/plans">Plans</a></li>
+          <li><a href="/blog/">Blog</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="/about">About</a></li>
+          <li><a href="/contact_us">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="/terms">Terms</a></li>
+          <li><a href="/privacy_policy">Privacy</a></li>
+          <li><a href="/cookie_policy">Cookies</a></li>
+          <li><a href="/user_policy">User policy</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="footer-bottom">&copy; 2026 thin.ly. All rights reserved.</p>
+  </div>
+</footer>
+
+</body>
+</html>
