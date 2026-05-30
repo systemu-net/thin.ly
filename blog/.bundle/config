@@ -1,9 +1,2 @@
 ---
 BUNDLE_PATH: "vendor/bundle"
-BUNDLE_BUILD__EVENTMACHINE: "--with-cflags=--target=x86_64-apple-darwin --with-ldflags=--target=x86_64-apple-darwin"
-BUNDLE_BUILD__JSON: "--with-cflags=--target=x86_64-apple-darwin --with-ldflags=--target=x86_64-apple-darwin"
-BUNDLE_BUILD__FFI: "--with-cflags=--target=x86_64-apple-darwin --with-ldflags=--target=x86_64-apple-darwin"
-BUNDLE_BUILD__HTTP_PARSER__RB: "--with-cflags=--target=x86_64-apple-darwin --with-ldflags=--target=x86_64-apple-darwin"
-BUNDLE_BUILD__BIGDECIMAL: "--with-cflags=--target=x86_64-apple-darwin --with-ldflags=--target=x86_64-apple-darwin"
-BUNDLE_BUILD__GOOGLE_PROTOBUF: "--with-cflags=--target=x86_64-apple-darwin --with-ldflags=--target=x86_64-apple-darwin"
-BUNDLE_BUILD__SASS_EMBEDDED: "--with-cflags=--target=x86_64-apple-darwin --with-ldflags=--target=x86_64-apple-darwin"
