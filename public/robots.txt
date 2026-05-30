@@ -7,7 +7,7 @@
 
 User-agent: *
 
-# Disallow short-code redirect surfaces and operational endpoints.
+# Disallow operational endpoints that should not be crawled as content.
 Disallow: /api/
 Disallow: /up
 Disallow: /sidekiq
@@ -28,3 +28,4 @@ User-agent: AdsBot-Google-Mobile
 Allow: /
 
 Sitemap: https://thin.ly/sitemap.xml
+Sitemap: https://thin.ly/blog/sitemap.xml
