@@ -4,8 +4,8 @@ date: 2026-05-04
 summary: "Every short link is a request to trust a destination you can't see. URL shorteners earn that trust with threat detection, sandboxing, and policy. Here's the threat model, the categories of attack, and what a serious shortener does about each one."
 tags: [security, threat-detection, policy]
 read_time: 8
-image: /assets/images/placeholder.svg
-image_alt: Decorative placeholder image
+image: /assets/images/url-shortener-security/hero.jpg
+image_alt: Padlock icon on a network of glowing connections representing link security
 image_caption: A short link is a request to trust a destination you can't see. Earning that trust is continuous work, not a one-time check.
 ---
 
@@ -48,7 +48,7 @@ There are four broad categories of malicious use:
 Each of these has a different defense profile.
 
 <figure>
-  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
+  <img src="/blog/assets/images/url-shortener-security/threats.jpg" alt="Diagram showing four categories of malicious link use" loading="lazy">
   <figcaption>Four threat categories — malware, phishing, scams, policy violations — each with a different defense profile.</figcaption>
 </figure>
 
@@ -113,7 +113,7 @@ shorteners apply it selectively: flagged-on-creation links, high-risk
 categories, or as a background job after the link is issued.
 
 <figure>
-  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
+  <img src="/blog/assets/images/url-shortener-security/scanning.jpg" alt="Server inspecting a URL through multiple scanning layers" loading="lazy">
   <figcaption>Pre-creation scanning catches the obvious. Periodic rescanning catches delayed weaponization — the more interesting problem.</figcaption>
 </figure>
 
@@ -140,7 +140,7 @@ paused/expired campaigns where there is no longer a valid
 destination. The interstitial does not load any third-party content.
 
 <figure>
-  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
+  <img src="/blog/assets/images/url-shortener-security/interstitial.jpg" alt="Browser showing a safety interstitial page warning about a blocked link" loading="lazy">
   <figcaption>A safety interstitial tells the user what happened. Silent 404s leave them confused; explicit blocks build trust.</figcaption>
 </figure>
 

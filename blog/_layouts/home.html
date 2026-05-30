@@ -16,7 +16,7 @@ layout: default
     <article class="post-card {% if post.image %}has-thumb{% endif %}">
       {% if post.image %}
         <a class="post-card-thumb" href="{{ post.url | relative_url }}" aria-hidden="true" tabindex="-1">
-          <img src="{{ post.image }}"
+          <img src="{{ post.image | relative_url }}"
                alt=""
                loading="lazy">
         </a>
