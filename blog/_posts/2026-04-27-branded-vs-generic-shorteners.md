@@ -4,8 +4,8 @@ date: 2026-04-27
 summary: "A branded short domain isn't just vanity — it changes click-through rates, deliverability, and brand defensibility. But it has real costs too. Here's how to decide between a generic shortener and a branded domain, and what to do if you can't afford the branded option yet."
 tags: [branding, deliverability]
 read_time: 6
-image: https://picsum.photos/seed/thinly-branded-hero/1600/900
-image_alt: Branded short URL displayed prominently on a billboard
+image: /assets/images/placeholder.svg
+image_alt: Decorative placeholder image
 image_caption: A branded short domain is a 100,000-impression brand asset. Most teams treat it like a line item.
 ---
 
@@ -54,7 +54,7 @@ intercept search traffic. A branded short domain is in your control;
 nobody else can register slugs underneath it.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-branded-trust/1200/675" alt="Phone showing two link previews — one branded, one generic" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>For audiences that read URLs before clicking, the branded domain measurably lifts CTR. The effect is biggest in B2B contexts.</figcaption>
 </figure>
 
@@ -98,7 +98,7 @@ A few clear cases where the math works out:
   `thin.ly/login-acme`.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-branded-cost/1200/675" alt="Cost breakdown chart for custom domain setup" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>The visible cost is the domain registration. The real cost is internal coordination — DNS, renewal, and consistency.</figcaption>
 </figure>
 
@@ -128,7 +128,7 @@ add-on cost, and it captures the majority of the trust-and-brand
 benefit at a fraction of the friction.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-branded-subdomain/1200/675" alt="Subdomain configuration interface for a branded short link service" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>A shared branded subdomain (`acme.thin.ly`) captures most of the brand benefit at a fraction of the friction of buying a separate apex domain.</figcaption>
 </figure>
 

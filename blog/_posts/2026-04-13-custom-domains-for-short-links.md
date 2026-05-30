@@ -4,8 +4,8 @@ date: 2026-04-13
 summary: "Pointing your own domain at a URL shortener is the highest-leverage thing you can do for branded campaigns, and it's easier than it looks once you know which DNS records to set. A walkthrough of CNAME vs A records, SSL provisioning, the redirect quirks, and the five mistakes that turn a five-minute setup into a five-day support ticket."
 tags: [domains, dns, setup]
 read_time: 7
-image: https://picsum.photos/seed/thinly-domains-hero/1600/900
-image_alt: DNS configuration panel showing CNAME records being edited
+image: /assets/images/placeholder.svg
+image_alt: Decorative placeholder image
 image_caption: A custom short domain is mostly a DNS exercise. Once you know which records to set, the setup is fifteen minutes.
 ---
 
@@ -52,7 +52,7 @@ brands, a separate apex usually wins because the shorter total URL
 matters more.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-domains-picking/1200/675" alt="Selection of candidate short-domain options across multiple TLDs" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>Short, memorable, defensible. The TLD matters: `.com`, `.co` and `.link` read as legitimate; spammy TLDs trigger mail filters.</figcaption>
 </figure>
 
@@ -109,7 +109,7 @@ acme.link.   A     203.0.113.11
 Two records for redundancy.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-domains-dns/1200/675" alt="DNS zone editor showing CNAME and A record entries for a short domain" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>CNAME for subdomains, A or ALIAS records for apex domains. Two records for redundancy; the rest is propagation time.</figcaption>
 </figure>
 
@@ -164,7 +164,7 @@ At minimum:
    consistent.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-domains-ssl/1200/675" alt="Browser address bar showing a valid HTTPS certificate on a branded short link" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>SSL provisioning via Let's Encrypt is automatic once DNS propagates. CAA records and Cloudflare's "Full" mode are the two most common stalls.</figcaption>
 </figure>
 

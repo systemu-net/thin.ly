@@ -4,8 +4,8 @@ date: 2026-04-06
 summary: "QR codes and short links solve overlapping problems but are not interchangeable. The choice depends on whether the user will be reading, scanning, typing, or tapping — and a few campaigns benefit from using both at the same time. Here's the decision framework."
 tags: [qr-codes, distribution, design]
 read_time: 5
-image: https://picsum.photos/seed/thinly-vs-hero/1600/900
-image_alt: A poster showing a QR code and a printed short URL side by side
+image: /assets/images/placeholder.svg
+image_alt: Decorative placeholder image
 image_caption: QR codes and short links solve overlapping problems. The surface decides which one wins.
 ---
 
@@ -38,7 +38,7 @@ If they are at arm's length or farther, give them a QR code with the
 short link printed underneath as fallback.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-vs-surfaces/1200/675" alt="Grid of surfaces with optimal wrapper labeled — podcast, poster, social, email" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>The wrapper choice is per-surface, not per-campaign. A podcast needs a typed short link; a poster needs a scannable QR code.</figcaption>
 </figure>
 
@@ -58,7 +58,7 @@ otherwise be lost in print campaigns. The cost is one extra line of
 text underneath the QR code. Always include it.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-vs-fallback/1200/675" alt="Printed material showing a QR code with the short URL printed beneath it as fallback" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>Print the short URL under the QR code. It recovers the 5-10% of scans that fail in poor light or with smudged camera lenses.</figcaption>
 </figure>
 
@@ -108,7 +108,7 @@ The wrapper choice is about user experience, not about the underlying
 machinery.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-vs-decision/1200/675" alt="Decision flowchart from surface type to recommended link wrapper" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>The decision rule: can the user type this URL in five seconds without a mistake? If yes, lead with the short link. If no, lead with the QR code and include the short URL as a fallback.</figcaption>
 </figure>
 

@@ -4,8 +4,8 @@ date: 2026-05-11
 summary: "Click counts, geographic data, devices, referrers — every link service shows them, very few teams know what to do with them. A field guide to the metrics, what they don't tell you, and the questions you should be asking instead."
 tags: [analytics, metrics]
 read_time: 8
-image: https://picsum.photos/seed/thinly-analytics-hero/1600/900
-image_alt: Analytics dashboard with click charts and geographic distribution
+image: /assets/images/placeholder.svg
+image_alt: Decorative placeholder image
 image_caption: Every link dashboard shows the same four numbers. The interesting work is what you ask them.
 ---
 
@@ -45,7 +45,7 @@ network that rotates IPs shows up as several. Trust the trends, not the
 absolute numbers.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-analytics-uniques/1200/675" alt="Chart comparing total clicks to unique clicks over time" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>The gap between total and unique clicks tells you whether your audience is returning. Headline numbers hide this; the ratio shows it.</figcaption>
 </figure>
 
@@ -102,7 +102,7 @@ or WhatsApp or Discord thread out there driving the campaign that
 doesn't appear in your referrer report.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-analytics-geo/1200/675" alt="World map heatmap of click density by country" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>Country-level GeoIP data is reliable for trends, less reliable for individual visitors. VPNs, mobile carriers and corporate gateways all skew the map.</figcaption>
 </figure>
 
@@ -144,7 +144,7 @@ prior conference-poster QR codes. Year-over-year comparison against
 yourself is more honest than industry benchmarks.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-analytics-hourly/1200/675" alt="24-hour histogram showing click distribution by hour of day" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>A 24-hour histogram reveals more about your audience than the raw click count. B2B clusters in working hours; consumer content peaks late.</figcaption>
 </figure>
 

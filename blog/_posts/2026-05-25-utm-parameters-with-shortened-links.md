@@ -4,8 +4,8 @@ date: 2026-05-25
 summary: "UTM parameters and short links solve different problems. Used together they give you per-campaign attribution that survives copy-paste, redirects, and stripped referrers. Here's how to combine them without breaking your analytics."
 tags: [analytics, utm, campaigns]
 read_time: 7
-image: https://picsum.photos/seed/thinly-utm-hero/1600/900
-image_alt: Analytics dashboard showing campaign attribution data
+image: /assets/images/placeholder.svg
+image_alt: Decorative placeholder image
 image_caption: UTM parameters and short links are two layers of the same campaign-attribution stack — most teams misuse one or both.
 ---
 
@@ -38,7 +38,7 @@ This means **UTM parameters live on the destination URL, not on the short
 link**. The short link is the wrapper; the UTMs ride inside it.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-utm-stack/1200/675" alt="Diagram of UTM parameters layered on a destination URL" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>UTMs live on the destination URL, inside the wrapper of the short link. The shortener is the carrier, not the carrier of the tags themselves.</figcaption>
 </figure>
 
@@ -92,7 +92,7 @@ the human-readable name of the campaign while the destination URL holds the
 machine-readable UTM string.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-utm-vocabulary/1200/675" alt="Marketer reviewing a UTM vocabulary list on a whiteboard" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>A small, written-down vocabulary for `utm_source`, `utm_medium` and `utm_campaign` saves more reporting time than any analytics tool can.</figcaption>
 </figure>
 
@@ -145,7 +145,7 @@ campaign string as a version number. Future-you will thank you when
 year-over-year comparisons stop requiring a SQL pivot.
 
 <figure>
-  <img src="https://picsum.photos/seed/thinly-utm-workflow/1200/675" alt="Workflow diagram from campaign brief through tagged short link to analytics report" loading="lazy">
+  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
   <figcaption>The end-to-end workflow: brief → tagged destination → shortened link → distributed artifact → attributed click.</figcaption>
 </figure>
 
