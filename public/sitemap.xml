@@ -26,46 +26,6 @@
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://thin.ly/blog/utm-parameters-with-shortened-links/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thin.ly/blog/qr-codes-for-print-marketing/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thin.ly/blog/understanding-link-analytics/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thin.ly/blog/url-shortener-security/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thin.ly/blog/branded-vs-generic-shorteners/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thin.ly/blog/link-governance-for-marketing-teams/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thin.ly/blog/custom-domains-for-short-links/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://thin.ly/blog/qr-code-vs-short-link/</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://thin.ly/about</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
