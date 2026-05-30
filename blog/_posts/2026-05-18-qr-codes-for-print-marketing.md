@@ -4,8 +4,8 @@ date: 2026-05-18
 summary: "Most printed QR codes are bad — too small, no context, no fallback, and the destination dies the day the campaign ends. Here's what a useful printed QR code looks like, why dynamic QR codes are non-negotiable, and the small craft details that decide whether anybody scans it."
 tags: [qr-codes, print, design]
 read_time: 8
-image: /assets/images/placeholder.svg
-image_alt: Decorative placeholder image
+image: /assets/images/qr-codes-for-print/hero.jpg
+image_alt: QR code printed on a poster being scanned by a smartphone
 image_caption: A printed QR code is a one-shot test of a dozen design decisions. Most fail quietly.
 ---
 
@@ -47,7 +47,7 @@ absolutely certain the destination will never change**. The cost of being
 wrong is reprinting. The cost of being right early is nothing.
 
 <figure>
-  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
+  <img src="/blog/assets/images/qr-codes-for-print/dynamic-vs-static.jpg" alt="Dynamic versus static QR code comparison" loading="lazy">
   <figcaption>Static codes lock the destination at print time. Dynamic codes let you change the destination without reprinting — the only sensible choice for anything that goes to press.</figcaption>
 </figure>
 
@@ -73,7 +73,7 @@ be photographed at an angle. The most common mistake is reusing a small
 brochure-sized QR code on a poster that lives across a hotel lobby.
 
 <figure>
-  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
+  <img src="/blog/assets/images/qr-codes-for-print/sizing.jpg" alt="Large QR code on a hotel-lobby poster" loading="lazy">
   <figcaption>The most common sizing failure is reusing a brochure-sized QR code on a poster across a room. Side length should be roughly 1/10th the scan distance.</figcaption>
 </figure>
 
@@ -116,7 +116,7 @@ otherwise-identical layouts:
   Roughly 5-10% of attempted scans fail; the short URL recovers those.
 
 <figure>
-  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
+  <img src="/blog/assets/images/qr-codes-for-print/context.jpg" alt="QR code printed beside a clear product photo with explanatory text" loading="lazy">
   <figcaption>The text and imagery around a QR code do more for scan rates than the code's own design. "Scan to see the menu" outperforms "Scan here" every time.</figcaption>
 </figure>
 

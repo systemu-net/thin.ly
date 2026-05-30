@@ -4,8 +4,8 @@ date: 2026-04-20
 summary: "Once you have more than ten campaign links, you have a governance problem. A campaign ends, a destination breaks, a partner needs the link redirected — and most teams handle this by emailing each other. Here's the four-verb model that scales: pause, route, expire, audit."
 tags: [governance, operations]
 read_time: 7
-image: /assets/images/placeholder.svg
-image_alt: Decorative placeholder image
+image: /assets/images/link-governance/hero.jpg
+image_alt: Audit-log style interface showing link state changes over time
 image_caption: A short link is durable infrastructure. Treating it that way is the difference between scaling marketing ops and re-emailing the link owner forever.
 ---
 
@@ -52,7 +52,7 @@ loses history and frees up the slug) or do nothing (which leaves
 dead links live).
 
 <figure>
-  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
+  <img src="/blog/assets/images/link-governance/pause.jpg" alt="Dashboard showing a paused short link with the unpause action highlighted" loading="lazy">
   <figcaption>A paused link is reversible, preserves the slug, and keeps the click history. Deleting is none of those things.</figcaption>
 </figure>
 
@@ -84,7 +84,7 @@ the redirect logic adapts. This is the foundation for keeping
 campaigns alive past their original window.
 
 <figure>
-  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
+  <img src="/blog/assets/images/link-governance/routing.jpg" alt="Routing rules splitting traffic by geography and device type" loading="lazy">
   <figcaption>Geo, device and scheduled routing let one short link dispatch to many destinations. The printed material stays the same; the redirect logic adapts.</figcaption>
 </figure>
 
@@ -133,7 +133,7 @@ true. Usually the truth is more interesting than either side
 remembered.
 
 <figure>
-  <img src="/assets/images/placeholder.svg" alt="Decorative placeholder image" loading="lazy">
+  <img src="/blog/assets/images/link-governance/audit.jpg" alt="Timeline view of an audit log with each state change tagged by actor" loading="lazy">
   <figcaption>The audit log answers the questions Slack archaeology was supposed to. Quietly the most important feature on the dashboard.</figcaption>
 </figure>
 

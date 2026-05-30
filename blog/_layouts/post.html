@@ -19,7 +19,7 @@ layout: default
 
   {% if page.image %}
     <figure class="post-hero">
-      <img src="{{ page.image }}"
+      <img src="{{ page.image | relative_url }}"
            alt="{{ page.image_alt | default: page.title | escape }}"
            loading="eager"
            itemprop="image">
