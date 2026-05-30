@@ -1,8 +1,17 @@
 #!/usr/bin/env bash
-# Build the Jekyll blog into public/blog so Rails' static middleware serves it.
+# Build the Jekyll blog into public/blog/.
 #
-# Jekyll has its own Gemfile under ./blog to avoid version conflicts with Rails.
-# Run this from the project root, or from CI before precompiling Rails assets.
+# Deploy workflow:
+#   1. Edit blog content (posts, layouts, assets) under ./blog/
+#   2. Run bin/build-blog locally — regenerates ./public/blog/
+#   3. Commit BOTH the source changes AND the regenerated public/blog/ files
+#      in the same PR
+#   4. eb deploy ships the pre-built static files; AWS Beanstalk does NOT
+#      run this script
+#
+# Jekyll has its own Gemfile under ./blog to avoid version conflicts with
+# Rails. The script unsets BUNDLE_DEPLOYMENT and uses a local vendor/bundle
+# so it doesn't pollute the Rails bundle.
 #
 # Usage: bin/build-blog
 

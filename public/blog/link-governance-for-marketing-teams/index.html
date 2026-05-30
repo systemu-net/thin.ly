@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Link Governance for Marketing Teams: Pause, Route, Expire, Audit — thin.ly Blog</title>
+  <meta name="description" content="Most marketing teams discover link governance the hard way. A campaignends and someone forgets to update the materials, so the short linkkeeps pointing at a ...">
+  <link rel="canonical" href="https://thin.ly/blog/link-governance-for-marketing-teams/">
+  <link rel="alternate" type="application/atom+xml" title="thin.ly Blog" href="https://thin.ly/blog/feed.xml">
+  <link rel="stylesheet" href="/blog/assets/css/main.css">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Link Governance for Marketing Teams: Pause, Route, Expire, Audit">
+  <meta property="og:description" content="Most marketing teams discover link governance the hard way. A campaignends and someone forgets to update the materials, so the short linkkeeps pointing at a ...">
+  <meta property="og:url" content="https://thin.ly/blog/link-governance-for-marketing-teams/">
+  <meta property="og:site_name" content="thin.ly Blog">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2156606011003044" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="site-header">
+  <div class="container">
+    <a class="site-brand" href="/">thin.ly</a>
+    <nav class="site-nav">
+      <a href="/features">Features</a>
+      <a href="/plans">Plans</a>
+      <a href="/blog/" class="active">Blog</a>
+      <a href="/about">About</a>
+      <a href="/register" class="btn">Sign up</a>
+    </nav>
+  </div>
+</header>
+
+
+  <main class="site-main">
+    <article class="post" itemscope itemtype="https://schema.org/BlogPosting">
+  <header class="post-header">
+    <p class="post-eyebrow">thin.ly Blog</p>
+    <h1 class="post-title" itemprop="headline">Link Governance for Marketing Teams: Pause, Route, Expire, Audit</h1>
+    <p class="post-meta">
+      <time datetime="2026-04-20T00:00:00-04:00" itemprop="datePublished">
+        April 20, 2026
+      </time>
+       &middot; <span itemprop="author">Thinly team</span>
+       &middot; 7 min read
+    </p>
+    
+      <p class="post-summary">Once you have more than ten campaign links, you have a governance problem. A campaign ends, a destination breaks, a partner needs the link redirected — and most teams handle this by emailing each other. Here's the four-verb model that scales: pause, route, expire, audit.</p>
+    
+  </header>
+
+  
+    <figure class="post-hero">
+      <img src="/blog/assets/images/link-governance/hero.jpg"
+           alt="Audit-log style interface showing link state changes over time"
+           loading="eager"
+           itemprop="image">
+      
+        <figcaption>A short link is durable infrastructure. Treating it that way is the difference between scaling marketing ops and re-emailing the link owner forever.</figcaption>
+      
+    </figure>
+  
+
+  <div class="post-content" itemprop="articleBody">
+    <p>Most marketing teams discover link governance the hard way. A campaign
+ends and someone forgets to update the materials, so the short link
+keeps pointing at a long-dead landing page. A partner asks to redirect
+their reseller link to a different page, and the team scrambles to
+find who originally created it. A QR code on a printed banner outlives
+the campaign by six months, and the destination URL has been
+deprecated for five of them.</p>
+
+<p>These are operational problems disguised as marketing problems. They
+all have the same shape: a short link has a longer life than the
+campaign it was created for, and nobody planned for that.</p>
+
+<p>The model that solves them is small — four verbs that should be
+first-class operations on every link, not afterthoughts.</p>
+
+<h2 id="pause">Pause</h2>
+
+<p>A paused link still exists, still resolves, but no longer redirects
+to its original destination. Visitors see a clear “campaign ended”
+or “currently unavailable” interstitial, optionally with a fallback
+destination (your home page, a related landing page, a “what
+happened” explainer).</p>
+
+<p>Pausing is different from deleting in three important ways:</p>
+
+<ol>
+  <li><strong>The slug is reserved.</strong> Nobody can register a new link with the
+same short code while the paused link still owns it. This matters
+when the link has been printed somewhere — you don’t want a future
+user to register the same slug and start serving content to your
+audience.</li>
+  <li><strong>The click history is preserved.</strong> A paused link still records
+clicks, which lets you see when audience interest in a campaign
+actually dies versus when it dies on the dashboard.</li>
+  <li><strong>The operation is reversible.</strong> An unpause restores the redirect.
+Useful for seasonal campaigns (“relaunch the spring menu link in
+April”), pricing freezes, regulatory pauses, or emergency rollback.</li>
+</ol>
+
+<p>Pausing should be a one-click operation. Most teams don’t pause links
+because the tooling makes it too heavy — they either delete (which
+loses history and frees up the slug) or do nothing (which leaves
+dead links live).</p>
+
+<figure>
+  <img src="/blog/assets/images/link-governance/pause.jpg" alt="Dashboard showing a paused short link with the unpause action highlighted" loading="lazy" />
+  <figcaption>A paused link is reversible, preserves the slug, and keeps the click history. Deleting is none of those things.</figcaption>
+</figure>
+
+<h2 id="route">Route</h2>
+
+<p>A routed link sends different visitors to different destinations
+based on conditions: geography, device, time of day, or weight (A/B
+split). Same short URL, different real destinations depending on who
+clicked.</p>
+
+<p>The most common cases:</p>
+
+<ul>
+  <li><strong>Geo routing.</strong> A global campaign needs to send EU visitors to a
+GDPR-compliant landing page and US visitors to a different one.
+Without routing, you have to publish two different short links and
+hope marketers paste the right one. With routing, one short link
+does the dispatch.</li>
+  <li><strong>Device routing.</strong> A campaign needs to send mobile users to an
+app-store deep link and desktop users to a web landing page.</li>
+  <li><strong>Scheduled routing.</strong> A campaign launches at 9am Tuesday. Before
+9am, the link points at a “coming soon” page; after 9am, the live
+destination.</li>
+  <li><strong>Weighted routing.</strong> An A/B test where 50% of clicks go to
+variant A and 50% to variant B, with conversion measured downstream.</li>
+</ul>
+
+<p>Routing rules are governance because they let you change the behavior
+of a link without re-issuing it. The printed material stays the same;
+the redirect logic adapts. This is the foundation for keeping
+campaigns alive past their original window.</p>
+
+<figure>
+  <img src="/blog/assets/images/link-governance/routing.jpg" alt="Routing rules splitting traffic by geography and device type" loading="lazy" />
+  <figcaption>Geo, device and scheduled routing let one short link dispatch to many destinations. The printed material stays the same; the redirect logic adapts.</figcaption>
+</figure>
+
+<h2 id="expire">Expire</h2>
+
+<p>An expired link returns a clear “this link has expired” interstitial,
+permanently. The slug is retired and cannot be reissued; the
+historical data is preserved.</p>
+
+<p>Expiry is for links that should not come back. Time-boxed campaigns,
+limited-time offers, regulatory-mandated takedowns, or links whose
+destinations have been retired for good. The difference from “pause”
+is finality: a paused link is a maybe, an expired link is a no.</p>
+
+<p>A useful pattern is <strong>scheduled expiry</strong>: at link creation, set a
+date after which the link auto-expires. Then forgetting to clean up
+isn’t a problem — the campaign self-shuts. We see this used heavily
+for limited-time promotions, beta access links, conference materials,
+and anything that should die on a known date.</p>
+
+<h2 id="audit">Audit</h2>
+
+<p>The audit log answers the question “what happened to this link, and
+when, and who did it.” Every state change — created, destination
+updated, paused, resumed, routing rule changed, expired — recorded
+with timestamp and actor.</p>
+
+<p>The audit log is the quietly important governance feature. It lets
+you:</p>
+
+<ul>
+  <li>Investigate “wait, who pointed this link at the wrong page?”
+without resorting to Slack archaeology.</li>
+  <li>Comply with regulated workflows where every URL change must be
+attributable (financial services, healthcare, government).</li>
+  <li>Reconstruct campaign timelines after the fact for marketing
+retrospectives.</li>
+  <li>Defend against accusations that the team changed a link to a
+malicious destination — the log shows what happened and who did
+it.</li>
+</ul>
+
+<p>The destination-history view — every URL the link has ever pointed
+to — is the most-used subset of the audit log. We see customers pull
+it up when they’re trying to figure out whether a partner’s
+complaint (“the link sent my users to the wrong page on April 12”) is
+true. Usually the truth is more interesting than either side
+remembered.</p>
+
+<figure>
+  <img src="/blog/assets/images/link-governance/audit.jpg" alt="Timeline view of an audit log with each state change tagged by actor" loading="lazy" />
+  <figcaption>The audit log answers the questions Slack archaeology was supposed to. Quietly the most important feature on the dashboard.</figcaption>
+</figure>
+
+<h2 id="how-to-roll-this-out">How to roll this out</h2>
+
+<p>Most teams have lived with the email-the-link-owner workflow for a
+while and don’t believe they need governance until they have a near-
+miss. The minimum useful setup, in roughly the order to add it:</p>
+
+<ol>
+  <li><strong>Pause everything that’s done.</strong> Run a quarterly review: any
+campaign that’s been “over” for more than a quarter should be
+paused. This is the highest-value cleanup because the dead links
+are the ones most likely to cause embarrassment when discovered
+later.</li>
+  <li><strong>Schedule expiry on new time-boxed campaigns.</strong> Going forward,
+any link tied to a date has an auto-expire set at creation.</li>
+  <li><strong>Adopt routing for anything with multiple destinations.</strong> Stop
+publishing two links for “EU” and “US” versions of the same
+campaign. One link, one routing rule.</li>
+  <li><strong>Make the audit log discoverable.</strong> Show the destination history
+on every link’s dashboard view. The cost is zero, the upside is
+that the team learns the feature exists before they need it.</li>
+</ol>
+
+<h2 id="the-cultural-part">The cultural part</h2>
+
+<p>Tooling is the easy part. The cultural change is teaching the team
+that links are durable infrastructure, not throwaway artifacts. A
+short URL that ends up on a printed banner has a five-year lifespan;
+a short URL in an email campaign has a six-month lifespan; even an
+“internal-only” short URL has the lifespan of every saved bookmark
+and every shared Slack message.</p>
+
+<p>Treat short links like database rows that are visible to the public:
+created on purpose, updated through process, retired through process,
+audited continuously. The governance verbs above are the API; the
+culture is making sure they get used.</p>
+
+  </div>
+
+  <footer class="post-footer">
+    <p>
+      Found this useful? <a href="https://thin.ly/register">Create a free thin.ly account</a> and try it on your next link.
+    </p>
+    
+      <p class="post-tags">
+        Tagged: <span class="tag">governance</span><span class="tag">operations</span>
+      </p>
+    
+  </footer>
+</article>
+
+
+
+  <aside class="related">
+    <h2>More from the thin.ly blog</h2>
+    <ul>
+      
+        <li>
+          <a href="/blog/branded-vs-generic-shorteners/">Branded vs. Generic Short Links: When Each One Makes Sense</a>
+          <p>A branded short domain isn't just vanity — it changes click-through rates, deliverability, and brand defensibility. But it has real costs...</p>
+        </li>
+      
+        <li>
+          <a href="/blog/understanding-link-analytics/">Understanding Link Analytics: What the Numbers Actually Mean</a>
+          <p>Click counts, geographic data, devices, referrers — every link service shows them, very few teams know what to do with them. A field guid...</p>
+        </li>
+      
+        <li>
+          <a href="/blog/qr-code-vs-short-link/">QR Code or Short Link: Which One Should You Use?</a>
+          <p>QR codes and short links solve overlapping problems but are not interchangeable. The choice depends on whether the user will be reading, ...</p>
+        </li>
+      
+    </ul>
+  </aside>
+
+
+  </main>
+
+  <footer class="site-footer">
+  <div class="container">
+    <div class="footer-cols">
+      <div>
+        <h4>thin.ly</h4>
+        <p>Short links, QR codes and analytics for marketers, creators and developers.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/features">Features</a></li>
+          <li><a href="/plans">Plans</a></li>
+          <li><a href="/blog/">Blog</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="/about">About</a></li>
+          <li><a href="/contact_us">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="/terms">Terms</a></li>
+          <li><a href="/privacy_policy">Privacy</a></li>
+          <li><a href="/cookie_policy">Cookies</a></li>
+          <li><a href="/user_policy">User policy</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="footer-bottom">&copy; 2026 thin.ly. All rights reserved.</p>
+  </div>
+</footer>
+
+</body>
+</html>

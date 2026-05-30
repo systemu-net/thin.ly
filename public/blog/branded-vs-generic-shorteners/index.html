@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Branded vs. Generic Short Links: When Each One Makes Sense — thin.ly Blog</title>
+  <meta name="description" content="Every URL shortener gives you the choice: use the service’s defaultdomain (thin.ly/abc1234) or pay a bit more to use your own(acme.link/launch). Most marketi...">
+  <link rel="canonical" href="https://thin.ly/blog/branded-vs-generic-shorteners/">
+  <link rel="alternate" type="application/atom+xml" title="thin.ly Blog" href="https://thin.ly/blog/feed.xml">
+  <link rel="stylesheet" href="/blog/assets/css/main.css">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="Branded vs. Generic Short Links: When Each One Makes Sense">
+  <meta property="og:description" content="Every URL shortener gives you the choice: use the service’s defaultdomain (thin.ly/abc1234) or pay a bit more to use your own(acme.link/launch). Most marketi...">
+  <meta property="og:url" content="https://thin.ly/blog/branded-vs-generic-shorteners/">
+  <meta property="og:site_name" content="thin.ly Blog">
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2156606011003044" crossorigin="anonymous"></script>
+</head>
+<body>
+  <header class="site-header">
+  <div class="container">
+    <a class="site-brand" href="/">thin.ly</a>
+    <nav class="site-nav">
+      <a href="/features">Features</a>
+      <a href="/plans">Plans</a>
+      <a href="/blog/" class="active">Blog</a>
+      <a href="/about">About</a>
+      <a href="/register" class="btn">Sign up</a>
+    </nav>
+  </div>
+</header>
+
+
+  <main class="site-main">
+    <article class="post" itemscope itemtype="https://schema.org/BlogPosting">
+  <header class="post-header">
+    <p class="post-eyebrow">thin.ly Blog</p>
+    <h1 class="post-title" itemprop="headline">Branded vs. Generic Short Links: When Each One Makes Sense</h1>
+    <p class="post-meta">
+      <time datetime="2026-04-27T00:00:00-04:00" itemprop="datePublished">
+        April 27, 2026
+      </time>
+       &middot; <span itemprop="author">Thinly team</span>
+       &middot; 6 min read
+    </p>
+    
+      <p class="post-summary">A branded short domain isn't just vanity — it changes click-through rates, deliverability, and brand defensibility. But it has real costs too. Here's how to decide between a generic shortener and a branded domain, and what to do if you can't afford the branded option yet.</p>
+    
+  </header>
+
+  
+    <figure class="post-hero">
+      <img src="/blog/assets/images/branded-vs-generic/hero.jpg"
+           alt="Branded short URL displayed prominently on a billboard"
+           loading="eager"
+           itemprop="image">
+      
+        <figcaption>A branded short domain is a 100,000-impression brand asset. Most teams treat it like a line item.</figcaption>
+      
+    </figure>
+  
+
+  <div class="post-content" itemprop="articleBody">
+    <p>Every URL shortener gives you the choice: use the service’s default
+domain (<code class="language-plaintext highlighter-rouge">thin.ly/abc1234</code>) or pay a bit more to use your own
+(<code class="language-plaintext highlighter-rouge">acme.link/launch</code>). Most marketing teams assume the branded option
+is better and reach for it without thinking through the trade-offs.
+Some teams assume it’s vanity and skip it. Both reflexes leave money
+on the table.</p>
+
+<p>This article is a decision framework: when a branded short domain
+genuinely matters, when it’s overkill, and the in-between options
+worth considering.</p>
+
+<h2 id="what-a-branded-short-domain-actually-buys-you">What a branded short domain actually buys you</h2>
+
+<p>Four things, in roughly descending importance:</p>
+
+<p><strong>Trust at the click.</strong> Users are more likely to click a short link
+on a domain they recognize as belonging to the sender. A LinkedIn
+post from Acme that links to <code class="language-plaintext highlighter-rouge">acme.link/2026-launch</code> reads as
+internal Acme content. The same post linking to a generic shortener
+reads as “could be anyone.” For B2B audiences who have been trained
+by years of phishing emails to look at the domain before clicking,
+this matters more than the design.</p>
+
+<p><strong>Brand impressions on every share.</strong> Every Slack, email, retweet,
+and printed material that carries your short URL also carries your
+brand name. Generic shorteners give that real-estate to the
+shortener itself. If you’re running a 100,000-impression campaign,
+the branded domain is showing your name 100,000 times for free.</p>
+
+<p><strong>Survival of the shortener.</strong> When a generic shortener gets bought,
+sunsets, or stops paying for its infrastructure, every short link
+on its domain breaks. Bit.ly and TinyURL have been around long
+enough that this feels safe, but the graveyard of dead shorteners
+includes goo.gl (sunsetted by Google in 2024), j.mp, and a few dozen
+others that have been bought and quietly shut. A branded domain is
+yours; you control the DNS and the redirect logic regardless of who
+provides the underlying service.</p>
+
+<p><strong>Defensibility against copycats.</strong> A campaign run on a generic
+shortener is trivial to mimic — competitors can register similar
+slugs on the same domain, or on a sister generic shortener, and
+intercept search traffic. A branded short domain is in your control;
+nobody else can register slugs underneath it.</p>
+
+<figure>
+  <img src="/blog/assets/images/branded-vs-generic/trust.jpg" alt="Phone showing two link previews — one branded, one generic" loading="lazy" />
+  <figcaption>For audiences that read URLs before clicking, the branded domain measurably lifts CTR. The effect is biggest in B2B contexts.</figcaption>
+</figure>
+
+<h2 id="what-it-costs">What it costs</h2>
+
+<p>The full cost is rarely the cost the vendor quotes:</p>
+
+<ul>
+  <li><strong>The custom domain itself.</strong> A short, memorable domain — three
+to five letters — in a popular TLD costs $30–$300 a year if
+available, and four to six figures if you have to buy it on the
+aftermarket. Newer TLDs (<code class="language-plaintext highlighter-rouge">.link</code>, <code class="language-plaintext highlighter-rouge">.page</code>, <code class="language-plaintext highlighter-rouge">.app</code>) tend to be
+cheaper but less recognizable.</li>
+  <li><strong>The plan tier.</strong> Most shorteners gate custom domains behind a
+paid plan. The price varies but is typically $20–$100 per month
+on top of the base subscription.</li>
+  <li><strong>DNS and SSL.</strong> Trivial in 2026 — Let’s Encrypt and most managed
+DNS providers handle this — but you need someone to do it once.</li>
+  <li><strong>Internal coordination.</strong> Engineering needs to set up the
+DNS, marketing needs to use it consistently, finance needs to
+remember to renew the domain. The cost of failure (an expired
+domain that breaks every active campaign link) is high.</li>
+</ul>
+
+<h2 id="when-the-branded-option-is-worth-it">When the branded option is worth it</h2>
+
+<p>A few clear cases where the math works out:</p>
+
+<ul>
+  <li><strong>You’re running campaigns at scale.</strong> A campaign that puts your
+short link in front of more than a few thousand people is
+generating brand value the branded domain can capture.</li>
+  <li><strong>You’re targeting a security-conscious audience.</strong> Enterprise
+buyers, finance teams, IT, healthcare, government — all of them
+have been trained to look at the domain before clicking. A
+branded link gets a meaningful CTR lift in these audiences.</li>
+  <li><strong>You’re embedding short links in print.</strong> A printed poster or
+product packaging will be in circulation for months or years. The
+branded domain locks in your brand recognition for the entire
+campaign lifecycle.</li>
+  <li><strong>You compete with copycats or impersonators.</strong> If your brand has
+been spoofed before, a branded short domain is a defensive moat.
+It is much harder to spoof <code class="language-plaintext highlighter-rouge">acme.link/login</code> than to spoof
+<code class="language-plaintext highlighter-rouge">thin.ly/login-acme</code>.</li>
+</ul>
+
+<figure>
+  <img src="/blog/assets/images/branded-vs-generic/cost.jpg" alt="Cost breakdown chart for branded custom-domain setup" loading="lazy" />
+  <figcaption>The visible cost is the domain registration. The real cost is internal coordination — DNS, renewal, and consistency.</figcaption>
+</figure>
+
+<h2 id="when-the-generic-option-is-fine">When the generic option is fine</h2>
+
+<ul>
+  <li><strong>You’re a small team running occasional campaigns.</strong> The branded
+domain pays for itself at volume; below that, you’re paying for
+brand polish you don’t need yet.</li>
+  <li><strong>The campaign is short-lived and internal.</strong> A one-week internal
+comms campaign doesn’t need to be on a branded domain.</li>
+  <li><strong>The audience won’t read the URL.</strong> SMS, push notification, and
+app deep-link contexts hide the URL or show only the tap target.
+Branded domains add less value when the URL doesn’t visibly appear.</li>
+</ul>
+
+<h2 id="the-in-between-option">The in-between option</h2>
+
+<p>A useful middle path is <strong>shared branded subdomains</strong>. Instead of
+buying <code class="language-plaintext highlighter-rouge">acme.link</code>, you use <code class="language-plaintext highlighter-rouge">acme.thin.ly</code> (or whatever your
+shortener supports). It carries your brand at the cost of a DNS
+record, doesn’t require domain ownership, and survives the
+shortener service if the vendor offers domain portability.</p>
+
+<p>The downside is that you’re still trusting the parent service: any
+trust issues on <code class="language-plaintext highlighter-rouge">thin.ly</code> propagate to <code class="language-plaintext highlighter-rouge">acme.thin.ly</code>. The upside
+is that this is usually included in mid-tier plans without an
+add-on cost, and it captures the majority of the trust-and-brand
+benefit at a fraction of the friction.</p>
+
+<figure>
+  <img src="/blog/assets/images/branded-vs-generic/subdomain.jpg" alt="Subdomain configuration interface for a branded short-link service" loading="lazy" />
+  <figcaption>A shared branded subdomain (`acme.thin.ly`) captures most of the brand benefit at a fraction of the friction of buying a separate apex domain.</figcaption>
+</figure>
+
+<h2 id="two-practical-questions">Two practical questions</h2>
+
+<p>If you’re trying to decide right now:</p>
+
+<ol>
+  <li>
+    <p><strong>Pull up a recent campaign you ran with a generic shortener and
+imagine the click rate one or two points higher.</strong> What does
+that change in real numbers? If it’s hundreds of clicks across
+the year, the branded domain is hard to justify. If it’s tens of
+thousands, you should already be on one.</p>
+  </li>
+  <li>
+    <p><strong>Look at the next twelve months of campaigns you have planned.</strong>
+How many of them put the short URL in front of an audience that
+actively reads URLs (B2B newsletters, white papers, conference
+posters)? That count is your real volume for branded value, not
+total clicks.</p>
+  </li>
+</ol>
+
+<h2 id="what-to-do-this-week-if-you-dont-have-a-branded-domain-yet">What to do this week if you don’t have a branded domain yet</h2>
+
+<p>Three steps that don’t require any commitment:</p>
+
+<ol>
+  <li>Register the domain. Even short three-letter <code class="language-plaintext highlighter-rouge">.link</code> or <code class="language-plaintext highlighter-rouge">.page</code>
+domains can usually be found for $20-$40 a year. Buying the
+domain doesn’t commit you to using it; it just removes the option
+from competitors.</li>
+  <li>Set the DNS to point at your current shortener. Most shorteners
+will let you verify the domain ownership immediately even if you
+don’t activate it until later.</li>
+  <li>Run one campaign through it. Compare CTR against an
+otherwise-identical campaign on the generic domain. The
+difference, if any, is your branded-domain dividend in numeric
+form.</li>
+</ol>
+
+<p>The decision usually isn’t between generic and branded forever. It’s
+between starting now with the option locked down and starting later
+when you’ve already given up the brand surface area on a few hundred
+thousand impressions.</p>
+
+  </div>
+
+  <footer class="post-footer">
+    <p>
+      Found this useful? <a href="https://thin.ly/register">Create a free thin.ly account</a> and try it on your next link.
+    </p>
+    
+      <p class="post-tags">
+        Tagged: <span class="tag">branding</span><span class="tag">deliverability</span>
+      </p>
+    
+  </footer>
+</article>
+
+
+
+  <aside class="related">
+    <h2>More from the thin.ly blog</h2>
+    <ul>
+      
+        <li>
+          <a href="/blog/link-governance-for-marketing-teams/">Link Governance for Marketing Teams: Pause, Route, Expire, Audit</a>
+          <p>Once you have more than ten campaign links, you have a governance problem. A campaign ends, a destination breaks, a partner needs the lin...</p>
+        </li>
+      
+        <li>
+          <a href="/blog/url-shortener-security/">URL Shortener Security: Threats, Defenses, and What Users Don&#39;t See</a>
+          <p>Every short link is a request to trust a destination you can't see. URL shorteners earn that trust with threat detection, sandboxing, and...</p>
+        </li>
+      
+        <li>
+          <a href="/blog/utm-parameters-with-shortened-links/">Using UTM Parameters with Shortened Links: A Practical Guide</a>
+          <p>UTM parameters and short links solve different problems. Used together they give you per-campaign attribution that survives copy-paste, r...</p>
+        </li>
+      
+    </ul>
+  </aside>
+
+
+  </main>
+
+  <footer class="site-footer">
+  <div class="container">
+    <div class="footer-cols">
+      <div>
+        <h4>thin.ly</h4>
+        <p>Short links, QR codes and analytics for marketers, creators and developers.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/features">Features</a></li>
+          <li><a href="/plans">Plans</a></li>
+          <li><a href="/blog/">Blog</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <ul>
+          <li><a href="/about">About</a></li>
+          <li><a href="/contact_us">Contact</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="/terms">Terms</a></li>
+          <li><a href="/privacy_policy">Privacy</a></li>
+          <li><a href="/cookie_policy">Cookies</a></li>
+          <li><a href="/user_policy">User policy</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="footer-bottom">&copy; 2026 thin.ly. All rights reserved.</p>
+  </div>
+</footer>
+
+</body>
+</html>
