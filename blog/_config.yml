@@ -1,0 +1,49 @@
+title: thin.ly Blog
+description: Guides and articles on URL shortening, QR codes, link analytics and link governance.
+url: https://thin.ly
+baseurl: /blog
+
+author:
+  name: thin.ly team
+  email: hello@thin.ly
+
+# Build
+markdown: kramdown
+highlighter: rouge
+sass:
+  style: compressed
+
+# URL structure — every post lives at /blog/:slug/
+permalink: /:slug/
+
+# Pagination
+paginate: 10
+paginate_path: /page/:num/
+
+# Collections
+collections:
+  authors:
+    output: false
+
+# Default front matter
+defaults:
+  - scope:
+      path: ""
+      type: "posts"
+    values:
+      layout: post
+      author: thinly-team
+
+# Plugins
+plugins:
+  - jekyll-paginate
+  - jekyll-sitemap
+  - jekyll-feed
+
+# Build exclusions
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - node_modules
+  - README.md

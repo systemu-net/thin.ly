@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Build the Jekyll blog into public/blog so Rails' static middleware serves it.
+#
+# Jekyll has its own Gemfile under ./blog to avoid version conflicts with Rails.
+# Run this from the project root, or from CI before precompiling Rails assets.
+#
+# Usage: bin/build-blog
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+BLOG_DIR="$ROOT/blog"
+
+if [ ! -d "$BLOG_DIR" ]; then
+  echo "blog/ not found at $BLOG_DIR — skipping" >&2
+  exit 0
+fi
+
+cd "$BLOG_DIR"
+
+# Use a per-bundle BUNDLE_GEMFILE so this doesn't disturb the Rails bundle.
+# Unset BUNDLE_DEPLOYMENT to allow gem resolution if no Gemfile.lock is
+# committed yet — first build generates one.
+export BUNDLE_GEMFILE="$BLOG_DIR/Gemfile"
+unset BUNDLE_DEPLOYMENT BUNDLE_PATH
+
+bundle config set --local path 'vendor/bundle'
+bundle install --quiet
+
+bundle exec jekyll build \
+  --source "$BLOG_DIR" \
+  --destination "$ROOT/public/blog"
+
+html_count=$(find "$ROOT/public/blog" -name '*.html' | wc -l | tr -d ' ')
+echo "Blog built to public/blog ($html_count HTML files)."

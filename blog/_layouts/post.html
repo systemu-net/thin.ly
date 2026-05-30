@@ -1,0 +1,61 @@
+---
+layout: default
+---
+<article class="post" itemscope itemtype="https://schema.org/BlogPosting">
+  <header class="post-header">
+    <p class="post-eyebrow">thin.ly Blog</p>
+    <h1 class="post-title" itemprop="headline">{{ page.title | escape }}</h1>
+    <p class="post-meta">
+      <time datetime="{{ page.date | date_to_xmlschema }}" itemprop="datePublished">
+        {{ page.date | date: "%B %-d, %Y" }}
+      </time>
+      {% if page.author %} &middot; <span itemprop="author">{{ page.author | replace: '-', ' ' | capitalize }}</span>{% endif %}
+      {% if page.read_time %} &middot; {{ page.read_time }} min read{% endif %}
+    </p>
+    {% if page.summary %}
+      <p class="post-summary">{{ page.summary }}</p>
+    {% endif %}
+  </header>
+
+  {% if page.image %}
+    <figure class="post-hero">
+      <img src="{{ page.image }}"
+           alt="{{ page.image_alt | default: page.title | escape }}"
+           loading="eager"
+           itemprop="image">
+      {% if page.image_caption %}
+        <figcaption>{{ page.image_caption }}</figcaption>
+      {% endif %}
+    </figure>
+  {% endif %}
+
+  <div class="post-content" itemprop="articleBody">
+    {{ content }}
+  </div>
+
+  <footer class="post-footer">
+    <p>
+      Found this useful? <a href="https://thin.ly/register">Create a free thin.ly account</a> and try it on your next link.
+    </p>
+    {% if page.tags and page.tags.size > 0 %}
+      <p class="post-tags">
+        Tagged: {% for tag in page.tags %}<span class="tag">{{ tag }}</span>{% unless forloop.last %} {% endunless %}{% endfor %}
+      </p>
+    {% endif %}
+  </footer>
+</article>
+
+{% assign related = site.posts | where_exp:"p","p.url != page.url" | sample: 3 %}
+{% if related.size > 0 %}
+  <aside class="related">
+    <h2>More from the thin.ly blog</h2>
+    <ul>
+      {% for r in related %}
+        <li>
+          <a href="{{ r.url | relative_url }}">{{ r.title | escape }}</a>
+          {% if r.summary %}<p>{{ r.summary | truncate: 140 }}</p>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </aside>
+{% endif %}
