@@ -12,6 +12,15 @@ module Api
         render :index, status: :ok
       end
 
+      # GET /api/v1/brand_pages/analytics
+      # Real per-page traffic for the dashboard, keyed by draft lookup_code.
+      def analytics
+        render json: {
+          window_days: BrandPageAnalyticsService::WINDOW_DAYS,
+          pages: BrandPageAnalyticsService.new(current_user).call
+        }, status: :ok
+      end
+
       # POST /api/v1/brand_pages/preview
       # Renders template HTML from arbitrary content WITHOUT persisting — used by
       # the editor/wizard to show a live iframe preview of the portfolio template.

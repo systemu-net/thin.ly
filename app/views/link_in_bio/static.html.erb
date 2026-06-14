@@ -212,7 +212,7 @@
 <% if @tracking_enabled %>
 <script>
   (function() {
-    const API_BASE = 'https://app.thin.ly';
+    const API_BASE = '<%= tracking_api_base %>';
     const PAGE_CODE = '<%= @page.lookup_code %>';
 
     // Track page view

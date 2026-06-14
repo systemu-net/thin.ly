@@ -352,5 +352,21 @@
     }
   })();
   </script>
+
+  <%# Analytics: record a page view. Only emitted when published (the publisher %>
+  <%# sets tracking_enabled); the live preview never tracks. Mirrors static.html.erb. %>
+  <% if @tracking_enabled %>
+  <script>
+    (function () {
+      var API_BASE = '<%= tracking_api_base %>';
+      fetch(API_BASE + '/api/v1/track/view', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lookup_code: '<%= @page.lookup_code %>' }),
+        keepalive: true
+      }).catch(function () {});
+    })();
+  </script>
+  <% end %>
 </body>
 </html>

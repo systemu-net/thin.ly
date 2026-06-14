@@ -69,6 +69,7 @@ Rails.application.routes.draw do
         collection do
           post :generate
           post :preview
+          get :analytics
         end
 
         member do
