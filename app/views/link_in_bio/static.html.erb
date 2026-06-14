@@ -13,14 +13,36 @@
   font_family = content['fontFamily'] || 'rubik'
   social = content['social'] || {}
   profile_image = content['profileImage']
-  
-  # Generate background style for body
-  if background_type == 'gradient'
+  background_image = content['backgroundImage']
+
+  # --- Bolder art direction --------------------------------------------------
+  # Detect untouched defaults and substitute a curated "Aurora" look so every
+  # page looks intentional out of the box, while fully honoring real choices.
+  default_bg   = background_type == 'color' && background_color.to_s.downcase == '#ffffff'
+  default_text = text_color.to_s.downcase == '#000000'
+
+  if background_type == 'image' && background_image.present?
+    # Full-bleed background image with a dark scrim so foreground text stays legible.
+    safe_bg_image = background_image.to_s.gsub(/["'()\s<>]/, '')
+    body_background = "background: linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.62)), url('#{safe_bg_image}') center center / cover no-repeat fixed; background-color: #0a0a12;"
+  elsif background_type == 'gradient'
     body_background = "background: linear-gradient(#{gradient_direction}, #{gradient_start}, #{gradient_end});"
+  elsif default_bg
+    # Curated deep aurora canvas
+    body_background = "background: radial-gradient(140% 120% at 50% -10%, #1b1438 0%, #0a0a12 55%, #07070d 100%);"
   else
     body_background = "background: #{background_color};"
   end
-  
+
+  # Effective text color: keep a luminous light tone when the page uses our dark canvas
+  effective_text = (default_bg && default_text) ? '#f4f4f8' : text_color
+
+  # Accent trio drives the ambient orbs + avatar ring + glows.
+  # Seed accent-1 from the user's button color when they've customized it.
+  accent_1 = (button_color.to_s.downcase == '#000000') ? '#7c5cff' : button_color
+  accent_2 = '#ff7ac6'
+  accent_3 = '#46e0d0'
+
   # Font family mapping
   font_class = case font_family
   when 'rubik' then 'font-rubik'
@@ -29,7 +51,7 @@
   when "'Brush Script MT', cursive" then 'font-brush'
   else 'font-rubik'
   end
-  
+
   # Button style mapping
   button_class = case button_style
   when 'squared' then 'btn-squared'
@@ -39,93 +61,113 @@
   when 'rounded-full' then 'btn-rounded-full'
   else 'btn-rounded'
   end
+
+  monogram = @page.title.to_s.strip[0].presence || '★'
 %>
 
 <% content_for :body_style, body_background %>
 
-<div class="w-full max-w-sm mx-auto">
+<div class="w-full max-w-sm mx-auto"
+     style="--accent-1: <%= accent_1 %>; --accent-2: <%= accent_2 %>; --accent-3: <%= accent_3 %>; --text: <%= effective_text %>;">
+
     <!-- Main Container -->
-    <div class="py-8 px-6 overflow-y-auto scrollbar-hidden rounded-3xl min-h-[558px] <%= font_class %>" style="color: <%= text_color %>;">
-        
+    <div class="glass-card rounded-[28px] py-10 px-6 sm:px-7 overflow-y-auto scrollbar-hidden min-h-[558px] <%= font_class %>"
+         style="color: <%= effective_text %>;">
+
         <!-- Profile Section -->
-        <div class="flex items-center flex-col gap-4" style="color: <%= text_color %>;">
-            <% if profile_image.present? %>
-                <img 
-                    class="w-24 h-24 rounded-full object-cover shadow-lg" 
-                    src="<%= profile_image %>"
-                    alt="<%= @page.title %>"
-                    loading="lazy"
-                    onerror="this.style.display='none';"
-                />
-            <% end %>
-            <h1 class="text-2xl mb-4 font-bold text-center break-all"><%= @page.title %></h1>
+        <div class="flex items-center flex-col gap-4">
+            <div class="reveal" style="animation-delay: 0.05s;">
+                <div class="avatar-wrap">
+                    <% if profile_image.present? %>
+                        <img
+                            class="avatar-img"
+                            src="<%= profile_image %>"
+                            alt="<%= @page.title %>"
+                            loading="lazy"
+                            onerror="this.style.display='none';"
+                        />
+                    <% else %>
+                        <div class="avatar-fallback"><%= monogram %></div>
+                    <% end %>
+                    <span class="verified" title="Verified">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                </div>
+            </div>
+
+            <h1 class="display-font text-[1.7rem] leading-tight font-bold text-center break-words reveal" style="animation-delay: 0.12s;"><%= @page.title %></h1>
             <% if @page.description.present? %>
-                <h2 class="text-base -mt-6 mb-4 text-center break-all"><%= @page.description %></h2>
+                <p class="text-[0.95rem] -mt-2 text-center break-words opacity-80 max-w-[22rem] reveal" style="animation-delay: 0.18s;"><%= @page.description %></p>
             <% end %>
         </div>
-        
-        <!-- Social Links Section (Now appears BEFORE regular links) -->
+
+        <!-- Social Links Section (appears BEFORE regular links) -->
         <% if social.any? { |k, v| v.present? } %>
-            <div class="flex gap-4 mt-6 content-center justify-center">
+            <div class="flex flex-wrap gap-3 mt-7 content-center justify-center reveal" style="animation-delay: 0.24s;">
                 <% if social['fb'].present? %>
-                    <a 
+                    <a
                         href="<%= social['fb'] %>"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-current hover:scale-105 transition-transform duration-200"
+                        class="social-btn text-current"
                         title="Facebook"
+                        aria-label="Facebook"
                         data-social="facebook"
                     >
                         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
                     </a>
                 <% end %>
-                
+
                 <% if social['ig'].present? %>
-                    <a 
+                    <a
                         href="<%= social['ig'] %>"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-current hover:scale-105 transition-transform duration-200"
+                        class="social-btn text-current"
                         title="Instagram"
+                        aria-label="Instagram"
                         data-social="instagram"
                     >
                         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
                     </a>
                 <% end %>
-                
+
                 <% if social['x'].present? %>
-                    <a 
+                    <a
                         href="<%= social['x'] %>"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-current hover:scale-105 transition-transform duration-200"
+                        class="social-btn text-current"
                         title="X (Twitter)"
+                        aria-label="X (Twitter)"
                         data-social="x"
                     >
                         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                     </a>
                 <% end %>
-                
+
                 <% if social['linkedin'].present? %>
-                    <a 
+                    <a
                         href="<%= social['linkedin'] %>"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-current hover:scale-105 transition-transform duration-200"
+                        class="social-btn text-current"
                         title="LinkedIn"
+                        aria-label="LinkedIn"
                         data-social="linkedin"
                     >
                         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
                     </a>
                 <% end %>
-                
+
                 <% if social['tiktok'].present? %>
-                    <a 
+                    <a
                         href="<%= social['tiktok'] %>"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-current hover:scale-105 transition-transform duration-200"
+                        class="social-btn text-current"
                         title="TikTok"
+                        aria-label="TikTok"
                         data-social="tiktok"
                     >
                         <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
@@ -133,34 +175,35 @@
                 <% end %>
             </div>
         <% end %>
-        
+
         <% if @links && @links.any? %>
-            <div class="mt-5 space-y-4 grid grid-cols-1">
+            <div class="mt-8 grid grid-cols-1 gap-3.5">
                 <% @links.each_with_index do |link, index| %>
-                    <a 
+                    <a
                         href="<%= link.url %>"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="inline-block px-4 py-2 font-bold text-center <%= button_class %> hover-scale transition-all duration-200 shadow-md"
-                        style="background-color: <%= link.color || '#3b82f6' %>; color: <%= button_color %>;"
+                        class="link-btn <%= button_class %> reveal"
+                        style="--btn: <%= link.color || '#3b82f6' %>; background-color: <%= link.color || '#3b82f6' %>; color: <%= button_color %>; animation-delay: <%= 0.30 + index * 0.07 %>s;"
                         title="<%= link.description.present? ? link.description : link.title %>"
                         data-link-id="<%= link.id %>"
                     >
-                        <%= link.title %>
+                        <span class="relative z-[3]"><%= link.title %></span>
                     </a>
                 <% end %>
             </div>
         <% else %>
-            <div class="mt-5 text-center text-sm opacity-60">
+            <div class="mt-8 text-center text-sm opacity-60">
                 <p>No links added yet</p>
             </div>
         <% end %>
-        
+
         <!-- Footer -->
-        <div class="text-center mt-12 opacity-60">
-            <p class="text-sm">
-                Powered by <a href="https://thin.ly" target="_blank" rel="noopener noreferrer" class="underline hover:no-underline">Thin.ly</a>
-            </p>
+        <div class="text-center mt-12 reveal" style="animation-delay: 0.6s;">
+            <a href="https://thin.ly" target="_blank" rel="noopener noreferrer" class="footer-pill text-current">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                <span>Powered by <strong>Thin.ly</strong></span>
+            </a>
         </div>
     </div>
 </div>
@@ -171,7 +214,7 @@
   (function() {
     const API_BASE = 'https://app.thin.ly';
     const PAGE_CODE = '<%= @page.lookup_code %>';
-    
+
     // Track page view
     fetch(API_BASE + '/api/v1/track/view', {
       method: 'POST',
@@ -182,12 +225,12 @@
         lookup_code: PAGE_CODE
       })
     }).catch(err => console.error('Tracking error:', err));
-    
+
     // Track link clicks
     document.querySelectorAll('a[data-link-id]').forEach(link => {
       link.addEventListener('click', function(e) {
         const linkId = this.getAttribute('data-link-id');
-        
+
         fetch(API_BASE + '/api/v1/track/click', {
           method: 'POST',
           headers: {
@@ -201,12 +244,12 @@
         }).catch(err => console.error('Click tracking error:', err));
       });
     });
-    
+
     // Track social clicks
     document.querySelectorAll('a[data-social]').forEach(link => {
       link.addEventListener('click', function(e) {
         const social = this.getAttribute('data-social');
-        
+
         fetch(API_BASE + '/api/v1/track/social', {
           method: 'POST',
           headers: {
@@ -223,14 +266,3 @@
   })();
 </script>
 <% end %>
-
-<!-- Optional: Google Analytics -->
-<!-- 
-<script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script>
-<script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
-    gtag('js', new Date());
-    gtag('config', 'GA_MEASUREMENT_ID');
-</script>
--->

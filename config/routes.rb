@@ -66,6 +66,11 @@ Rails.application.routes.draw do
       resources :subscriptions, only: %i[index create destroy]
 
       resources :brand_pages, param: :lookup_code do
+        collection do
+          post :generate
+          post :preview
+        end
+
         member do
           post :publish
           post :unpublish
@@ -90,6 +95,9 @@ Rails.application.routes.draw do
       get "checkouts/cancel", to: "checkouts#cancel"
 
       get "/current_user", to: "current_user#index"
+
+      # Presigned direct-to-S3 image uploads
+      post "/uploads/presign", to: "uploads#presign"
 
       # Aggregate analytics across the current user's links
       get "/analytics/clicks_timeline", to: "analytics#clicks_timeline"

@@ -12,6 +12,45 @@ module Api
         render :index, status: :ok
       end
 
+      # POST /api/v1/brand_pages/preview
+      # Renders template HTML from arbitrary content WITHOUT persisting — used by
+      # the editor/wizard to show a live iframe preview of the portfolio template.
+      def preview
+        content = (params[:content].respond_to?(:to_unsafe_h) ? params[:content].to_unsafe_h : params[:content]) || {}
+        content = content.deep_stringify_keys
+        page = OpenStruct.new(
+          title: params[:title].to_s,
+          description: params[:description].to_s,
+          content: content,
+          lookup_code: "preview"
+        )
+
+        html =
+          if content["template"] == "portfolio"
+            ApplicationController.render(template: "link_in_bio/portfolio", layout: false, assigns: { page: page, user: current_user })
+          else
+            ApplicationController.render(template: "link_in_bio/static", layout: "link_in_bio_public",
+              assigns: { page: page, user: current_user, links: [], tracking_enabled: false })
+          end
+
+        render json: { html: html }, status: :ok
+      end
+
+      # POST /api/v1/brand_pages/generate
+      # Generates (but does not persist) a page design from an AI prompt.
+      def generate
+        images = Array(params[:images]).map { |i| { "key" => i[:key], "url" => i[:url] } }
+        spec = PageGeneratorService.new(
+          prompt: params[:prompt],
+          name: params[:name],
+          images: images,
+          template: params[:template]
+        ).call
+        render json: { page: spec }, status: :ok
+      rescue PageGeneratorService::GenerationError => e
+        render json: { error: e.message }, status: :unprocessable_content
+      end
+
       def show
         render :show, status: :ok
       end

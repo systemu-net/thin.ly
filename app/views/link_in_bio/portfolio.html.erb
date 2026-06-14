@@ -1,0 +1,356 @@
+<%#
+  Portfolio template — an awwwards-style editorial landing page for the brand-page
+  system. Self-contained (its own <html>, CDN libs); rendered with layout: false
+  when content.template == "portfolio". Fully data-driven from @page.content with
+  tasteful demo fallbacks so a sparse page still looks finished.
+%>
+<%
+  c  = @page.content || {}
+  pf = c["portfolio"] || {}
+
+  accent = (c["accent"].presence || pf["accent"].presence || "#e8541e").to_s
+  accent = "#e8541e" unless accent.match?(/\A#[0-9a-fA-F]{3,8}\z/)
+
+  # accent → rgb floats for the WebGL shader
+  hexv = accent.delete("#")
+  hexv = hexv.chars.map { |ch| ch * 2 }.join if hexv.length == 3
+  ar = (hexv[0, 2].to_i(16) / 255.0).round(4)
+  ag = (hexv[2, 2].to_i(16) / 255.0).round(4)
+  ab = (hexv[4, 2].to_i(16) / 255.0).round(4)
+
+  monogram     = pf["monogram"].presence || "M.I"
+  eyebrow      = pf["eyebrow"].presence || "Independent UI/UX Designer"
+  name_first   = pf["firstName"].presence || @page.title.to_s.split.first.presence || "MAE"
+  name_last    = pf["lastName"].presence || @page.title.to_s.split[1].presence || "ITO"
+  tagline      = pf["tagline"].presence || @page.description.presence || "Calm interfaces for ambitious products."
+  location     = pf["location"].presence || "Kyoto, JP"
+  timezone     = pf["timezone"].presence || "Asia/Tokyo"
+  coordinates  = pf["coordinates"].presence || "35.0116° N / 135.7681° E"
+  availability = pf["availability"].presence || "Booking Q3 — 2026"
+  statement    = pf["statement"].presence || "I design calm, considered interfaces where every detail earns its place."
+
+  about = Array(pf["about"]).map { |p| p.to_s.strip }.reject(&:blank?)
+  about = [
+    "For years I've partnered with founders and product teams to turn ambitious ideas into software that feels effortless — from first principles and design systems to the last micro-interaction.",
+    "Currently based in #{location}, working with teams worldwide across fintech, climate, and creative tools."
+  ] if about.empty?
+
+  work = Array(pf["work"]).select { |w| w.is_a?(Hash) && w["title"].to_s.present? }
+  work = [
+    { "title" => "Lumen",   "category" => "Fintech · Product design", "year" => "2025" },
+    { "title" => "Verdant", "category" => "Climate · Design system",  "year" => "2024" },
+    { "title" => "Cadence", "category" => "Music tool · Prototyping", "year" => "2024" },
+    { "title" => "Atlas OS","category" => "Dev tools · Interaction",  "year" => "2023" }
+  ] if work.empty?
+
+  caps = Array(pf["capabilities"]).select { |x| x.is_a?(Hash) && x["title"].to_s.present? }
+  caps = [
+    { "title" => "Product Design", "description" => "End-to-end product thinking, from flows to polished UI." },
+    { "title" => "Design Systems", "description" => "Scalable component libraries and design tokens." },
+    { "title" => "Prototyping",    "description" => "High-fidelity, motion-rich prototypes that feel real." },
+    { "title" => "Art Direction",  "description" => "Brand-led visual language and creative direction." }
+  ] if caps.empty?
+
+  marquee = Array(pf["services"]).map { |s| s.to_s.strip }.reject(&:blank?)
+  marquee = caps.map { |x| x["title"] } if marquee.empty?
+
+  email  = pf["email"].presence || "hello@studio.com"
+  social = (c["social"].presence || pf["social"].presence || {})
+  social_labels = { "ig" => "Instagram", "x" => "X / Twitter", "fb" => "Facebook", "linkedin" => "LinkedIn", "tiktok" => "TikTok" }
+  socials = social.is_a?(Hash) ? social.select { |_, v| v.to_s.start_with?("http") } : {}
+%>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title><%= name_first %> <%= name_last %> — <%= eyebrow %></title>
+<meta name="description" content="<%= tagline %>" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=JetBrains+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --cream:#efeae0; --cream-2:#e7e1d4; --ink:#16140f; --ink-soft:#46423a; --mute:#8c8678;
+    --orange:<%= accent %>; --line:#cfc8b8;
+    --serif:"Fraunces", Georgia, serif; --mono:"JetBrains Mono", ui-monospace, monospace; --sans:"Inter", system-ui, sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--cream); color:var(--ink); font-family:var(--sans); overflow-x:hidden; -webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--orange);color:#fff}
+  #bg{position:fixed; inset:0; z-index:0; pointer-events:none}
+  .grain{position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.05; mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  .wrap{position:relative; z-index:2}
+  .cursor,.cursor-dot{position:fixed; top:0; left:0; z-index:90; pointer-events:none; border-radius:50%; mix-blend-mode:difference}
+  .cursor{width:38px;height:38px;border:1px solid #fff; transform:translate(-50%,-50%); transition:width .25s,height .25s,background .25s}
+  .cursor-dot{width:6px;height:6px;background:#fff; transform:translate(-50%,-50%)}
+  .cursor.is-hover{width:64px;height:64px;background:rgba(255,255,255,.08)}
+  @media (hover:none){.cursor,.cursor-dot{display:none}}
+  nav{position:fixed; top:0; left:0; right:0; z-index:40; display:flex; align-items:center; justify-content:space-between; padding:22px clamp(16px,3vw,46px); mix-blend-mode:darken}
+  .brand{font-family:var(--mono); font-size:13px; letter-spacing:.04em; display:flex; gap:8px; align-items:baseline}
+  .brand sup{color:var(--orange); font-size:9px}
+  .nav-links{display:flex; gap:clamp(14px,2vw,34px); font-family:var(--mono); font-size:12px; letter-spacing:.08em; text-transform:uppercase}
+  .nav-links a{position:relative; padding:4px 0}
+  .nav-links a::after{content:"";position:absolute;left:0;bottom:0;height:1px;width:0;background:var(--ink);transition:width .35s cubic-bezier(.22,1,.36,1)}
+  .nav-links a:hover::after{width:100%}
+  .nav-meta{font-family:var(--mono); font-size:12px; letter-spacing:.06em; color:var(--ink-soft); display:flex; gap:8px}
+  .nav-meta .t{color:var(--orange)}
+  @media(max-width:760px){.nav-links{display:none} .nav-meta{display:none}}
+  .hero{position:relative; min-height:100svh; padding:0 clamp(16px,3vw,46px); display:flex; flex-direction:column; justify-content:center}
+  .eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-soft); display:flex; align-items:center; gap:10px; margin-bottom:clamp(10px,2vw,22px)}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--orange)}
+  .display{font-family:var(--serif); font-weight:340; line-height:.84; letter-spacing:-.02em; font-size:clamp(72px,21vw,320px)}
+  .display .row{display:block; overflow:hidden}
+  .display .row span{display:inline-block; will-change:transform}
+  .display .ito{font-style:italic; font-weight:360; color:var(--orange); text-align:right; display:block}
+  .hero-bottom{position:absolute; left:0; right:0; bottom:clamp(76px,9vh,120px); padding:0 clamp(16px,3vw,46px); display:flex; justify-content:space-between; align-items:flex-end; gap:24px; font-family:var(--mono); font-size:12px; letter-spacing:.04em; color:var(--ink-soft)}
+  .hero-bottom .scroll{display:flex; align-items:center; gap:8px}
+  .hero-bottom .scroll .arr{animation:bob 1.6s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
+  .tagline{position:absolute; right:clamp(16px,3vw,46px); top:46%; max-width:240px; text-align:right; font-family:var(--serif); font-size:clamp(17px,1.6vw,22px); line-height:1.3}
+  .booking{display:flex; align-items:center; gap:9px}
+  .booking .pulse{width:7px;height:7px;border-radius:50%;background:var(--orange); animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 var(--orange)}70%{box-shadow:0 0 0 9px rgba(0,0,0,0)}100%{box-shadow:0 0 0 0 rgba(0,0,0,0)}}
+  @media(max-width:760px){
+    .tagline{position:static; max-width:none; text-align:left; margin-top:24px}
+    .display .ito{text-align:left}
+    .hero{justify-content:flex-start; padding-top:120px}
+    .hero-bottom{position:static; margin-top:auto; padding:24px 0 0; flex-wrap:wrap}
+  }
+  .marquee{position:relative; z-index:2; border-top:1px solid var(--line); border-bottom:1px solid var(--line); overflow:hidden; white-space:nowrap; background:var(--cream)}
+  .marquee-track{display:inline-flex; align-items:center; will-change:transform}
+  .marquee-track .m-item{font-family:var(--serif); font-size:clamp(34px,5.5vw,72px); font-weight:360; padding:18px 0}
+  .marquee-track .star{color:var(--orange); margin:0 clamp(24px,3vw,52px); font-size:.5em; transform:translateY(-.25em); display:inline-block}
+  section{position:relative; z-index:2; padding:clamp(80px,12vh,170px) clamp(16px,3vw,46px)}
+  .sec-head{font-family:var(--mono); font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-soft); display:flex; align-items:center; gap:10px; margin-bottom:clamp(34px,6vh,72px)}
+  .sec-head .n{color:var(--orange)}
+  .sec-head::before{content:"";flex:0 0 26px;height:1px;background:var(--orange)}
+  .about{background:var(--cream)}
+  .statement{font-family:var(--serif); font-weight:340; font-size:clamp(28px,4.4vw,62px); line-height:1.12; letter-spacing:-.015em; max-width:18ch}
+  .statement em{font-style:italic; color:var(--orange)}
+  .statement .w{display:inline-block; overflow:hidden}
+  .statement .w span{display:inline-block; will-change:transform}
+  .about-grid{display:grid; grid-template-columns:1.4fr .8fr; gap:60px; align-items:end; margin-top:clamp(40px,6vh,70px)}
+  .about-grid p{font-size:15px; line-height:1.7; color:var(--ink-soft); max-width:42ch}
+  @media(max-width:760px){.about-grid{grid-template-columns:1fr; gap:30px}}
+  .work{background:var(--cream-2)}
+  .work-list{border-top:1px solid var(--line)}
+  .work-item{display:grid; grid-template-columns:54px 1fr auto auto; align-items:center; gap:18px; padding:clamp(20px,3.4vh,40px) 6px; border-bottom:1px solid var(--line); position:relative; cursor:pointer}
+  .work-item .idx{font-family:var(--mono); font-size:12px; color:var(--mute)}
+  .work-item .title{font-family:var(--serif); font-size:clamp(28px,4.4vw,58px); font-weight:360; transition:transform .5s cubic-bezier(.22,1,.36,1), color .3s}
+  .work-item .cat{font-family:var(--mono); font-size:12px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.08em}
+  .work-item .yr{font-family:var(--mono); font-size:12px; color:var(--mute)}
+  .work-item:hover .title{transform:translateX(22px); color:var(--orange)}
+  .work-item .go{position:absolute; right:6px; opacity:0; transform:translateX(-8px); transition:.35s; color:var(--orange); font-family:var(--mono); font-size:18px}
+  .work-item:hover .go{opacity:1; transform:translateX(0)}
+  .work-thumb{position:fixed; width:300px; height:380px; z-index:35; pointer-events:none; border-radius:6px; overflow:hidden; opacity:0; transform:translate(-50%,-50%) scale(.85); transition:opacity .3s, transform .5s cubic-bezier(.22,1,.36,1); box-shadow:0 30px 80px -30px rgba(0,0,0,.5)}
+  .work-thumb img{width:100%;height:100%;object-fit:cover}
+  @media(max-width:760px){.work-item{grid-template-columns:30px 1fr; row-gap:6px} .work-item .cat,.work-item .yr{grid-column:2} .work-thumb{display:none}}
+  .caps{background:var(--cream)}
+  .cap-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background:var(--line); border:1px solid var(--line)}
+  .cap{background:var(--cream); padding:clamp(22px,3vw,38px) clamp(18px,2vw,28px); min-height:200px; display:flex; flex-direction:column; justify-content:space-between; transition:background .4s}
+  .cap:hover{background:var(--cream-2)}
+  .cap .num{font-family:var(--mono); font-size:12px; color:var(--orange)}
+  .cap h3{font-family:var(--serif); font-weight:380; font-size:clamp(20px,1.8vw,27px); margin-top:auto}
+  .cap p{font-size:13px; line-height:1.6; color:var(--ink-soft); margin-top:12px}
+  @media(max-width:980px){.cap-grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.cap-grid{grid-template-columns:1fr}}
+  .contact{background:var(--ink); color:var(--cream); text-align:center; padding:clamp(90px,16vh,200px) clamp(16px,3vw,46px)}
+  .contact .sec-head{color:var(--cream); justify-content:center}
+  .contact .big{font-family:var(--serif); font-weight:330; font-size:clamp(40px,9vw,150px); line-height:.95; letter-spacing:-.02em}
+  .contact .big em{font-style:italic;color:var(--orange)}
+  .contact .mail{display:inline-block; margin-top:clamp(28px,5vh,56px); font-family:var(--serif); font-style:italic; font-size:clamp(22px,3vw,40px); border-bottom:1px solid rgba(239,234,224,.4); padding-bottom:6px}
+  .contact .mail:hover{color:var(--orange); border-color:var(--orange)}
+  .foot{display:flex; justify-content:space-between; flex-wrap:wrap; gap:18px; margin-top:clamp(60px,10vh,120px); font-family:var(--mono); font-size:12px; letter-spacing:.05em; color:var(--mute)}
+  .foot a:hover{color:var(--cream)}
+  .reveal-up{opacity:0; transform:translateY(26px)}
+</style>
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <div class="grain"></div>
+  <div class="cursor"></div>
+  <div class="cursor-dot"></div>
+
+  <div class="wrap">
+    <nav>
+      <div class="brand"><%= monogram %> <sup>©2026</sup></div>
+      <div class="nav-links">
+        <a href="#work">Work</a><a href="#about">About</a><a href="#services">Services</a><a href="#contact">Contact</a>
+      </div>
+      <div class="nav-meta"><span class="t" id="clock">—</span><span><%= location.upcase %></span></div>
+    </nav>
+
+    <header class="hero" id="top">
+      <div class="eyebrow reveal-up"><span class="dot"></span> <%= eyebrow %></div>
+      <h1 class="display">
+        <span class="row"><span data-hero><%= name_first %></span></span>
+        <span class="ito"><span class="row" style="overflow:hidden"><span data-hero><%= name_last %></span></span></span>
+      </h1>
+      <p class="tagline reveal-up"><%= tagline %></p>
+      <div class="hero-bottom">
+        <div class="booking reveal-up"><span class="pulse"></span> <%= availability.upcase %></div>
+        <div class="reveal-up" style="opacity:.7"><%= coordinates %></div>
+        <div class="scroll reveal-up">SCROLL <span class="arr">↓</span></div>
+      </div>
+    </header>
+
+    <div class="marquee" aria-hidden="true"><div class="marquee-track" id="marquee"></div></div>
+
+    <section class="about" id="about">
+      <div class="sec-head"><span class="n">(01)</span> About</div>
+      <h2 class="statement" data-words><%= statement %></h2>
+      <div class="about-grid">
+        <% about.first(2).each do |para| %><p class="reveal-up"><%= para %></p><% end %>
+      </div>
+    </section>
+
+    <section class="work" id="work">
+      <div class="sec-head"><span class="n">(02)</span> Selected Work</div>
+      <div class="work-list">
+        <% work.first(8).each_with_index do |w, i| %>
+          <a href="<%= w['url'].presence || '#' %>" class="work-item" data-cursor <%= "data-img=\"#{w['image']}\"".html_safe if w['image'].present? %> target="_blank" rel="noopener">
+            <span class="idx"><%= format('%02d', i + 1) %></span>
+            <span class="title"><%= w['title'] %></span>
+            <span class="cat"><%= w['category'] %></span>
+            <span class="yr"><%= w['year'] %></span>
+            <span class="go">→</span>
+          </a>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="caps" id="services">
+      <div class="sec-head"><span class="n">(03)</span> Capabilities</div>
+      <div class="cap-grid">
+        <% caps.first(8).each_with_index do |cap, i| %>
+          <div class="cap">
+            <div class="num">(<%= format('%02d', i + 1) %>)</div>
+            <div><h3><%= cap['title'] %></h3><% if cap['description'].present? %><p><%= cap['description'] %></p><% end %></div>
+          </div>
+        <% end %>
+      </div>
+    </section>
+
+    <section class="contact" id="contact">
+      <div class="sec-head"><span class="n">(04)</span> Contact</div>
+      <div class="big">Let's build<br>something <em>calm.</em></div>
+      <a href="mailto:<%= email %>" class="mail" data-cursor><%= email %></a>
+      <div class="foot">
+        <span>© 2026 — <%= name_first %> <%= name_last %></span>
+        <div style="display:flex;gap:22px;flex-wrap:wrap">
+          <% socials.each do |k, v| %><a href="<%= v %>" target="_blank" rel="noopener" data-cursor><%= social_labels[k] || k %></a><% end %>
+        </div>
+        <a href="#top" data-cursor>Back to top ↑</a>
+      </div>
+    </section>
+  </div>
+
+  <div class="work-thumb" id="workThumb"><img alt="" /></div>
+
+  <script>window.__PF__ = { accent:[<%= ar %>,<%= ag %>,<%= ab %>], timezone:<%= timezone.to_json.html_safe %>, marquee:<%= marquee.to_json.html_safe %> };</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.42/dist/lenis.min.js"></script>
+  <script>
+  (function(){
+    "use strict";
+    var PF = window.__PF__ || {accent:[0.91,0.33,0.12], timezone:"Asia/Tokyo", marquee:[]};
+    var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var isTouch = window.matchMedia("(hover:none)").matches;
+
+    (function initBG(){
+      var canvas=document.getElementById("bg");
+      if(!window.THREE){return;}
+      var renderer; try{ renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true,alpha:true}); }catch(e){return;}
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.6));
+      var scene=new THREE.Scene(), camera=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+      var uniforms={uTime:{value:0},uRes:{value:new THREE.Vector2(1,1)},uMouse:{value:new THREE.Vector2(.5,.5)},uAccent:{value:new THREE.Vector3(PF.accent[0],PF.accent[1],PF.accent[2])}};
+      var frag=[
+        "precision highp float;",
+        "uniform float uTime; uniform vec2 uRes; uniform vec2 uMouse; uniform vec3 uAccent;",
+        "float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);}",
+        "float noise(vec2 p){vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);",
+        " return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),u.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),u.x),u.y);}",
+        "float fbm(vec2 p){float v=0.0;float a=0.5;mat2 m=mat2(1.6,1.2,-1.2,1.6);",
+        " for(int i=0;i<6;i++){v+=a*noise(p);p=m*p;a*=0.5;}return v;}",
+        "void main(){",
+        " vec2 uv=gl_FragCoord.xy/uRes.xy; vec2 p=uv; p.x*=uRes.x/uRes.y; p*=3.2;",
+        " float t=uTime*0.025;",
+        " vec2 q=vec2(fbm(p+vec2(0.0,t)),fbm(p+vec2(5.2,1.3-t)));",
+        " float n=fbm(p+1.4*q+uMouse*0.25);",
+        " float bands=15.0; float e=fract(n*bands);",
+        " float w=0.07; float contour=(1.0-smoothstep(0.0,w,e))+smoothstep(1.0-w,1.0,e); contour=clamp(contour,0.0,1.0);",
+        " float warm=smoothstep(0.55,0.78,n);",
+        " vec3 cream=vec3(0.937,0.918,0.878); vec3 dark=vec3(0.62,0.59,0.53);",
+        " vec3 lineCol=mix(dark,uAccent,warm);",
+        " vec3 col=mix(cream,lineCol,contour*mix(0.30,0.55,warm));",
+        " gl_FragColor=vec4(col,1.0);}"
+      ].join("\n");
+      var mat=new THREE.ShaderMaterial({uniforms:uniforms,vertexShader:"void main(){gl_Position=vec4(position,1.0);}",fragmentShader:frag});
+      scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),mat));
+      function resize(){var w=window.innerWidth,h=window.innerHeight;renderer.setSize(w,h,false);uniforms.uRes.value.set(w*renderer.getPixelRatio(),h*renderer.getPixelRatio());}
+      window.addEventListener("resize",resize); resize();
+      window.addEventListener("mousemove",function(e){uniforms.uMouse.value.set(e.clientX/window.innerWidth,1.0-e.clientY/window.innerHeight);});
+      var running=true; document.addEventListener("visibilitychange",function(){running=!document.hidden;});
+      var start=performance.now();
+      (function loop(now){requestAnimationFrame(loop); if(!running)return; uniforms.uTime.value=reduce?0.0:(now-start)/1000; renderer.render(scene,camera);})(start);
+    })();
+
+    var mq=document.getElementById("marquee");
+    if(mq && PF.marquee.length){
+      var seq=""; for(var r=0;r<2;r++){ for(var s=0;s<PF.marquee.length;s++){ seq+='<span class="m-item">'+PF.marquee[s]+'</span><span class="star">✳</span>'; } }
+      mq.innerHTML=seq+seq;
+    }
+
+    (function clock(){ var el=document.getElementById("clock"); if(!el)return;
+      function tick(){ try{ var f=new Intl.DateTimeFormat("en-GB",{hour:"2-digit",minute:"2-digit",hour12:false,timeZone:PF.timezone}); el.textContent=f.format(new Date()).replace(":"," : "); }catch(e){ el.textContent=""; } }
+      tick(); setInterval(tick,10000);
+    })();
+
+    var lenis=null;
+    if(window.Lenis && !reduce){ lenis=new Lenis({duration:1.1,smoothWheel:true,smoothTouch:false}); (function raf(t){lenis.raf(t);requestAnimationFrame(raf);})(0); }
+
+    if(window.gsap){
+      gsap.registerPlugin(ScrollTrigger);
+      if(lenis){ lenis.on("scroll",ScrollTrigger.update); }
+      if(!reduce){
+        var tl=gsap.timeline({defaults:{ease:"power3.out"}});
+        gsap.set("[data-hero]",{yPercent:115});
+        tl.to("[data-hero]",{yPercent:0,duration:1.1,stagger:.12,ease:"power4.out"},.15)
+          .from("nav",{y:-20,opacity:0,duration:.8},.2)
+          .to(".reveal-up",{opacity:1,y:0,duration:.9,stagger:.08},"-=.7");
+      } else { gsap.set("[data-hero]",{yPercent:0}); gsap.set(".reveal-up",{opacity:1,y:0}); }
+      if(mq){ var half=mq.scrollWidth/2; if(half>0){ gsap.to(mq,{x:-half,duration:22,ease:"none",repeat:-1}); } }
+      var st=document.querySelector("[data-words]");
+      if(st && !reduce){
+        var words=st.textContent.split(" ");
+        st.innerHTML=words.map(function(w){return '<span class="w"><span>'+w+'</span></span>';}).join(" ");
+        gsap.from("[data-words] .w span",{yPercent:110,duration:.9,ease:"power3.out",stagger:.05,scrollTrigger:{trigger:st,start:"top 80%"}});
+      }
+      gsap.utils.toArray(".about p, .cap, .work-item").forEach(function(el){ gsap.from(el,{y:30,opacity:0,duration:.9,ease:"power3.out",scrollTrigger:{trigger:el,start:"top 88%"}}); });
+      gsap.from(".contact .big",{y:60,opacity:0,duration:1,ease:"power3.out",scrollTrigger:{trigger:".contact",start:"top 75%"}});
+    }
+
+    if(!isTouch){
+      var cur=document.querySelector(".cursor"),dot=document.querySelector(".cursor-dot");
+      var mx=innerWidth/2,my=innerHeight/2,cx=mx,cy=my;
+      addEventListener("mousemove",function(e){mx=e.clientX;my=e.clientY;dot.style.transform="translate("+mx+"px,"+my+"px) translate(-50%,-50%)";});
+      (function ren(){cx+=(mx-cx)*.16;cy+=(my-cy)*.16;cur.style.transform="translate("+cx+"px,"+cy+"px) translate(-50%,-50%)";requestAnimationFrame(ren);})();
+      document.querySelectorAll("a,[data-cursor]").forEach(function(el){el.addEventListener("mouseenter",function(){cur.classList.add("is-hover");});el.addEventListener("mouseleave",function(){cur.classList.remove("is-hover");});});
+      var thumb=document.getElementById("workThumb"),timg=thumb.querySelector("img"),tx=0,ty=0,txc=0,tyc=0,shown=false;
+      document.querySelectorAll(".work-item[data-img]").forEach(function(it){
+        it.addEventListener("mouseenter",function(){timg.src=it.getAttribute("data-img");thumb.style.opacity="1";thumb.style.transform="translate(-50%,-50%) scale(1)";shown=true;});
+        it.addEventListener("mouseleave",function(){thumb.style.opacity="0";thumb.style.transform="translate(-50%,-50%) scale(.85)";shown=false;});
+      });
+      addEventListener("mousemove",function(e){tx=e.clientX;ty=e.clientY;});
+      (function renT(){txc+=(tx-txc)*.12;tyc+=(ty-tyc)*.12;if(shown){thumb.style.left=txc+"px";thumb.style.top=tyc+"px";}requestAnimationFrame(renT);})();
+    }
+  })();
+  </script>
+</body>
+</html>
