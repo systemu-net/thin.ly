@@ -29,7 +29,7 @@ module S3Uploads
   end
 
   def configured?
-    [bucket, region, access_key_id, secret_access_key].all?(&:present?)
+    [ bucket, region, access_key_id, secret_access_key ].all?(&:present?)
   end
 
   def client
@@ -66,7 +66,7 @@ module S3Uploads
   def read_base64(key)
     resp = client.get_object(bucket: bucket, key: key)
     media_type = resp.content_type.presence || media_type_for(key)
-    [Base64.strict_encode64(resp.body.read), media_type]
+    [ Base64.strict_encode64(resp.body.read), media_type ]
   end
 
   def media_type_for(key)

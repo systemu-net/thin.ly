@@ -8,8 +8,8 @@ class PageGeneratorService
   class GenerationError < StandardError; end
 
   BUTTON_SHAPES = %w[squared rounded-sm rounded rounded-lg rounded-full].freeze
-  FONTS = ["rubik", "mono", "'Courier New', monospace", "'Brush Script MT', cursive"].freeze
-  GRADIENT_DIRECTIONS = ["to right", "to bottom", "to top right", "to bottom left"].freeze
+  FONTS = [ "rubik", "mono", "'Courier New', monospace", "'Brush Script MT', cursive" ].freeze
+  GRADIENT_DIRECTIONS = [ "to right", "to bottom", "to top right", "to bottom left" ].freeze
 
   SYSTEM_PROMPT = <<~PROMPT.freeze
     You design beautiful "link-in-bio" pages (like Linktree) from a short brief.
@@ -222,9 +222,9 @@ class PageGeneratorService
       model: MODEL,
       max_tokens: portfolio ? 3072 : 2048,
       system: portfolio ? PORTFOLIO_SYSTEM_PROMPT : SYSTEM_PROMPT,
-      tools: [tool],
+      tools: [ tool ],
       tool_choice: { type: "tool", name: tool[:name] },
-      messages: [{ role: "user", content: message_content }]
+      messages: [ { role: "user", content: message_content } ]
     )
 
     block = response.content.find { |b| b.type == :tool_use }
@@ -422,11 +422,11 @@ class PageGeneratorService
     if links.any?
       # Pick the single button text color that reads on the MOST buttons as-is
       # (so we keep the dominant aesthetic), preferring the model's own choice on ties.
-      candidates = [content["buttonColor"], "#111111", "#ffffff"].compact.uniq
+      candidates = [ content["buttonColor"], "#111111", "#ffffff" ].compact.uniq
       content["buttonColor"] = candidates.max_by do |tc|
         passing = links.count { |l| contrast_ratio(l["color"], tc) >= MIN_CONTRAST }
         avg = links.sum { |l| contrast_ratio(l["color"], tc) } / links.size
-        [passing, avg]
+        [ passing, avg ]
       end
 
       # Fix any remaining low-contrast buttons by nudging their background away
@@ -467,7 +467,7 @@ class PageGeneratorService
   # Blend `bg` toward black or white (whichever raises contrast vs `text`) until
   # the ratio is met, in small steps so the hue is preserved where possible.
   def nudge_for_contrast(bg, text, target)
-    toward = relative_luminance(text) > 0.5 ? [0, 0, 0] : [255, 255, 255]
+    toward = relative_luminance(text) > 0.5 ? [ 0, 0, 0 ] : [ 255, 255, 255 ]
     rgb = to_rgb(bg)
     18.times do
       return to_hex(rgb) if contrast_ratio(to_hex(rgb), text) >= target
@@ -486,8 +486,8 @@ class PageGeneratorService
   def contrast_ratio(c1, c2)
     l1 = relative_luminance(c1)
     l2 = relative_luminance(c2)
-    hi = [l1, l2].max
-    lo = [l1, l2].min
+    hi = [ l1, l2 ].max
+    lo = [ l1, l2 ].min
     (hi + 0.05) / (lo + 0.05)
   end
 
@@ -503,9 +503,9 @@ class PageGeneratorService
   def to_rgb(color)
     s = color.to_s.delete("#")
     s = s.chars.map { |ch| ch * 2 }.join if s.length == 3
-    return [128, 128, 128] unless s.length >= 6
+    return [ 128, 128, 128 ] unless s.length >= 6
 
-    [s[0, 2], s[2, 2], s[4, 2]].map { |h| h.to_i(16) }
+    [ s[0, 2], s[2, 2], s[4, 2] ].map { |h| h.to_i(16) }
   end
 
   def to_hex(rgb)
