@@ -41,7 +41,7 @@ class GithubPagesPublisher
         ApplicationController.render(
           template: "link_in_bio/portfolio",
           layout: false,
-          assigns: { user: @user, page: @page }
+          assigns: { user: @user, page: @page, tracking_enabled: true }
         )
       else
         ApplicationController.render(
