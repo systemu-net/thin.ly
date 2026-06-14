@@ -1,0 +1,8 @@
+---
+# Brakeman configuration.
+# Docs: https://brakemanscanner.org/docs/options/
+#
+# Skipping CheckEOLRails for now: Rails 7.2.3 reaches EOL on 2026-08-09.
+# Tracked separately — remove this skip once the Rails upgrade lands.
+:skip_checks:
+  - CheckEOLRails
