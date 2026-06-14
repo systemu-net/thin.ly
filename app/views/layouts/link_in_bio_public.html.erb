@@ -4,61 +4,288 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="description" content="<%= @page.description || @page.title %>">
+    <meta name="theme-color" content="#0a0a12">
+    <meta property="og:title" content="<%= @page.title %>">
+    <meta property="og:description" content="<%= @page.description || @page.title %>">
+    <meta property="og:type" content="profile">
+    <% if @page.content && @page.content['profileImage'].present? %>
+    <meta property="og:image" content="<%= @page.content['profileImage'] %>">
+    <% end %>
+    <meta name="twitter:card" content="summary_large_image">
     <title><%= @page.title %></title>
-    
+
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- Font imports -->
     <style>
-        @import url("https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&display=swap");
-        
+        @import url("https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700&family=Sora:wght@400;500;600;700;800&display=swap");
+
+        :root {
+            --accent-1: #7c5cff;
+            --accent-2: #ff7ac6;
+            --accent-3: #46e0d0;
+            --text: #ffffff;
+        }
+
+        * { -webkit-tap-highlight-color: transparent; }
+
+        html, body { height: 100%; }
+
         body {
             font-family: Rubik, sans-serif;
+            position: relative;
+            overflow-x: hidden;
+            color: var(--text);
         }
-        
-        .scrollbar-hidden::-webkit-scrollbar {
-            display: none;
+
+        /* ---------- Ambient animated background ---------- */
+        .ambient {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
         }
-        
-        .scrollbar-hidden {
-            -ms-overflow-style: none;q
-            scrollbar-width: none;
+        .ambient .orb {
+            position: absolute;
+            border-radius: 9999px;
+            filter: blur(70px);
+            opacity: 0.55;
+            mix-blend-mode: screen;
+            will-change: transform;
         }
-        
-        /* Custom animations */
-        .hover-scale {
-            transition: transform 0.2s ease-in-out;
+        .ambient .orb-1 {
+            width: 46vmax; height: 46vmax;
+            top: -14vmax; left: -10vmax;
+            background: var(--accent-1);
+            animation: drift1 18s ease-in-out infinite;
         }
-        
-        .hover-scale:hover {
-            transform: scale(1.05);
+        .ambient .orb-2 {
+            width: 40vmax; height: 40vmax;
+            bottom: -14vmax; right: -10vmax;
+            background: var(--accent-2);
+            animation: drift2 22s ease-in-out infinite;
         }
-        
-        /* Font families */
+        .ambient .orb-3 {
+            width: 34vmax; height: 34vmax;
+            top: 30%; left: 35%;
+            background: var(--accent-3);
+            animation: drift3 26s ease-in-out infinite;
+        }
+        /* Soft vignette + top sheen so the card always reads */
+        .ambient::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(120% 80% at 50% -10%, rgba(255,255,255,0.10), transparent 60%),
+                radial-gradient(120% 90% at 50% 110%, rgba(0,0,0,0.45), transparent 55%);
+        }
+
+        @keyframes drift1 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50%      { transform: translate(8vmax, 6vmax) scale(1.12); }
+        }
+        @keyframes drift2 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50%      { transform: translate(-7vmax, -5vmax) scale(1.1); }
+        }
+        @keyframes drift3 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50%      { transform: translate(-5vmax, 7vmax) scale(1.15); }
+        }
+
+        /* ---------- Entrance animation ---------- */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(18px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .reveal {
+            opacity: 0;
+            animation: fadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        /* ---------- Avatar ---------- */
+        @keyframes spinRing { to { transform: rotate(360deg); } }
+        @keyframes floatY {
+            0%, 100% { transform: translateY(0); }
+            50%      { transform: translateY(-6px); }
+        }
+        .avatar-wrap {
+            position: relative;
+            width: 116px; height: 116px;
+            display: grid; place-items: center;
+            animation: floatY 6s ease-in-out infinite;
+        }
+        .avatar-wrap::before {
+            content: "";
+            position: absolute;
+            inset: -3px;
+            border-radius: 9999px;
+            background: conic-gradient(from 0deg, var(--accent-1), var(--accent-2), var(--accent-3), var(--accent-1));
+            animation: spinRing 6s linear infinite;
+            filter: blur(0.5px);
+        }
+        .avatar-wrap::after {
+            content: "";
+            position: absolute;
+            inset: -16px;
+            border-radius: 9999px;
+            background: radial-gradient(closest-side, rgba(124,92,255,0.45), transparent 70%);
+            z-index: -1;
+        }
+        .avatar-img, .avatar-fallback {
+            position: relative;
+            width: 104px; height: 104px;
+            border-radius: 9999px;
+            object-fit: cover;
+            z-index: 1;
+        }
+        .avatar-fallback {
+            display: grid; place-items: center;
+            font-family: 'Sora', sans-serif;
+            font-weight: 700;
+            font-size: 2.4rem;
+            color: #fff;
+            background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+            text-transform: uppercase;
+        }
+        .verified {
+            position: absolute;
+            right: 4px; bottom: 4px;
+            width: 30px; height: 30px;
+            z-index: 2;
+            border-radius: 9999px;
+            background: linear-gradient(135deg, var(--accent-3), var(--accent-1));
+            display: grid; place-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+            border: 2px solid rgba(255,255,255,0.85);
+        }
+
+        /* ---------- Glass card ---------- */
+        .glass-card {
+            background: rgba(255,255,255,0.07);
+            backdrop-filter: blur(16px) saturate(1.4);
+            -webkit-backdrop-filter: blur(16px) saturate(1.4);
+            border: 1px solid rgba(255,255,255,0.14);
+            box-shadow:
+                0 30px 80px -30px rgba(0,0,0,0.65),
+                inset 0 1px 0 rgba(255,255,255,0.18);
+        }
+
+        .display-font { font-family: 'Sora', sans-serif; letter-spacing: -0.02em; }
+        .scrollbar-hidden::-webkit-scrollbar { display: none; }
+        .scrollbar-hidden { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Font families (honor user choice) */
         .font-rubik { font-family: 'Rubik', sans-serif; }
         .font-mono { font-family: 'Courier New', monospace; }
         .font-courier { font-family: 'Courier New', monospace; }
         .font-brush { font-family: 'Brush Script MT', cursive; }
-        
-        /* Button styles */
+
+        /* ---------- Social pills ---------- */
+        .social-btn {
+            width: 46px; height: 46px;
+            display: grid; place-items: center;
+            border-radius: 9999px;
+            background: rgba(255,255,255,0.10);
+            border: 1px solid rgba(255,255,255,0.16);
+            backdrop-filter: blur(8px);
+            transition: transform 0.25s cubic-bezier(0.22,1,0.36,1), background 0.25s, box-shadow 0.25s;
+        }
+        .social-btn:hover {
+            transform: translateY(-4px) scale(1.06);
+            background: rgba(255,255,255,0.18);
+            box-shadow: 0 10px 24px -8px rgba(0,0,0,0.5);
+        }
+
+        /* ---------- Link buttons ---------- */
+        .link-btn {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 56px;
+            padding: 0.95rem 1.25rem;
+            font-weight: 600;
+            text-align: center;
+            overflow: hidden;
+            isolation: isolate;
+            border: 1px solid rgba(255,255,255,0.14);
+            box-shadow:
+                0 10px 30px -12px color-mix(in srgb, var(--btn, #3b82f6) 70%, transparent),
+                inset 0 1px 0 rgba(255,255,255,0.22);
+            transition: transform 0.28s cubic-bezier(0.22,1,0.36,1), box-shadow 0.28s, filter 0.28s;
+        }
+        .link-btn::after {
+            /* glossy shine sweep */
+            content: "";
+            position: absolute;
+            top: 0; left: -120%;
+            width: 60%; height: 100%;
+            background: linear-gradient(115deg, transparent, rgba(255,255,255,0.45), transparent);
+            transform: skewX(-18deg);
+            transition: left 0.6s ease;
+            z-index: 2;
+        }
+        .link-btn:hover {
+            transform: translateY(-3px) scale(1.015);
+            filter: brightness(1.04);
+            box-shadow:
+                0 18px 42px -12px color-mix(in srgb, var(--btn, #3b82f6) 85%, transparent),
+                inset 0 1px 0 rgba(255,255,255,0.3);
+        }
+        .link-btn:hover::after { left: 130%; }
+        .link-btn:active { transform: translateY(-1px) scale(0.99); }
+
+        /* Button corner styles (honor user choice) */
         .btn-squared { border-radius: 0; }
-        .btn-rounded-sm { border-radius: 0.125rem; }
-        .btn-rounded { border-radius: 0.375rem; }
-        .btn-rounded-lg { border-radius: 0.5rem; }
+        .btn-rounded-sm { border-radius: 0.375rem; }
+        .btn-rounded { border-radius: 0.75rem; }
+        .btn-rounded-lg { border-radius: 1rem; }
         .btn-rounded-full { border-radius: 9999px; }
-        
-        /* Responsive design */
-        @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
+
+        .footer-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            backdrop-filter: blur(6px);
+            font-size: 0.78rem;
+            transition: background 0.2s;
+        }
+        .footer-pill:hover { background: rgba(255,255,255,0.14); }
+
+        /* ---------- Accessibility: respect reduced motion ---------- */
+        @media (prefers-reduced-motion: reduce) {
+            .ambient .orb,
+            .avatar-wrap,
+            .avatar-wrap::before { animation: none !important; }
+            .reveal { opacity: 1; animation: none !important; }
+            .link-btn, .social-btn { transition: none; }
+        }
+
+        :focus-visible {
+            outline: 2px solid rgba(255,255,255,0.85);
+            outline-offset: 3px;
+            border-radius: 4px;
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4" style="<%= yield :body_style %>">
-    <%= yield %>
+<body class="min-h-screen flex items-center justify-center p-4 sm:p-6" style="<%= yield :body_style %>">
+    <div class="ambient" aria-hidden="true">
+        <span class="orb orb-1"></span>
+        <span class="orb orb-2"></span>
+        <span class="orb orb-3"></span>
+    </div>
+    <main class="relative z-10 w-full flex items-center justify-center">
+        <%= yield %>
+    </main>
 </body>
 </html>
