@@ -35,20 +35,26 @@ class GithubPagesPublisher
   private
 
   def html_content
-    # Extract links from page content
-    links = page_resources
-
-    # Generate complete static HTML using Rails templates
-    html = ApplicationController.render(
-      template: "link_in_bio/static",
-      layout: "link_in_bio_public",
-      assigns: {
-        user: @user,
-        page: @page,
-        links: links,
-        tracking_enabled: true  # Pass this flag to include tracking scripts
-      }
-    )
+    html =
+      if (@page.content || {})["template"] == "portfolio"
+        # The portfolio template is a self-contained document (its own <html>).
+        ApplicationController.render(
+          template: "link_in_bio/portfolio",
+          layout: false,
+          assigns: { user: @user, page: @page }
+        )
+      else
+        ApplicationController.render(
+          template: "link_in_bio/static",
+          layout: "link_in_bio_public",
+          assigns: {
+            user: @user,
+            page: @page,
+            links: page_resources,
+            tracking_enabled: true
+          }
+        )
+      end
 
     # Clean up debug comments for production deployment
     clean_html_for_production(html)
