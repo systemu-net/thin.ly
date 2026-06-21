@@ -63,6 +63,22 @@ Rails.application.routes.draw do
         delete :avatar, action: :destroy_avatar, defaults: { format: nil }
       end
 
+      # Owner's public @handle profile (link-in-bio). Singular resource — the
+      # current user has exactly one profile.
+      resource :profile, only: %i[show update], controller: "profiles" do
+        post :publish
+      end
+      get "handles/check", to: "profiles#check_handle"
+
+      # Owner curation of which governed links appear on the profile.
+      get   "profile/links", to: "profile_links#index"
+      patch "profile/links", to: "profile_links#update"
+
+      # Public, by-handle profile (no auth; privacy-enforced). Handles may
+      # contain dots, so the greedy constraint keeps "sergii.demianchuk" intact.
+      get "profiles/:handle/qr", to: "public_profiles#qr", constraints: { handle: /[a-z0-9_.\-]+/i }
+      get "profiles/:handle", to: "public_profiles#show", constraints: { handle: /[a-z0-9_.\-]+/i }
+
       resources :subscriptions, only: %i[index create destroy]
 
       resources :brand_pages, param: :lookup_code do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_05_10_130000) do
+ActiveRecord::Schema[7.2].define(version: 2026_06_21_022350) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -213,6 +213,42 @@ ActiveRecord::Schema[7.2].define(version: 2026_05_10_130000) do
     t.index ["stripe_event_id"], name: "index_processed_stripe_events_on_stripe_event_id", unique: true
   end
 
+  create_table "profile_links", force: :cascade do |t|
+    t.bigint "profile_id", null: false
+    t.bigint "link_id", null: false
+    t.integer "position", default: 0, null: false
+    t.boolean "pinned", default: false, null: false
+    t.boolean "visible", default: true, null: false
+    t.string "title_override"
+    t.string "tag"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["link_id"], name: "index_profile_links_on_link_id"
+    t.index ["profile_id", "link_id"], name: "index_profile_links_on_profile_id_and_link_id", unique: true
+    t.index ["profile_id", "position"], name: "index_profile_links_on_profile_id_and_position"
+    t.index ["profile_id"], name: "index_profile_links_on_profile_id"
+  end
+
+  create_table "profiles", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "handle", null: false
+    t.string "display_name"
+    t.text "bio"
+    t.string "location"
+    t.string "website"
+    t.string "accent", default: "violet", null: false
+    t.boolean "verified", default: false, null: false
+    t.jsonb "socials", default: {}, null: false
+    t.jsonb "privacy", default: {"is_public" => true, "allow_follow" => true, "allow_messages" => false, "show_followers" => true}, null: false
+    t.integer "followers_count", default: 0, null: false
+    t.integer "following_count", default: 0, null: false
+    t.datetime "published_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index "lower((handle)::text)", name: "index_profiles_on_lower_handle", unique: true
+    t.index ["user_id"], name: "index_profiles_on_user_id", unique: true
+  end
+
   create_table "qr_codes", force: :cascade do |t|
     t.bigint "link_id", null: false
     t.bigint "user_id", null: false
@@ -306,6 +342,9 @@ ActiveRecord::Schema[7.2].define(version: 2026_05_10_130000) do
   add_foreign_key "links", "users"
   add_foreign_key "page_views", "brand_pages"
   add_foreign_key "plans", "subscriptions"
+  add_foreign_key "profile_links", "links"
+  add_foreign_key "profile_links", "profiles"
+  add_foreign_key "profiles", "users"
   add_foreign_key "qr_codes", "links"
   add_foreign_key "qr_codes", "users"
   add_foreign_key "resources", "brand_pages", column: "page_id"
