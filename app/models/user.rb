@@ -41,6 +41,7 @@ class User < ApplicationRecord
   has_many :subscriptions, dependent: :destroy
   has_many :plans, through: :subscriptions
   has_many :brand_pages, dependent: :destroy
+  has_one :profile, dependent: :destroy
 
   mount_uploader :avatar, AvatarUploader
 
@@ -49,6 +50,7 @@ class User < ApplicationRecord
   before_validation :stamp_terms_acceptance, on: :create
   before_commit :create_default_subscription, on: :create
   after_commit :create_default_campaign, on: :create
+  after_commit :create_default_profile, on: :create
   after_destroy :delete_stripe_customer
 
   # Persisted column `terms_accepted` records explicit acceptance of terms.
@@ -99,6 +101,15 @@ class User < ApplicationRecord
     subscriptions.where(status: "active").any?
   end
 
+  # On a paid plan → earns the blue "verified" badge (X-style). True when there
+  # is an active subscription or the current plan isn't the free tier.
+  def verified_member?
+    return true if subscribed?
+
+    name = plan&.name.to_s.downcase
+    name.present? && name != "free"
+  end
+
   private
 
   def create_stripe_customer
@@ -129,6 +140,15 @@ class User < ApplicationRecord
       campaign.description = "Default campaign"
       campaign.state = "active"
     end
+  end
+
+  # Give every new user a public profile with a unique, non-reserved handle
+  # derived from their email local-part. The owner can rename it later.
+  def create_default_profile
+    return if profile.present?
+
+    base = email.to_s.split("@").first.presence || "user#{id}"
+    create_profile!(handle: Profile.generate_unique_handle(base), display_name: base)
   end
 
   def stamp_terms_acceptance

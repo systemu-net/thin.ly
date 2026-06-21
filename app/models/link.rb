@@ -67,6 +67,14 @@ class Link < ApplicationRecord
     "#{ENV['DEV_HOST']}/#{lookup_code}"
   end
 
+  # Host of the destination URL, e.g. "youtube.com" — shown under link rows on
+  # the public profile. nil for malformed URLs.
+  def host
+    URI.parse(original_url.to_s).host
+  rescue URI::InvalidURIError
+    nil
+  end
+
   def has_qr_code?(user)
     qr_codes.where(user_id: user.id).any?
   end
