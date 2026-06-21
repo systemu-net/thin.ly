@@ -50,8 +50,15 @@ module Api
         permitted = params.require(:profile).permit(
           :handle, :display_name, :bio, :location, :website, :accent,
           socials: Profile::SOCIAL_KEYS.map(&:to_sym),
-          privacy: Profile::PRIVACY_KEYS.map(&:to_sym)
+          privacy: Profile::PRIVACY_KEYS.map(&:to_sym),
+          social_order: []
         )
+
+        # social_order is a full ordered list (replaced, not merged) — keep only
+        # known keys, drop dupes, preserve the client's order.
+        if permitted.key?(:social_order)
+          permitted[:social_order] = Array(permitted[:social_order]).map(&:to_s).uniq & Profile::SOCIAL_KEYS
+        end
 
         if permitted.key?(:socials)
           incoming = permitted[:socials].to_h.stringify_keys.slice(*Profile::SOCIAL_KEYS)
