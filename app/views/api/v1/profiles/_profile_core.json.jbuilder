@@ -10,6 +10,7 @@ json.website profile.website
 json.accent profile.accent
 json.verified profile.verified_badge?
 json.socials profile.socials
+json.social_order profile.social_order
 json.avatar_url(profile.user.avatar.present? ? profile.user.avatar.url : nil)
 json.public_url profile.public_url
 json.published profile.published?

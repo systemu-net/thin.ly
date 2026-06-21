@@ -12,6 +12,7 @@
 #  location        :string
 #  privacy         :jsonb            not null
 #  published_at    :datetime
+#  social_order    :jsonb            not null
 #  socials         :jsonb            not null
 #  verified        :boolean          default(FALSE), not null
 #  website         :string

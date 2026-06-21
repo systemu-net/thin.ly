@@ -12,6 +12,7 @@
 #  location        :string
 #  privacy         :jsonb            not null
 #  published_at    :datetime
+#  social_order    :jsonb            not null
 #  socials         :jsonb            not null
 #  verified        :boolean          default(FALSE), not null
 #  website         :string
@@ -31,7 +32,12 @@
 class Profile < ApplicationRecord
   HANDLE_FORMAT = /\A[a-z0-9_.-]+\z/
   ACCENTS = %w[violet mint coral peach lilac sun sky].freeze
-  SOCIAL_KEYS = %w[instagram youtube spotify tiktok x website].freeze
+  # Persisted social platforms. Keep in sync with the frontend platform list
+  # (onetime/src/components/profile/socialPlatforms.tsx).
+  SOCIAL_KEYS = %w[
+    instagram x tiktok facebook linkedin youtube spotify threads bluesky
+    mastodon substack discord telegram github email website
+  ].freeze
 
   # App routes / product words that must ALWAYS be reserved (defence-in-depth
   # against route collisions, even if the blocklist file is edited or missing).
@@ -77,7 +83,14 @@ class Profile < ApplicationRecord
     uniqueness: { case_sensitive: false }
   validate :handle_not_reserved
   validates :bio, length: { maximum: 160 }, allow_nil: true
-  validates :accent, inclusion: { in: ACCENTS }
+  # accent is either a preset name or a custom hex color (#rrggbb) from the wheel.
+  ACCENT_HEX_FORMAT = /\A#[0-9a-fA-F]{6}\z/
+  validate :accent_preset_or_hex
+
+  def accent_preset_or_hex
+    return if ACCENTS.include?(accent) || accent.to_s.match?(ACCENT_HEX_FORMAT)
+    errors.add(:accent, "must be a preset or a #RRGGBB hex color")
+  end
 
   scope :public_profiles, -> { where("privacy ->> 'is_public' = 'true'") }
 
