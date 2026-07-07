@@ -36,9 +36,14 @@ class RecordUsageJob
     # and only against the wallet still in the SAME period as when this was enqueued.
     return unless event.previously_new_record?
 
+    # FLOOR both sides so the match survives a fractional-second period_end. The enqueue passes
+    # `wallet.period_end.to_i` (Ruby Time#to_i TRUNCATES to whole seconds), but a bare
+    # `EXTRACT(EPOCH FROM period_end)::bigint` ROUNDS to nearest — so a period_end stored with ≥ .5µs
+    # rounds UP and never equals the truncated arg, silently matching 0 rows (the durable columns then
+    # freeze at 0 while only the Redis counter — which floors on both sides — stays correct).
     CreditWallet
       .where(user_id: user_id, product: Levelcode::PRODUCT)
-      .where("period_end IS NOT NULL AND EXTRACT(EPOCH FROM period_end)::bigint = ?", period_end_epoch.to_i)
+      .where("period_end IS NOT NULL AND FLOOR(EXTRACT(EPOCH FROM period_end))::bigint = ?", period_end_epoch.to_i)
       .update_all([
         "input_used = input_used + ?, output_used = output_used + ?, spent_micros = spent_micros + ?, updated_at = ?",
         input_tokens.to_i, output_tokens.to_i, cost_micros.to_i, Time.current
