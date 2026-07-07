@@ -42,6 +42,16 @@ class Api::V1::WebhooksController < ApplicationController
   def handle_event(event)
     obj = event.data.object
 
+    # LevelCode Cloud (Levelcode): provision/reset the CreditWallet from subscription
+    # events. Self-filters to product 'levelcode' by Stripe price lookup_key and
+    # no-ops for link-shortener subscriptions, so it is safe to call for every
+    # event (SPEC §3.7 / DECISIONS D11). Never let it break the primary webhook.
+    begin
+      Levelcode::WebhookSync.call(event)
+    rescue StandardError => e
+      Rails.logger.error("[Stripe Webhook] Levelcode::WebhookSync failed: #{e.message}")
+    end
+
     case event.type
 
     # ── Checkout Session Events ──────────────────────────────────

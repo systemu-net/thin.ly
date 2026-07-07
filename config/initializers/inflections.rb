@@ -14,3 +14,10 @@
 # ActiveSupport::Inflector.inflections(:en) do |inflect|
 #   inflect.acronym "RESTful"
 # end
+
+# Zeitwerk autoload inflection: map app/services/levelcode/provider_oauth.rb to
+# Levelcode::ProviderOAuth (default inflection would give ProviderOauth). The
+# LevelCode Cloud shared contract fixes the constant as ProviderOAuth.
+Rails.autoloaders.each do |autoloader|
+  autoloader.inflector.inflect("provider_oauth" => "ProviderOAuth")
+end

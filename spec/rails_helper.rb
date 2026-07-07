@@ -9,6 +9,7 @@ abort("The Rails environment is running in production mode!") if Rails.env.produ
 # return unless Rails.env.test?
 require 'rspec/rails'
 require 'support/auth_helpers'
+require 'support/fake_redis'
 require 'sidekiq/testing'
 # Add additional requires below this line. Rails is not loaded until this point!
 

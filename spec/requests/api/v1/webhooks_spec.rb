@@ -107,7 +107,10 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
                                 plan_nickname: "Pro",
                                 price_nickname: "Pro Monthly")
     plan_double = double("stripe_plan", product: product_id, interval: interval, nickname: plan_nickname)
-    price_double = double("stripe_price", id: price_id, nickname: price_nickname, product: product_id)
+    # `lookup_key` is what Levelcode::WebhookSync (invoked on every webhook via the
+    # shared controller) reads to detect an LevelCode Cloud plan; shortener prices
+    # don't set one, so a real Stripe price returns nil here — mirror that.
+    price_double = double("stripe_price", id: price_id, nickname: price_nickname, product: product_id, lookup_key: nil)
     item_double = double("stripe_item",
                          plan:                 plan_double,
                          price:                price_double,
