@@ -7,8 +7,10 @@ RSpec.describe Levelcode::ModelCatalog do
     it "marks only the verified engines as confirmed; frontier rows are assumptions" do
       expect(described_class.find("openai/gpt-oss-120b")[:status]).to eq(:confirmed)
       expect(described_class.find("moonshotai/kimi-k2.7-code")[:status]).to eq(:confirmed)
+      expect(described_class.find("anthropic/claude-opus-4-8")[:status]).to eq(:confirmed) # price confirmed 2026-07-07
       assumed = described_class.all.select { |_id, m| m[:status] == :assumption }.keys
-      expect(assumed).to include("anthropic/claude-opus-4-8", "anthropic/claude-fable-5", "openai/gpt-5.5")
+      expect(assumed).to include("anthropic/claude-fable-5", "openai/gpt-5.5")
+      expect(assumed).not_to include("anthropic/claude-opus-4-8")
     end
 
     it "rate_table exposes every roster model's per-token rates (feeds Levelcode.cost_micros)" do
@@ -59,11 +61,11 @@ RSpec.describe Levelcode::ModelCatalog do
 end
 
 RSpec.describe "Levelcode credit economics (M14)" do
-  describe ".budget_micros — the DOLLAR compute budget (flagship worst-case)" do
-    it "matches the analysis budgets (~$14.43 / $33.05 / $51.67 / $88.91), within cents" do
-      { "orbits_pro" => 14_430_000, "orbits_pro_plus" => 33_050_000,
-        "orbits_max" => 51_670_000, "orbits_ultra" => 88_910_000 }.each do |key, expected|
-        expect(Levelcode.budget_micros(key)).to be_within(60_000).of(expected)
+  describe ".budget_micros — the DOLLAR compute budget (revenue × CREDIT_COGS_RATIO)" do
+    it "is a fixed 50% of plan revenue ($10 / $20 / $30 / $50 of credits)" do
+      { "orbits_pro" => 10_000_000, "orbits_pro_plus" => 20_000_000,
+        "orbits_max" => 30_000_000, "orbits_ultra" => 50_000_000 }.each do |key, expected|
+        expect(Levelcode.budget_micros(key)).to eq(expected)
       end
     end
 
@@ -74,11 +76,11 @@ RSpec.describe "Levelcode credit economics (M14)" do
   end
 
   describe ".turns_for — equivalent turns a budget buys on a model" do
-    it "reproduces the analysis turn counts (within rounding)" do
-      expect(Levelcode.turns_for("orbits_pro", "moonshotai/kimi-k2.7-code")).to be_within(2).of(375)
-      expect(Levelcode.turns_for("orbits_pro", "anthropic/claude-opus-4-8")).to be_within(2).of(56)
-      expect(Levelcode.turns_for("orbits_pro", "anthropic/claude-fable-5")).to be_within(2).of(28)
-      expect(Levelcode.turns_for("orbits_pro", "openai/gpt-oss-120b")).to be > 7_000
+    it "reproduces the turn counts for the $10 Pro budget (50% of revenue)" do
+      expect(Levelcode.turns_for("orbits_pro", "moonshotai/kimi-k2.7-code")).to be_within(2).of(260)
+      expect(Levelcode.turns_for("orbits_pro", "anthropic/claude-opus-4-8")).to be_within(2).of(39)
+      expect(Levelcode.turns_for("orbits_pro", "anthropic/claude-fable-5")).to be_within(2).of(19)
+      expect(Levelcode.turns_for("orbits_pro", "openai/gpt-oss-120b")).to be > 4_000
     end
 
     it "buys far more turns on a cheaper model for the same budget" do

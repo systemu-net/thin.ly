@@ -74,9 +74,9 @@ RSpec.describe "Api::Levelcode::V1::Account", type: :request do
       kimi = body["models"].find { |m| m["id"] == "moonshotai/kimi-k2.7-code" }
       expect(kimi["live"]).to be(true)
       expect(kimi["multiplier"]).to eq(1.0)
-      expect(kimi["turns_left"]).to be_within(2).of(375)
+      expect(kimi["turns_left"]).to be_within(2).of(260)  # $10 budget (50% of $20) ÷ Kimi ref-turn
       opus = body["models"].find { |m| m["id"] == "anthropic/claude-opus-4-8" }
-      expect(opus["live"]).to be(false)               # staged — assumption-priced
+      expect(opus["live"]).to be(true)                # price confirmed → live + billable
       expect(opus["multiplier"]).to be_within(0.05).of(6.67)
     end
   end

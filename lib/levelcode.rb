@@ -25,12 +25,12 @@ module Levelcode
       interval: "month",
       input_cap: 15_000_000,
       output_cap: 2_000_000,
-      turns: 375,
+      turns: 260,
       stripe_lookup_key: "orbits_pro",
       features: [
-        "~375 agent turns / month",
-        "15M input · 2M output tokens",
-        "Kimi K2.7 Code gateway",
+        "~260 Kimi turns/mo · ~39 on Opus 4.8",
+        "$10/mo of AI credits (dollar-metered)",
+        "Kimi K2.7 Code + Opus 4.8",
         "Bring-your-own-key always free"
       ]
     },
@@ -41,12 +41,12 @@ module Levelcode
       interval: "month",
       input_cap: 35_000_000,
       output_cap: 4_500_000,
-      turns: 875,
+      turns: 520,
       stripe_lookup_key: "orbits_pro_plus",
       features: [
-        "~875 agent turns / month",
-        "35M input · 4.5M output tokens",
-        "Kimi K2.7 Code gateway",
+        "~520 Kimi turns/mo · ~78 on Opus 4.8",
+        "$20/mo of AI credits (dollar-metered)",
+        "Kimi K2.7 Code + Opus 4.8",
         "Priority routing"
       ]
     },
@@ -57,12 +57,12 @@ module Levelcode
       interval: "month",
       input_cap: 55_000_000,
       output_cap: 7_000_000,
-      turns: 1_375,
+      turns: 780,
       stripe_lookup_key: "orbits_max",
       features: [
-        "~1,375 agent turns / month",
-        "55M input · 7M output tokens",
-        "Kimi K2.7 Code gateway",
+        "~780 Kimi turns/mo · ~117 on Opus 4.8",
+        "$30/mo of AI credits (dollar-metered)",
+        "Kimi K2.7 Code + Opus 4.8",
         "Priority routing"
       ]
     },
@@ -73,12 +73,12 @@ module Levelcode
       interval: "month",
       input_cap: 95_000_000,
       output_cap: 12_000_000,
-      turns: 2_375,
+      turns: 1_300,
       stripe_lookup_key: "orbits_ultra",
       features: [
-        "~2,375 agent turns / month",
-        "95M input · 12M output tokens",
-        "Kimi K2.7 Code gateway",
+        "~1,300 Kimi turns/mo · ~195 on Opus 4.8",
+        "$50/mo of AI credits (dollar-metered)",
+        "Kimi K2.7 Code + Opus 4.8",
         "Highest priority routing"
       ]
     }
@@ -119,6 +119,12 @@ module Levelcode
   AUTO_MODEL = "auto"
   # A turn is "trivial" (→ cheap engine) when it carries no tools and little input text.
   AUTO_TRIVIAL_CHARS = ENV.fetch("LEVELCODE_AUTO_TRIVIAL_CHARS", 4_000).to_i
+
+  # Target model-COGS as a fraction of subscription revenue → the enforced monthly credit budget is
+  # `plan price × CREDIT_COGS_RATIO`. Gross margin = 1 - this (before Stripe/infra). Because metering
+  # charges each model its REAL per-token cost, this margin holds for ANY model mix — pricey models
+  # (Opus ≈ 7× Kimi) just burn the budget faster. ENV-tunable so pricing can move without a deploy.
+  CREDIT_COGS_RATIO = ENV.fetch("LEVELCODE_CREDIT_COGS_RATIO", 0.50).to_f
 
   class << self
     # Look up a single plan definition by its key (e.g. "orbits_pro").
@@ -258,13 +264,10 @@ module Levelcode
       p = plan(plan_key)
       return 0 unless p
 
-      rate = Levelcode::ModelCatalog.find(DEFAULT_MODEL)
-      in_cap = p[:input_cap].to_i
-      out_cap = p[:output_cap].to_i
-      cached = in_cap / 2
-      billed = in_cap - cached
-      raw = (billed * rate[:input]) + (cached * rate[:cached_input]) + (out_cap * rate[:output])
-      (raw * ROUTING_FEE).round
+      # Revenue-based (Cursor-style): the monthly credit allowance is a fixed fraction of the plan's
+      # price, so gross margin = 1 - CREDIT_COGS_RATIO regardless of which models the user picks.
+      # micro-$ = dollars × 1_000_000; price_cents / 100 = dollars of revenue.
+      (p[:price_cents] / 100.0 * CREDIT_COGS_RATIO * 1_000_000).round
     end
 
     # The free tier's DOLLAR budget (micro-$): its token caps run on the open-weights engine

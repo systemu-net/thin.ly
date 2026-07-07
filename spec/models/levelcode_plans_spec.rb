@@ -45,9 +45,9 @@ RSpec.describe Levelcode do
     end
 
     it 'a paid plan may use the flagship AND the open-weights engine (confirmed-price roster)' do
-      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL ])
-      # Frontier models are entitled but NOT live yet (assumption-priced) — never billed on assumptions.
-      expect(Levelcode.allowed_models('orbits_pro')).not_to include('anthropic/claude-opus-4-8')
+      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8' ])
+      # A tier-entitled but ASSUMPTION-priced frontier model stays staged — never billed on a guess.
+      expect(Levelcode.allowed_models('orbits_pro')).not_to include('openai/gpt-5.5')
     end
 
     it 'free CANNOT reach the flagship no matter what is requested' do

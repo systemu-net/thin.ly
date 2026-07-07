@@ -50,8 +50,10 @@ module Levelcode
       },
       "anthropic/claude-opus-4-8" => {
         label: "Opus 4.8", provider: "openrouter",
+        # Confirmed vs OpenRouter (2026-07-07): output $25/M; input list ~$5/M (effective ~$1.56
+        # after ~75% prompt-cache), cached read $0.50/M. Metering splits cached/uncached, so bills right.
         input: 5.00, cached_input: 0.50, output: 25.00,
-        context: 200_000, min_tier: :pro, status: :assumption
+        context: 200_000, min_tier: :pro, status: :confirmed
       },
       "anthropic/claude-fable-5" => {
         label: "Fable 5", provider: "openrouter",
