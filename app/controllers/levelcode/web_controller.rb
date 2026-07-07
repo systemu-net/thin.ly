@@ -15,7 +15,7 @@ module Levelcode
   # CSRF — the SPA sends the token from the shell's <meta name="csrf-token">.
   #
   # Sign-in delivers TWO ways (SHARED CONTRACT):
-  #   - editor: an `atom-plus-plus://…/auth/callback` redirect_uri is present ->
+  #   - editor: an `levelcode://…/auth/callback` redirect_uri is present ->
   #     mint a single-use Levelcode::OneTimeCode bound to the editor's PKCE
   #     code_challenge and hand back `<redirect_uri>?code=<code>` (never tokens).
   #   - web: Devise sign_in(user) -> destination /ai/account.
@@ -29,8 +29,13 @@ module Levelcode
 
     before_action :authenticate_user!, only: %i[checkout billing authorize_editor]
 
-    # The frozen editor deep-link callback (SHARED CONTRACT).
-    EDITOR_CALLBACK = "atom-plus-plus://levelcode.atom-ai/auth/callback"
+    # The frozen editor deep-link callback (SHARED CONTRACT). Host = the extension id
+    # <publisher>.<name> = levelcode.levelcode-ai; path = /auth/callback.
+    EDITOR_CALLBACK = "levelcode://levelcode.levelcode-ai/auth/callback"
+    # Accepted url schemes for the editor deep-link. `levelcode` is the current product urlProtocol;
+    # `atom-plus-plus` is the pre-rename scheme, still emitted by editor builds not yet rebuilt —
+    # accepted during the transition. The security-relevant host + path stay strictly pinned.
+    EDITOR_SCHEMES = %w[levelcode atom-plus-plus].freeze
 
     # Per-IP OTP-send cap. The recipient is caller-chosen, so EmailCode's per-email
     # resend window alone can be fanned out across many addresses — bound by source IP.
@@ -279,7 +284,7 @@ module Levelcode
 
       u = URI.parse(uri_str.to_s)
       e = URI.parse(EDITOR_CALLBACK)
-      u.scheme == e.scheme && u.host == e.host && u.path == e.path
+      EDITOR_SCHEMES.include?(u.scheme) && u.host == e.host && u.path == e.path
     rescue URI::InvalidURIError
       false
     end

@@ -16,7 +16,7 @@ module Levelcode
   #     victim's address to link into their account.
   #   - Google: the returned id_token is cryptographically verified against the
   #     configured client id(s) before any account is touched.
-  #   - The https/atom-plus-plus redirect_uri validation stays in the callers
+  #   - The https/levelcode redirect_uri validation stays in the callers
   #     (this module receives an already-decided redirect_uri and passes it
   #     straight through to the provider token endpoint so the exchange matches
   #     the authorize step).

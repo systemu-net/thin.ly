@@ -222,7 +222,10 @@ module Api
           return nil if raw.blank?
 
           uri = URI.parse(raw)
-          if uri.scheme == "atom-plus-plus" && uri.host == "levelcode.atom-ai" && uri.path == "/auth/callback"
+          # Editor deep-link: host = extension id (levelcode.levelcode-ai), path pinned. Accept the
+          # current `levelcode` scheme and the legacy `atom-plus-plus` (pre-rename builds) during the
+          # transition; host + path stay pinned so this can't become an open redirect.
+          if %w[levelcode atom-plus-plus].include?(uri.scheme) && uri.host == "levelcode.levelcode-ai" && uri.path == "/auth/callback"
             return uri
           end
 

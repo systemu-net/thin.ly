@@ -20,7 +20,7 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
     host! 'www.example.com'
   end
 
-  let(:editor_uri) { 'atom-plus-plus://levelcode.atom-ai/auth/callback' }
+  let(:editor_uri) { 'levelcode://levelcode.levelcode-ai/auth/callback' }
   def json = JSON.parse(response.body)
 
   describe 'brand switch (StaticController#ui)' do
@@ -84,7 +84,7 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
 
       expect(response).to have_http_status(:ok)
       loc = URI.parse(json['redirect'])
-      expect(loc.scheme).to eq('atom-plus-plus')
+      expect(loc.scheme).to eq('levelcode')
       expect(Rack::Utils.parse_query(loc.query)['code']).to eq('one-time-code')
     end
 
@@ -113,7 +113,7 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
 
       expect(response).to have_http_status(:ok)
       loc = URI.parse(json['redirect'])
-      expect(loc.scheme).to eq('atom-plus-plus')
+      expect(loc.scheme).to eq('levelcode')
       q = Rack::Utils.parse_query(loc.query)
       expect(q['windowId']).to eq('1')
       expect(q['code']).to eq('one-time-code')
@@ -220,7 +220,7 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
 
       expect(response).to have_http_status(:ok)
       loc = URI.parse(json['redirect'])
-      expect(loc.scheme).to eq('atom-plus-plus')
+      expect(loc.scheme).to eq('levelcode')
       expect(Rack::Utils.parse_query(loc.query)['code']).to eq('bound-code')
     end
 

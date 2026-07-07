@@ -25,7 +25,7 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
 
   let(:password) { 'password123' }
   let!(:user) { create(:user, email: 'editor@example.com', password: password) }
-  let(:redirect_uri) { 'atom-plus-plus://levelcode.atom-ai/auth/callback' }
+  let(:redirect_uri) { 'levelcode://levelcode.levelcode-ai/auth/callback' }
 
   def json
     JSON.parse(response.body)
@@ -50,7 +50,7 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
 
         expect(response).to have_http_status(:found)
         location = URI.parse(response.headers['Location'])
-        expect(location.scheme).to eq('atom-plus-plus')
+        expect(location.scheme).to eq('levelcode')
         expect(Rack::Utils.parse_query(location.query)['code']).to be_present
       end
     end
