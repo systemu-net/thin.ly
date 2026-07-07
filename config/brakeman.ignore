@@ -1,0 +1,28 @@
+{
+  "ignored_warnings": [
+    {
+      "warning_type": "Mass Assignment",
+      "warning_code": 70,
+      "fingerprint": "68c03aa509ebc10a8f9c9d0588b181997aead48f238d45d4496c700753cc145a",
+      "check_name": "MassAssignment",
+      "message": "Specify exact keys allowed for mass assignment instead of using `permit!` which allows any keys",
+      "file": "app/controllers/api/levelcode/v1/ai_controller.rb",
+      "line": 338,
+      "link": "https://brakemanscanner.org/docs/warning_types/mass_assignment/",
+      "code": "params.permit!",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "Api::Levelcode::V1::AiController",
+        "method": "chat_params"
+      },
+      "user_input": null,
+      "confidence": "Medium",
+      "cwe_id": [
+        915
+      ],
+      "note": "Intentional. AiController#chat is a TRANSPARENT PROXY of the OpenAI chat-completions body to OpenRouter. The permitted hash is forwarded verbatim as the upstream HTTP request body and is NEVER used for ActiveRecord mass-assignment, so the mass-assignment risk this check flags does not apply. Explicitly permitting a fixed key set would break the passthrough, since the editor may send any valid OpenAI field (tools, stream_options, response_format, etc.). Unknown keys are ignored by OpenRouter."
+    }
+  ],
+  "brakeman_version": "8.0.5"
+}
