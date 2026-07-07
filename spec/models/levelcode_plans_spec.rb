@@ -146,34 +146,36 @@ RSpec.describe Levelcode do
   end
 
   describe '.cost_micros' do
-    it 'bills uncached input, cached input, and output at their rates' do
-      # 1M input (all uncached) + 1M output on the default model.
-      # 1_000_000 * 0.74 + 1_000_000 * 3.50 = 4_240_000
+    # Every charge includes the OpenRouter routing fee (× ROUTING_FEE) so the ledger meters the true
+    # wire cost and the target margin holds. Base list-price figures below, then × 1.055.
+    it 'bills uncached input, cached input, and output at their rates (incl. routing fee)' do
+      # 1M input (all uncached) + 1M output on the default model:
+      # (1_000_000 * 0.74 + 1_000_000 * 3.50) * 1.055 = 4_240_000 * 1.055 = 4_473_200
       expect(Levelcode.cost_micros(Levelcode::DEFAULT_MODEL, 1_000_000, 1_000_000, 0))
-        .to eq(4_240_000)
+        .to eq(4_473_200)
     end
 
-    it 'bills the cached subset at the cheaper cached rate' do
-      # 1M input of which 600k cached, no output:
-      # 400_000 * 0.74 + 600_000 * 0.15 = 296_000 + 90_000 = 386_000
+    it 'bills the cached subset at the cheaper cached rate (incl. routing fee)' do
+      # (400_000 * 0.74 + 600_000 * 0.15) * 1.055 = 386_000 * 1.055 = 407_230
       expect(Levelcode.cost_micros(Levelcode::DEFAULT_MODEL, 1_000_000, 0, 600_000))
-        .to eq(386_000)
+        .to eq(407_230)
     end
 
     it 'clamps cached tokens to the input count' do
-      # cached > input → treated as fully cached, no negative uncached billing.
-      # 1000 * 0.15 = 150
-      expect(Levelcode.cost_micros(Levelcode::DEFAULT_MODEL, 1_000, 0, 5_000)).to eq(150)
+      # cached > input → fully cached: (1000 * 0.15) * 1.055 = 150 * 1.055 = 158.25 → 158
+      expect(Levelcode.cost_micros(Levelcode::DEFAULT_MODEL, 1_000, 0, 5_000)).to eq(158)
     end
 
-    it 'falls back to the default model rates for unknown models' do
-      expect(Levelcode.cost_micros('some/unknown-model', 1_000_000, 0, 0)).to eq(740_000)
+    it 'falls back to the MOST EXPENSIVE confirmed rate for unknown/off-catalog models (never under-bills)' do
+      # An off-catalog id (e.g. a dated snapshot or upstream substitution) must not bill at the cheapest
+      # rate. Conservative fallback = the max confirmed rate (Opus input 5.0): 1M * 5.0 * 1.055 = 5_275_000
+      expect(Levelcode.cost_micros('some/unknown-model', 1_000_000, 0, 0)).to eq(5_275_000)
     end
 
-    it 'bills the free-tier engine at its own (much cheaper) rate' do
-      # 1M in + 1M out on gpt-oss-120b: 1_000_000 * 0.03 + 1_000_000 * 0.15 = 180_000
+    it 'bills the free-tier engine at its own (much cheaper) rate (incl. routing fee)' do
+      # (1M * 0.03 + 1M * 0.15) * 1.055 = 180_000 * 1.055 = 189_900
       expect(Levelcode.cost_micros(Levelcode::FREE_MODEL, 1_000_000, 1_000_000, 0))
-        .to eq(180_000)
+        .to eq(189_900)
     end
   end
 end

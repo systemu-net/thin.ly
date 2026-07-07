@@ -45,10 +45,26 @@ module Api
           # streams can't overshoot the dollar budget before their spend lands.
           body = cap_output(raw, wallet, throttled: decision.throttle)
 
+          # Reserve this request's worst-case cost against the dollar budget BEFORE it runs, so a burst
+          # of concurrent streams can't collectively overshoot the budget in the window before their
+          # spend lands (spend is only recorded after each stream closes). Skip on the throttle path —
+          # it runs the near-free open-weights engine intentionally and isn't budget-metered. A
+          # reservation that would exceed the budget → 402 (same surface as a cap hit).
+          reservation = 0
+          estimate = 0
+          unless decision.throttle
+            free_tier = wallet.plan_key.to_s == ::Levelcode::FREE_PLAN_KEY
+            estimate = ::Levelcode.estimate_cost_micros(model, body, free_tier: free_tier)
+            res = ::Levelcode::Metering.reserve!(wallet, estimate)
+            return render_cap_reached(wallet) unless res.ok
+
+            reservation = res.amount
+          end
+
           if streaming?(body)
-            stream_chat(body, wallet, model)
+            stream_chat(body, wallet, model, reservation, estimate)
           else
-            complete_chat(body, wallet, model)
+            complete_chat(body, wallet, model, reservation)
           end
         end
 
@@ -77,7 +93,7 @@ module Api
 
         # -- streaming (SSE) path -------------------------------------------
 
-        def stream_chat(body, wallet, model)
+        def stream_chat(body, wallet, model, reservation, estimate)
           response.headers["Content-Type"] = "text/event-stream"
           response.headers["Cache-Control"] = "no-cache"
           response.headers["X-Accel-Buffering"] = "no" # disable proxy buffering
@@ -86,6 +102,7 @@ module Api
           request_id = current_request_id
           @captured_usage = nil
           @captured_model = nil
+          @streamed_content = false
 
           begin
             result = ::Levelcode::AiRouter.call(
@@ -110,66 +127,124 @@ module Api
               nil
             end
           ensure
-            # Meter whatever usage we captured — even on a mid-stream disconnect —
-            # so tokens already consumed upstream still count against caps + billing
-            # (SPEC §5). Runs exactly once (metering only records non-zero usage).
-            meter_captured!(wallet, request_id)
+            # Settle the reservation + meter the turn exactly once, even on a mid-stream disconnect
+            # (SPEC §5), so tokens already consumed upstream still count and the reservation is never
+            # stranded.
+            finalize_stream!(wallet, request_id, reservation, model, estimate)
             close_stream
           end
         end
 
-        # OpenRouter emits the final usage/model object as a chunk before [DONE].
-        # Capture it off the tee so metering survives a client disconnect.
+        # OpenRouter emits the final usage/model object as a chunk before [DONE]. Capture it off the tee
+        # so metering survives a client disconnect, and note whether any CONTENT was streamed (so a
+        # hang-up before the final usage chunk can be charged rather than billed $0).
         def capture_usage(payload)
           data = JSON.parse(payload)
           @captured_usage = data["usage"] if data["usage"].present?
           @captured_model = data["model"] if data["model"].present?
+          @streamed_content = true if streamed_content?(data)
         rescue JSON::ParserError
           nil
         end
 
-        def meter_captured!(wallet, request_id)
-          return if @captured_usage.blank?
+        def streamed_content?(data)
+          Array(data["choices"]).any? do |c|
+            c.is_a?(Hash) && (c.dig("delta", "content").to_s != "" || c.dig("message", "content").to_s != "")
+          end
+        end
 
-          meter!(
-            wallet,
-            ::Levelcode::OpenRouterAdapter::Result.new(usage: @captured_usage, model: @captured_model),
-            request_id
+        # Settle the reservation + meter the turn exactly once, whatever happened to the stream:
+        #  • usage captured  → bill the REAL cost (and release the over-reserved remainder).
+        #  • no usage but content WAS streamed (client hung up before the final usage chunk) → tokens
+        #    were produced upstream, so don't zero-bill: charge the reserved estimate + write a
+        #    synthetic ledger row so the durable column matches the hot counter.
+        #  • no usage and nothing streamed (pure upstream error / instant disconnect) → release it.
+        def finalize_stream!(wallet, request_id, reservation, model, estimate)
+          if @captured_usage.present?
+            meter!(
+              wallet,
+              ::Levelcode::OpenRouterAdapter::Result.new(usage: @captured_usage, model: @captured_model),
+              request_id, reservation, model
+            )
+          elsif @streamed_content
+            # Tokens were produced upstream but the usage chunk never arrived (client hung up). Charge
+            # the reserved estimate; if the reservation failed OPEN (amount 0 on a Redis blip at
+            # admission), fall back to a fresh estimate so a disconnect-after-output is never billed $0.
+            charge = reservation.to_i.positive? ? reservation.to_i : estimate.to_i
+            if charge.positive?
+              charge_reservation!(wallet, request_id, reservation, charge, model)
+            else
+              ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0)
+            end
+          else
+            ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0) # release the reservation
+          end
+        rescue => e
+          Rails.logger.error("[Api::Levelcode::V1::AiController] finalize failed: #{e.class}: #{e.message}")
+        end
+
+        # Client disconnected mid-stream after tokens were produced but before the usage chunk: bill
+        # `charge` (the standing reservation, or a fresh estimate if the reservation failed open) and
+        # write a synthetic ledger row so durable spend matches the hot counter. `reservation` is what's
+        # already on the hot counter, so settle! reconciles it to `charge` (delta = charge − reservation).
+        def charge_reservation!(wallet, request_id, reservation, charge, billing_model)
+          ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, charge)
+          RecordUsageJob.perform_async(
+            current_levelcode_user.id, request_id, billing_model, PROVIDER,
+            0, 0, 0, charge.to_i, wallet.period_end.to_i
           )
         end
 
         # -- non-streaming (JSON pass-through) path -------------------------
 
-        def complete_chat(body, wallet, model)
+        def complete_chat(body, wallet, model, reservation)
           request_id = current_request_id
+          settled = false
           upstream = ::Levelcode::AiRouter.complete(body, model: model)
-          meter!(wallet, ::Levelcode::OpenRouterAdapter::Result.new(usage: upstream["usage"], model: upstream["model"]), request_id)
+          meter!(wallet, ::Levelcode::OpenRouterAdapter::Result.new(usage: upstream["usage"], model: upstream["model"]), request_id, reservation, model)
+          settled = true # meter! has reconciled/released the reservation; don't touch it again below
           render json: upstream, status: :ok
         rescue ::Levelcode::OpenRouterAdapter::UpstreamError => e
+          ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0) unless settled # no generation → release
           Rails.logger.warn("[Api::Levelcode::V1::AiController] upstream #{e.status}: #{e.body.to_s[0, 800]}")
           render json: { error: { code: "upstream_error", message: upstream_message(e) } },
                  status: :bad_gateway
+        rescue => e
+          # Any OTHER failure (timeout, connection reset, malformed upstream JSON) before meter! settled
+          # would STRAND the reservation (spend over-counted) — release it. `settled` guards against a
+          # double-release if the failure happened after meter! already reconciled.
+          ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0) unless settled
+          Rails.logger.error("[Api::Levelcode::V1::AiController] complete error: #{e.class}: #{e.message}")
+          render json: { error: { code: "gateway_error", message: "gateway_error" } }, status: :bad_gateway
         end
 
         # -- metering tee ----------------------------------------------------
 
-        def meter!(wallet, result, request_id)
+        # Reconcile the reservation to the real spend + write the durable ledger row. `billing_model` is
+        # the ROUTED catalog model (what we price/entitle), NOT result.model — the upstream string is
+        # often a dated snapshot ("…-20260528") that's absent from the catalog and would fall back to
+        # the cheapest rate, under-billing pricier models. The ledger still RECORDS the served id.
+        def meter!(wallet, result, request_id, reservation, billing_model)
           usage = result&.usage
-          return if usage.blank?
+          usage = nil unless usage.is_a?(Hash) # a non-Hash usage (malformed upstream) must not raise below
+          if usage.blank?
+            ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0) # nothing to bill → release
+            return
+          end
 
           input_tokens = (usage["prompt_tokens"] || usage[:prompt_tokens]).to_i
           output_tokens = (usage["completion_tokens"] || usage[:completion_tokens]).to_i
           cached = cached_tokens(usage)
-          model = result.model
-          cost_micros = ::Levelcode.cost_micros(model, input_tokens, output_tokens, cached)
+          cost_micros = ::Levelcode.cost_micros(billing_model, input_tokens, output_tokens, cached)
+          ledger_model = result.model.presence || billing_model
 
-          # Burn the DOLLAR budget by this request's cost (M14) + keep the token counters for display.
-          ::Levelcode::Metering.record(wallet, input_tokens, output_tokens, cost_micros)
+          # Reconcile the up-front reservation to the actual cost (M14) + keep the token counters.
+          ::Levelcode::Metering.settle!(wallet, reservation, input_tokens, output_tokens, cost_micros)
 
           RecordUsageJob.perform_async(
             current_levelcode_user.id,
             request_id,
-            model,
+            ledger_model,
             PROVIDER,
             input_tokens,
             output_tokens,
@@ -248,8 +323,12 @@ module Api
           "Upstream returned #{error.status}"
         end
 
+        # Mint a fresh SERVER-side idempotency/billing id per turn. Deriving it from request.request_id
+        # would trust the client-controlled X-Request-Id header — a client could reuse one id across
+        # turns and collapse them onto a single durable ledger row (spend under-counts, a real bypass
+        # once Redis is cold). request.request_id stays for log correlation only.
         def current_request_id
-          request.request_id || SecureRandom.uuid
+          SecureRandom.uuid
         end
 
         # Passes the OpenAI chat body through untouched. We permit the whole

@@ -53,8 +53,13 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
     # Cost table is a data-slice concern; keep it deterministic here.
     allow(Levelcode).to receive(:cost_micros).and_return(1_000)
 
-    # Redis hot counters — assert on record without a live Redis.
+    # Redis hot counters — assert on settle without a live Redis.
     allow(Levelcode::Metering).to receive(:check!).and_call_original
+    # Admission reservation + settlement touch Redis + wallet.budget_micros; stub them so the request
+    # specs exercise routing/metering without a live Redis (individual specs override settle! to assert).
+    allow(Levelcode::Metering).to receive(:reserve!)
+      .and_return(Levelcode::Metering::Reservation.new(ok: true, amount: 0))
+    allow(Levelcode::Metering).to receive(:settle!).and_return(true)
   end
 
   def stub_streaming_adapter
@@ -88,8 +93,9 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
       expect(response.body).to include("data: [DONE]\n\n")
     end
 
-    it "tees the final usage into Redis metering (tokens + $ spend) and the durable ledger" do
-      expect(Levelcode::Metering).to receive(:record).with(wallet, 12, 8, 1_000) # 4th arg = cost_micros
+    it "settles the reservation to the final usage (tokens + $ spend) and writes the durable ledger" do
+      # reservation amount 0 (stubbed) → settle! reconciles to the actual cost_micros (1_000).
+      expect(Levelcode::Metering).to receive(:settle!).with(wallet, 0, 12, 8, 1_000)
       expect(RecordUsageJob).to receive(:perform_async)
         .with(user.id, anything, kind_of(String), "openrouter", 12, 8, 4, 1_000, kind_of(Integer))
 
@@ -298,7 +304,7 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
       allow(Levelcode::Metering).to receive(:check!)
         .and_return(Levelcode::Metering::Decision.new(allowed: true, throttle: false, policy: "throttle"))
       allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:complete).and_return(upstream_json)
-      expect(Levelcode::Metering).to receive(:record).with(wallet, 12, 8, 1_000)
+      expect(Levelcode::Metering).to receive(:settle!).with(wallet, 0, 12, 8, 1_000)
 
       post "/api/levelcode/v1/ai/chat", params: body, as: :json
 
@@ -383,6 +389,81 @@ RSpec.describe Levelcode::Metering do
       allow($redis).to receive(:pipelined).and_yield(pipe)
 
       expect(described_class.record(wallet, 12, 8, 1_000)).to be(true)
+    end
+  end
+
+  # Admission-time budget reservation (M14 concurrency guard). Real FakeRedis so the atomic
+  # INCRBY/roll-back and settle reconciliation actually run.
+  describe ".reserve! / .settle! / .clear!" do
+    around { |ex| with_fake_redis { ex.run } }
+    let(:spent_key) { "levelcode:used:42:1000:spent" }
+
+    it "reserves within budget and leaves the reservation on the hot spend counter" do
+      res = described_class.reserve!(wallet, 300_000)
+      expect(res.ok).to be(true)
+      expect(res.amount).to eq(300_000)
+      expect($redis.get(spent_key).to_i).to eq(300_000)
+    end
+
+    it "REJECTS and rolls back a reservation that would exceed the budget (concurrent overshoot guard)" do
+      $redis.set(spent_key, 900_000)                    # another in-flight request already reserved
+      res = described_class.reserve!(wallet, 200_000)   # 900k + 200k = 1.1M > 1M budget
+      expect(res.ok).to be(false)
+      expect(res.amount).to eq(0)
+      expect($redis.get(spent_key).to_i).to eq(900_000) # rolled back — no strand
+    end
+
+    it "reserves nothing (ok) for a non-positive estimate" do
+      res = described_class.reserve!(wallet, 0)
+      expect(res.ok).to be(true)
+      expect(res.amount).to eq(0)
+      expect($redis.get(spent_key)).to be_nil
+    end
+
+    it "fails OPEN (allows, no reservation) when Redis errors" do
+      allow($redis).to receive(:incrby).and_raise(StandardError, "down")
+      res = described_class.reserve!(wallet, 300_000)
+      expect(res.ok).to be(true)
+      expect(res.amount).to eq(0)
+    end
+
+    it "settles a reservation DOWN to the real cost (reserved 300k, actual 100k → counter 100k)" do
+      described_class.reserve!(wallet, 300_000)
+      described_class.settle!(wallet, 300_000, 12, 8, 100_000)
+      expect($redis.get(spent_key).to_i).to eq(100_000)
+      expect($redis.get("levelcode:used:42:1000:in").to_i).to eq(12)
+      expect($redis.get("levelcode:used:42:1000:out").to_i).to eq(8)
+    end
+
+    it "settles with NO reservation by adding the actual spend (throttle/fail-open path)" do
+      described_class.settle!(wallet, 0, 5, 5, 50_000)
+      expect($redis.get(spent_key).to_i).to eq(50_000)
+    end
+
+    it "RELEASES a reservation on a failed turn (reserved 300k, actual 0 → counter 0)" do
+      described_class.reserve!(wallet, 300_000)
+      described_class.settle!(wallet, 300_000, 0, 0, 0)
+      expect($redis.get(spent_key).to_i).to eq(0)
+    end
+
+    it "clear! wipes the period's hot counters so a same-epoch reset can't resurrect spend" do
+      $redis.set(spent_key, 500_000)
+      $redis.set("levelcode:used:42:1000:in", 10)
+      described_class.clear!(wallet)
+      expect($redis.get(spent_key)).to be_nil
+      expect($redis.get("levelcode:used:42:1000:in")).to be_nil
+    end
+
+    it "FLOORS the counter at 0 when a mid-flight reset wiped the reservation (no negative under-count)" do
+      described_class.reserve!(wallet, 300_000)              # counter 300k
+      described_class.clear!(wallet)                         # a same-epoch reset wipes it → absent (0)
+      described_class.settle!(wallet, 300_000, 0, 0, 100_000) # delta -200k applied to a 0 key
+      expect($redis.get(spent_key).to_i).to eq(0)           # floored, not -200_000
+    end
+
+    it "spent_micros floors a negative hot counter so it can't suppress enforcement below durable" do
+      $redis.set(spent_key, -50_000)                        # a stranded-negative counter
+      expect(described_class.spent_micros(wallet)).to eq(0) # max(max(-50k, 0), durable 0) = 0, not -50k
     end
   end
 end

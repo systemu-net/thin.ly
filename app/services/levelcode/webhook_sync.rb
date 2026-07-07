@@ -15,6 +15,11 @@ module Levelcode
   class WebhookSync
     PRODUCT = "levelcode".freeze
 
+    # Raised when a money-critical wallet sync fails AFTER Stripe idempotency was claimed. The webhook
+    # controller releases the idempotency claim and returns non-2xx so Stripe RETRIES, rather than
+    # silently stranding a teardown/provision (e.g. a canceled wallet left fully funded).
+    SyncError = Class.new(StandardError)
+
     def self.call(event)
       new(event).call
     end
@@ -68,6 +73,16 @@ module Levelcode
       user = find_user(customer_id)
       return unless user
 
+      # Only an ACTIVE/TRIALING subscription funds the wallet. A past_due/unpaid/incomplete/paused sub
+      # must NOT (re)provision the paid budget — otherwise a failed renewal keeps paying-tier credits.
+      # (A definitive cancel arrives as customer.subscription.deleted → teardown; grace-expiry in
+      # FreeTier is the backstop if that webhook is ever missed.)
+      status = stripe_subscription.respond_to?(:status) ? stripe_subscription.status.to_s : "active"
+      unless %w[active trialing].include?(status)
+        Rails.logger.info("[Levelcode::WebhookSync] Sub status=#{status} for #{user.email} — not (re)provisioning the paid budget")
+        return
+      end
+
       plan = Levelcode.plan(lookup_key)
       unless plan
         Rails.logger.warn("[Levelcode::WebhookSync] No Levelcode plan for lookup_key=#{lookup_key}")
@@ -79,26 +94,34 @@ module Levelcode
       period_end   = Time.at(item.current_period_end).to_datetime
 
       wallet = CreditWallet.find_or_initialize_by(user: user, product: PRODUCT)
+
+      # Treat an ADVANCING period_end as a fresh billing period (roll) and reset the metered counters —
+      # even on customer.subscription.updated — so the prior period's spend can't enforce against the
+      # new one. A same-period update (card change, cancel toggle) leaves spend untouched.
+      period_advanced = wallet.period_end.blank? || period_end > wallet.period_end
+      did_reset = reset_usage || wallet.new_record? || period_advanced
+
       attrs = {
         plan_key: lookup_key,
         input_cap: plan[:input_cap],
         output_cap: plan[:output_cap],
-        # M14: the enforced allowance is the DOLLAR budget (flagship worst-case for the tier).
+        # M14: the enforced allowance is the DOLLAR budget (revenue-based fraction for the tier).
         budget_micros: Levelcode.budget_micros(lookup_key),
         period_start: period_start,
         period_end: period_end,
         overage_policy: plan[:overage_policy] || wallet.overage_policy || "throttle"
       }
-      # Reset the metered counters on a fresh billing period (invoice.paid) or
-      # when the wallet is first provisioned.
-      if reset_usage || wallet.new_record?
+      if did_reset
         attrs[:input_used] = 0
         attrs[:output_used] = 0
         attrs[:spent_micros] = 0
       end
 
       wallet.update!(attrs)
-      Rails.logger.info("[Levelcode::WebhookSync] Wallet synced for #{user.email} (plan=#{lookup_key}, reset=#{reset_usage || wallet.previously_new_record?})")
+      # Wipe the hot counters on a reset too — a reset that reuses the same period_end epoch would
+      # otherwise resurrect the pre-reset spend via max(Redis, durable).
+      Levelcode::Metering.clear!(wallet) if did_reset
+      Rails.logger.info("[Levelcode::WebhookSync] Wallet synced for #{user.email} (plan=#{lookup_key}, reset=#{did_reset})")
     end
 
     def teardown(customer_id)
@@ -117,6 +140,7 @@ module Levelcode
         input_used: 0,
         output_used: 0
       )
+      Levelcode::Metering.clear!(wallet) # drop stale hot counters so they can't resurrect spend
       Rails.logger.info("[Levelcode::WebhookSync] Wallet reset to free for #{user.email}")
     end
 

@@ -37,10 +37,20 @@ module Levelcode
       CreditWallet.find_by!(user: user, product: PRODUCT)
     end
 
-    # An ACTIVE paid plan — leave it alone. (Enforcement is the dollar budget now.)
+    # A grace window past period_end before a paid wallet is treated as lapsed — covers normal
+    # renewal/dunning lag so a paying user is never downgraded mid-renewal.
+    PAID_GRACE = 3.days
+
+    # An ACTIVE paid plan — leave it alone. (Enforcement is the dollar budget now.) A paid wallet whose
+    # period ended well beyond the renewal/dunning window is treated as LAPSED (its cancel/expiry
+    # webhook was likely dropped) → it stops shielding the wallet from the free roll, so entitlement
+    # falls back to free instead of honoring flagship access indefinitely for free.
     def paid?(wallet)
       key = wallet.plan_key.to_s
-      key.present? && key != FREE_PLAN_KEY && wallet.budget_micros.to_i.positive?
+      return false unless key.present? && key != FREE_PLAN_KEY && wallet.budget_micros.to_i.positive?
+      return true if wallet.period_end.blank?
+
+      wallet.period_end >= Time.current - PAID_GRACE
     end
 
     # (Re)provision when the wallet isn't a valid free wallet yet: brand new / not

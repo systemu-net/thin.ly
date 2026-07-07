@@ -81,6 +81,21 @@ module Levelcode
 
     def tier_rank(tier) = TIERS[tier.to_s.to_sym] || 0
 
+    # The most EXPENSIVE confirmed per-token rates (per field) — the conservative fallback when a
+    # request's billing model id isn't in the catalog (e.g. an upstream-substituted or dated-snapshot
+    # slug). Billing an unknown id at these rates means an off-catalog model can never UNDER-bill (the
+    # safe money direction). Memoized; MODELS is frozen.
+    def max_confirmed_rate
+      @max_confirmed_rate ||= begin
+        confirmed = MODELS.values.select { |m| m[:status] == :confirmed }
+        {
+          input:        confirmed.map { |m| m[:input] }.max,
+          cached_input: confirmed.map { |m| m[:cached_input] }.max,
+          output:       confirmed.map { |m| m[:output] }.max
+        }
+      end
+    end
+
     # Cost (micro-$) of one REFERENCE_TURN on a model at that turn's cache ratio.
     def reference_cost_micros(id)
       m = find(id)

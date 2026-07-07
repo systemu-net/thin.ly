@@ -22,6 +22,11 @@ module Levelcode
       end
     end
 
+    # Result of an admission-time budget reservation (M14 concurrency guard). `ok` false ⇒ the request
+    # would push spend past the budget and must 402. `amount` is the micro-$ reserved (0 when nothing
+    # was reserved: a non-positive estimate, or a fail-open Redis error) — pass it back to settle!.
+    Reservation = Struct.new(:ok, :amount, keyword_init: true)
+
     # Decide whether/how to serve the request against the wallet's DOLLAR budget (M14). Compares the
     # micro-$ spent this period (Redis hot counter) to budget_micros. Fail-open on Redis errors.
     def check!(wallet)
@@ -78,6 +83,88 @@ module Levelcode
       false
     end
 
+    # Reserve `estimate_micros` of budget for an IN-FLIGHT request, atomically, so CONCURRENT
+    # admissions see each other's reservations and can't collectively overshoot the dollar budget
+    # (the check!-then-record window: spend only lands after a stream closes). INCRBYs the hot spend
+    # counter up-front; if that tips total spend past the budget, it rolls the reservation back and
+    # returns ok:false (caller must 402). Fail-open on Redis error (allow, amount 0) so a paying user
+    # isn't blocked on an infra blip — the durable ledger still records the real spend afterward.
+    def reserve!(wallet, estimate_micros)
+      estimate_micros = estimate_micros.to_i
+      return Reservation.new(ok: true, amount: 0) if estimate_micros <= 0
+
+      k = key(wallet, "spent")
+      new_spent = redis.incrby(k, estimate_micros) # the reservation is now on the counter
+      begin
+        redis.expire(k, COUNTER_TTL)
+      rescue => e
+        # TTL is best-effort; the reservation still stands, so we must fall through and RETURN its
+        # amount so settle! subtracts it later (returning 0 here would strand the estimate).
+        warn_redis(e)
+      end
+
+      if new_spent > wallet.budget_micros.to_i
+        begin
+          redis.incrby(k, -estimate_micros) # roll back — this request doesn't fit the remaining budget
+        rescue => e
+          warn_redis(e) # rollback is best-effort; a stranded estimate over-counts (safe direction, TTL'd)
+        end
+        return Reservation.new(ok: false, amount: 0)
+      end
+      Reservation.new(ok: true, amount: estimate_micros)
+    rescue => e
+      # The reserving INCRBY itself failed → nothing landed on the counter → fail open (no reservation).
+      warn_redis(e)
+      Reservation.new(ok: true, amount: 0)
+    end
+
+    # Reconcile a reservation to the ACTUAL spend once the request settles. The hot counter already
+    # holds `reserved_micros` (from reserve!), so adjust it by (actual − reserved) to land on the real
+    # spend; with no reservation (throttle / fail-open path) just add the actual. Always bumps the
+    # informational input/output token counters too. Fail-open.
+    def settle!(wallet, reserved_micros, input_tokens, output_tokens, actual_micros)
+      reserved_micros = reserved_micros.to_i
+      actual_micros   = actual_micros.to_i
+      input_tokens    = input_tokens.to_i
+      output_tokens   = output_tokens.to_i
+      delta = actual_micros - reserved_micros
+      return true if delta.zero? && input_tokens.zero? && output_tokens.zero?
+
+      unless delta.zero?
+        spent_key = key(wallet, "spent")
+        new_spent = redis.incrby(spent_key, delta)
+        # A same-epoch reset (clear!) or eviction between reserve! and here can leave the estimate OFF
+        # the counter, so a negative delta would drive it below zero and mask real spend against the
+        # budget — floor it at 0. (spent_micros also floors defensively for the same reason.)
+        redis.set(spent_key, 0) if new_spent.to_i.negative?
+        redis.expire(spent_key, COUNTER_TTL)
+      end
+
+      unless input_tokens.zero? && output_tokens.zero?
+        redis.pipelined do |pipe|
+          pipe.incrby(key(wallet, "in"), input_tokens) unless input_tokens.zero?
+          pipe.incrby(key(wallet, "out"), output_tokens) unless output_tokens.zero?
+          pipe.expire(key(wallet, "in"), COUNTER_TTL)
+          pipe.expire(key(wallet, "out"), COUNTER_TTL)
+        end
+      end
+      true
+    rescue => e
+      warn_redis(e)
+      false
+    end
+
+    # Best-effort wipe of the current period's hot counters (spend/in/out). Used when usage is RESET
+    # for a period that reuses the same period_end epoch — otherwise spent_micros = max(Redis, durable)
+    # would resurrect the pre-reset spend from the stale hot counter. Fail-open.
+    def clear!(wallet)
+      redis.del(key(wallet, "spent"), key(wallet, "in"), key(wallet, "out"))
+      true
+    rescue => e
+      warn_redis(e)
+      false
+    end
+
     # Micro-$ spent this period, for enforcement. Takes the MAX of the live Redis counter and the
     # durable wallet.spent_micros — always enforcing on whichever shows MORE spend. This closes the
     # money-direction fail-open where the Redis counter UNDERCOUNTS while Redis is up and answering:
@@ -90,7 +177,9 @@ module Levelcode
     # when Redis is behind/empty, max == the durable column → an over-budget wallet stays blocked and
     # spend is never refunded. It's a MAX, not a sum, so it never double-counts.
     def spent_micros(wallet)
-      [ redis.get(key(wallet, "spent")).to_i, wallet.spent_micros.to_i ].max
+      # Floor the hot counter at 0 first: a reconcile after a mid-flight reset/eviction can briefly
+      # leave it negative, and a negative value must never suppress enforcement BELOW the durable spend.
+      [ [ redis.get(key(wallet, "spent")).to_i, 0 ].max, wallet.spent_micros.to_i ].max
     rescue => e
       warn_redis(e)
       wallet.spent_micros.to_i

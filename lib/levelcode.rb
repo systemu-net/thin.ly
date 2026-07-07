@@ -213,10 +213,12 @@ module Levelcode
     #            are a subset of `input`, so the non-cached remainder is billed
     #            at the full input rate.
     #
-    # Returns a rounded integer (micro-dollars).
+    # Returns a rounded integer (micro-dollars), INCLUSIVE of the OpenRouter routing fee — this is the
+    # true wire cost, so the enforced dollar budget is spent at the real rate and the target margin
+    # (1 − CREDIT_COGS_RATIO) holds. Callers should pass the ROUTED catalog model id (what we intend to
+    # charge); an unknown id falls back to the most expensive confirmed rate so it can never under-bill.
     def cost_micros(model, input, output, cached = 0)
-      table = rate_table
-      rate = table[model.to_s] || table[DEFAULT_MODEL]
+      rate = rate_for(model)
 
       input = input.to_i
       output = output.to_i
@@ -228,7 +230,36 @@ module Levelcode
         (cached * rate[:cached_input]) +
         (output * rate[:output])
 
-      micros.round
+      (micros * ROUTING_FEE).round
+    end
+
+    # The per-token rate row for a model id. A KNOWN catalog id → its own rate. An UNKNOWN id (an
+    # upstream-substituted slug, or a dated snapshot the caller didn't normalize) → the most expensive
+    # CONFIRMED rate, so an off-catalog id never UNDER-bills (the safe money direction). This is why the
+    # gateway bills at the ROUTED catalog model, not the upstream-reported string.
+    def rate_for(model)
+      rate_table[model.to_s] || Levelcode::ModelCatalog.max_confirmed_rate
+    end
+
+    # Rough tokens-per-character used to estimate input size for the admission-time budget reservation.
+    CHARS_PER_TOKEN = 4
+
+    # Worst-case cost (micro-$) of a request BEFORE it runs — for the admission-time budget reservation
+    # (M14 concurrency guard). Estimates input tokens from the body's character count (≈ CHARS_PER_TOKEN
+    # chars/token, clamped to the model's context window) and assumes the full per-request output
+    # ceiling. Deliberately conservative (reserves high, never caches); the real cost reconciles the
+    # reservation DOWN on settle. `model` must be the routed catalog id (its rate + context window).
+    def estimate_cost_micros(model, body, free_tier: false)
+      body ||= {}
+      ctx = (Levelcode::ModelCatalog.find(model.to_s) || {})[:context].to_i
+      est_input = (message_chars(body["messages"]).to_f / CHARS_PER_TOKEN).ceil
+      est_input = [ est_input, ctx ].min if ctx.positive?
+
+      ceiling = free_tier ? FREE_MAX_TOKENS : PAID_MAX_TOKENS
+      requested_out = [ body["max_tokens"], body["max_completion_tokens"] ].compact.map(&:to_i).select(&:positive?).min
+      est_output = requested_out ? [ requested_out, ceiling ].min : ceiling
+
+      cost_micros(model, est_input, est_output, 0)
     end
 
     # ── Credit economics (M14) ──────────────────────────────────────────────
@@ -256,10 +287,10 @@ module Levelcode
       Levelcode::ModelCatalog.entitled(plan_tier(plan_key))
     end
 
-    # A plan's DOLLAR compute budget (micro-$/month) — DERIVED as the flagship (Kimi) worst-case:
-    # the full token allowance run at the flagship rate with 50% input cache, plus the routing fee.
-    # This is the dollar allowance every model burns; the credit scheme makes worst-case margin
-    # identical for any model mix (see docs, M14).
+    # A plan's DOLLAR compute budget (micro-$/month) — a fixed fraction of subscription revenue
+    # (CREDIT_COGS_RATIO). Every model burns this same allowance at its real per-request wire cost
+    # (cost_micros already includes the routing fee), so the target margin (1 − CREDIT_COGS_RATIO)
+    # holds for any model mix (see docs, M14).
     def budget_micros(plan_key)
       p = plan(plan_key)
       return 0 unless p

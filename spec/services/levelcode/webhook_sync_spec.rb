@@ -10,10 +10,10 @@ RSpec.describe Levelcode::WebhookSync do
   end
 
   # A Stripe subscription double whose single item carries the given lookup_key.
-  def stripe_subscription(lookup_key:, period_start: 1_700_000_000, period_end: 1_702_678_400)
+  def stripe_subscription(lookup_key:, period_start: 1_700_000_000, period_end: 1_702_678_400, status: "active")
     price = double("price", id: "price_#{lookup_key}", lookup_key: lookup_key)
     item = double("item", price: price, current_period_start: period_start, current_period_end: period_end)
-    double("Stripe::Subscription", id: "sub_123", items: double("items", data: [ item ]))
+    double("Stripe::Subscription", id: "sub_123", status: status, items: double("items", data: [ item ]))
   end
 
   def event(type, object)
@@ -95,6 +95,48 @@ RSpec.describe Levelcode::WebhookSync do
       expect(wallet.plan_key).to eq("orbits_pro_plus")
       expect(wallet.input_cap).to eq(Levelcode.plan("orbits_pro_plus")[:input_cap])
       expect(wallet.input_used).to eq(5)
+    end
+  end
+
+  describe "past_due / non-active subscription" do
+    it "does NOT (re)provision the paid budget — a failed renewal keeps no paying-tier credits" do
+      CreditWallet.create!(
+        user: user, product: "levelcode", plan_key: "orbits_pro",
+        input_cap: 10, output_cap: 10, input_used: 3, output_used: 3,
+        budget_micros: 5_000_000, spent_micros: 4_000_000,
+        period_start: 1.day.ago, period_end: 1.month.from_now, overage_policy: "throttle"
+      )
+      # A past_due event for a PRICIER plan would otherwise refill the wallet to the ultra budget.
+      sub = stripe_subscription(lookup_key: "orbits_ultra", status: "past_due")
+      allow(sub).to receive(:customer).and_return("cus_test123")
+
+      described_class.call(event("customer.subscription.updated", sub))
+
+      wallet = CreditWallet.find_by(user: user, product: "levelcode")
+      expect(wallet.plan_key).to eq("orbits_pro")   # unchanged — not upgraded on a delinquent sub
+      expect(wallet.budget_micros).to eq(5_000_000) # NOT refilled to the ultra budget
+      expect(wallet.spent_micros).to eq(4_000_000)  # spend not reset
+    end
+  end
+
+  describe "customer.subscription.updated with an ADVANCING period_end" do
+    it "resets spend when the billing period advances (treats it as a fresh period)" do
+      old_end = Time.at(1_700_000_000).to_datetime
+      CreditWallet.create!(
+        user: user, product: "levelcode", plan_key: "orbits_pro",
+        input_cap: 10, output_cap: 10, input_used: 7, output_used: 7,
+        budget_micros: 10_000_000, spent_micros: 9_000_000,
+        period_start: old_end - 1.month, period_end: old_end, overage_policy: "throttle"
+      )
+      # New period_end AFTER the stored one → a roll, so the prior period's spend must not carry over.
+      sub = stripe_subscription(lookup_key: "orbits_pro", period_start: 1_700_000_000, period_end: 1_705_000_000)
+      allow(sub).to receive(:customer).and_return("cus_test123")
+
+      described_class.call(event("customer.subscription.updated", sub))
+
+      wallet = CreditWallet.find_by(user: user, product: "levelcode")
+      expect(wallet.spent_micros).to eq(0)
+      expect(wallet.input_used).to eq(0)
     end
   end
 

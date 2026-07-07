@@ -1084,6 +1084,31 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
           .to change(ProcessedStripeEvent, :count).by(1)
       end
     end
+
+    # ── Money-critical sync failure → release idempotency + retry ────────────
+    #
+    # A LevelCode wallet sync (teardown/provision) that fails AFTER idempotency is claimed must not be
+    # silently stranded — the claim is RELEASED and a non-2xx is returned so Stripe retries.
+    describe "when the LevelCode wallet sync fails" do
+      let(:obj)   { double("obj") }
+      let(:event) { build_event("customer.subscription.deleted", obj) }
+
+      before do
+        allow(Levelcode::WebhookSync).to receive(:call)
+          .and_raise(ActiveRecord::StatementInvalid, "connection lost")
+      end
+
+      it "returns a non-2xx so Stripe retries" do
+        post_stripe_webhook(event)
+        expect(response).to have_http_status(:internal_server_error)
+      end
+
+      it "releases the idempotency claim so the retry re-runs the sync" do
+        expect { post_stripe_webhook(event) }
+          .not_to change(ProcessedStripeEvent, :count) # claimed then released → net zero
+        expect(ProcessedStripeEvent.exists?(stripe_event_id: event.id)).to be(false)
+      end
+    end
   end
 end
 # rubocop:enable Metrics/BlockLength

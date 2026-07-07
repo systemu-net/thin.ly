@@ -29,6 +29,13 @@ class Api::V1::WebhooksController < ApplicationController
 
     handle_event(event)
     head :ok
+  rescue Levelcode::WebhookSync::SyncError => e
+    # The money-critical wallet sync failed AFTER we claimed idempotency — release the claim so Stripe's
+    # retry re-runs it (a non-2xx triggers the retry; bounded by Stripe's ~3-day retry window). Without
+    # this, a stranded teardown would leave a canceled wallet fully funded.
+    ProcessedStripeEvent.where(stripe_event_id: event&.id).delete_all
+    Rails.logger.error("[Stripe Webhook] Wallet sync failed; released idempotency for retry: #{event&.id} (#{e.message})")
+    head :internal_server_error
   rescue => e
     Rails.logger.error("[Stripe Webhook] Unhandled error processing #{event&.type}: #{e.message}")
     Rails.logger.error(e.backtrace&.first(10)&.join("\n"))
@@ -50,6 +57,10 @@ class Api::V1::WebhooksController < ApplicationController
       Levelcode::WebhookSync.call(event)
     rescue StandardError => e
       Rails.logger.error("[Stripe Webhook] Levelcode::WebhookSync failed: #{e.message}")
+      # Money-critical: re-raise so create() releases idempotency and Stripe retries, rather than
+      # silently stranding a teardown/provision. (WebhookSync swallows its own Stripe API errors, so
+      # what reaches here is a durable failure — DB/etc. — worth retrying.)
+      raise Levelcode::WebhookSync::SyncError, e.message
     end
 
     case event.type
