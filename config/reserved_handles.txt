@@ -21,6 +21,14 @@
 # impersonation-prone names. Add to it freely.
 # ============================================================================
 
+# -- levelcode product, brand & app routes ───────────────────────────────────────
+levelcode
+levelcodeapp
+levelcode-team
+levelcode-support
+levelcode-help
+levelcodehq
+levelcodeai
 # ── thin.ly product, brand & app routes ────────────────────────────────────
 thin
 thinly
