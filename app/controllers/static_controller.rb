@@ -7,16 +7,25 @@ class StaticController < ApplicationController
   # is correct — the account app has no non-HTML bare endpoints; the JSON API is
   # under /api/levelcode/v1/*.)
   LEVELCODE_HOSTS = %w[levelcode.ai www.levelcode.ai].freeze
+  # Canonical origin LevelCode Cloud lives on. thin.ly bounces any /ai request here so the account app
+  # only ever opens on a LevelCode host. ENV-overridable for staging.
+  LEVELCODE_ORIGIN = ENV.fetch("LEVELCODE_ORIGIN", "https://levelcode.ai").freeze
 
+  # Strict host↔brand isolation:
+  #   • a LevelCode host serves ONLY the account app (levelcode shell); bare paths funnel into /ai and
+  #     it never renders the thin.ly shortener shell.
+  #   • the thin.ly (shortener) host NEVER serves the account app; any /ai request is bounced to the
+  #     canonical LevelCode origin so LevelCode Cloud can't be opened from thin.ly/ai.
   def ui
-    # On a LevelCode host, redirect bare (non-/ai) paths into the /ai-mounted app.
-    if levelcode_host? && !ai_path?
-      dest = request.path == "/" ? "/ai" : "/ai#{request.path}"
-      dest += "?#{request.query_string}" if request.query_string.present?
-      return redirect_to(dest)
-    end
+    if levelcode_host?
+      return redirect_to(ai_funnel_dest) unless ai_path?
 
-    render(ai_path? ? "static/ui_levelcode" : "static/ui", layout: false)
+      render "static/ui_levelcode", layout: false
+    else
+      return redirect_to("#{LEVELCODE_ORIGIN}#{request.fullpath}", allow_other_host: true, status: :moved_permanently) if ai_path?
+
+      render "static/ui", layout: false
+    end
   end
 
   def unsafe_link
@@ -42,5 +51,11 @@ class StaticController < ApplicationController
 
   def ai_path?
     request.path == "/ai" || request.path.start_with?("/ai/")
+  end
+
+  # Map a bare LevelCode-host path onto the /ai app: / → /ai, /pricing → /ai/pricing (keeps the query).
+  def ai_funnel_dest
+    dest = request.path == "/" ? "/ai" : "/ai#{request.path}"
+    request.query_string.present? ? "#{dest}?#{request.query_string}" : dest
   end
 end
