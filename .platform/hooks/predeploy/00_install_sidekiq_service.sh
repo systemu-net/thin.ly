@@ -11,17 +11,18 @@ SERVICE_FILE_CURRENT="$APP_CURRENT/.platform/files/sidekiq.service"
 WRAPPER_SCRIPT_STAGING="$APP_STAGING/.platform/files/start-sidekiq.sh"
 WRAPPER_SCRIPT_CURRENT="$APP_CURRENT/.platform/files/start-sidekiq.sh"
 
-if [ -f "$SERVICE_FILE_STAGING" ]; then
-  SERVICE_FILE="$SERVICE_FILE_STAGING"
+if [ -f "$SERVICE_FILE_STAGING" ] && [ -f "$WRAPPER_SCRIPT_STAGING" ]; then
+  SOURCE_ROOT="$APP_STAGING"
+elif [ -f "$SERVICE_FILE_CURRENT" ] && [ -f "$WRAPPER_SCRIPT_CURRENT" ]; then
+  SOURCE_ROOT="$APP_CURRENT"
 else
-  SERVICE_FILE="$SERVICE_FILE_CURRENT"
+  echo "ERROR: Could not find both sidekiq.service and start-sidekiq.sh in staging or current."
+  echo "Checked: $SERVICE_FILE_STAGING, $WRAPPER_SCRIPT_STAGING, $SERVICE_FILE_CURRENT, $WRAPPER_SCRIPT_CURRENT"
+  exit 1
 fi
 
-if [ -f "$WRAPPER_SCRIPT_STAGING" ]; then
-  WRAPPER_SCRIPT="$WRAPPER_SCRIPT_STAGING"
-else
-  WRAPPER_SCRIPT="$WRAPPER_SCRIPT_CURRENT"
-fi
+SERVICE_FILE="$SOURCE_ROOT/.platform/files/sidekiq.service"
+WRAPPER_SCRIPT="$SOURCE_ROOT/.platform/files/start-sidekiq.sh"
 
 echo "Resolved Sidekiq service source: $SERVICE_FILE"
 echo "Resolved Sidekiq wrapper source: $WRAPPER_SCRIPT"
