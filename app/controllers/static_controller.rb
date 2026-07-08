@@ -9,7 +9,7 @@ class StaticController < ApplicationController
   LEVELCODE_HOSTS = %w[levelcode.ai www.levelcode.ai].freeze
 
   def ui
-    # On an LevelCode host, redirect bare (non-/ai) paths into the /ai-mounted app.
+    # On a LevelCode host, redirect bare (non-/ai) paths into the /ai-mounted app.
     if levelcode_host? && !ai_path?
       dest = request.path == "/" ? "/ai" : "/ai#{request.path}"
       dest += "?#{request.query_string}" if request.query_string.present?

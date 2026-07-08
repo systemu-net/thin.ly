@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+# `Set` is used below; require it so the helper is self-contained across load orders.
+require "set"
+
 # Minimal in-memory Redis stand-in for hermetic specs. The app skips the real
 # `$redis` in test (config/initializers/redis.rb: `unless Rails.env.test?`), so
 # any code path that touches Redis — Levelcode::OneTimeCode (single-use codes),
