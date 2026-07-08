@@ -253,9 +253,9 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
       end
     end
 
-    # ── Unhandled runtime exception ──────────────────────────────────────────
+    # ── Stripe API error during handle_event: transient → retry, permanent → ack ──
 
-    context "when an unexpected error occurs inside handle_event" do
+    context "when a TRANSIENT Stripe error occurs (network / rate-limit / 5xx)" do
       let(:event) { build_event("invoice.paid", build_invoice) }
 
       before do
@@ -265,12 +265,34 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
           .and_raise(Stripe::APIConnectionError.new("network error"))
       end
 
-      it "still returns 200 (prevents Stripe infinite retries)" do
+      it "returns a non-2xx so Stripe retries the webhook" do
+        post_stripe_webhook(event)
+        expect(response).to have_http_status(:internal_server_error)
+      end
+
+      it "releases the idempotency claim so the retry re-runs the sync" do
+        expect { post_stripe_webhook(event) }
+          .not_to change(ProcessedStripeEvent, :count) # claimed then released → net zero
+        expect(ProcessedStripeEvent.exists?(stripe_event_id: event.id)).to be(false)
+      end
+    end
+
+    context "when a PERMANENT Stripe error occurs (bad request / auth)" do
+      let(:event) { build_event("invoice.paid", build_invoice) }
+
+      before do
+        user
+        subscription
+        allow(Stripe::Subscription).to receive(:retrieve)
+          .and_raise(Stripe::InvalidRequestError.new("no such subscription", "subscription"))
+      end
+
+      it "returns 200 (retrying can't help — don't churn Stripe's retry queue)" do
         post_stripe_webhook(event)
         expect(response).to have_http_status(:ok)
       end
 
-      it "still records the event (claim-first idempotency marks before handle_event)" do
+      it "records the event as processed (no retry)" do
         expect { post_stripe_webhook(event) }
           .to change(ProcessedStripeEvent, :count).by(1)
       end

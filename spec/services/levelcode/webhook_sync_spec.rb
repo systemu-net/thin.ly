@@ -78,6 +78,32 @@ RSpec.describe Levelcode::WebhookSync do
     end
   end
 
+  describe "Stripe API errors during a subscription retrieve" do
+    let(:invoice) do
+      double("invoice",
+             parent: double("parent", subscription_details: double("sd", subscription: "sub_123")),
+             customer: "cus_test123")
+    end
+
+    it "re-raises a TRANSIENT error (APIConnectionError) as SyncError — worth a webhook retry" do
+      allow(Stripe::Subscription).to receive(:retrieve).and_raise(Stripe::APIConnectionError.new("net"))
+      expect { described_class.call(event("invoice.paid", invoice)) }
+        .to raise_error(Levelcode::WebhookSync::SyncError)
+    end
+
+    it "re-raises a Stripe-side 5xx (APIError) as SyncError" do
+      allow(Stripe::Subscription).to receive(:retrieve).and_raise(Stripe::APIError.new("stripe is down"))
+      expect { described_class.call(event("invoice.paid", invoice)) }
+        .to raise_error(Levelcode::WebhookSync::SyncError)
+    end
+
+    it "SWALLOWS a PERMANENT error (InvalidRequestError) — acked, not retried" do
+      allow(Stripe::Subscription).to receive(:retrieve)
+        .and_raise(Stripe::InvalidRequestError.new("no such subscription", "subscription"))
+      expect { described_class.call(event("invoice.paid", invoice)) }.not_to raise_error
+    end
+  end
+
   describe "customer.subscription.updated" do
     it "re-provisions caps for the new plan without zeroing usage mid-period" do
       CreditWallet.create!(

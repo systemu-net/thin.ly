@@ -20,6 +20,16 @@ module Levelcode
     # silently stranding a teardown/provision (e.g. a canceled wallet left fully funded).
     SyncError = Class.new(StandardError)
 
+    # Stripe failures worth a webhook retry: a network blip, rate limiting, or a Stripe-side 5xx
+    # (Stripe::APIError). Everything else — InvalidRequestError, AuthenticationError, CardError, … —
+    # is PERMANENT: retrying the same event can't help, so we ack it (200) instead of churning Stripe's
+    # retry queue. (RateLimitError and APIError are direct StripeError subclasses in stripe 13.x.)
+    TRANSIENT_STRIPE_ERRORS = [
+      Stripe::APIConnectionError,
+      Stripe::RateLimitError,
+      Stripe::APIError
+    ].freeze
+
     def self.call(event)
       new(event).call
     end
@@ -42,7 +52,11 @@ module Levelcode
         teardown(@object.customer)
       end
     rescue Stripe::StripeError => e
-      Rails.logger.error("[Levelcode::WebhookSync] Stripe error on #{@event.type}: #{e.message}")
+      Rails.logger.error("[Levelcode::WebhookSync] Stripe error on #{@event.type}: #{e.class}: #{e.message}")
+      # Transient (network / rate-limit / Stripe 5xx) → re-raise so the controller releases idempotency
+      # and returns non-2xx; Stripe redelivers (bounded to ~3 days) and the sync re-runs. Permanent
+      # errors fall through and are swallowed → 200 (retrying can't help).
+      raise SyncError, "#{e.class}: #{e.message}" if TRANSIENT_STRIPE_ERRORS.any? { |klass| e.is_a?(klass) }
     end
 
     private
