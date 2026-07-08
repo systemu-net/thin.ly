@@ -2,6 +2,13 @@
 inherit_gem: { rubocop-rails-omakase: rubocop.yml }
 
 AllCops:
+  # Ruby 4.0's bundled prism (1.9) dropped the versioned parser file that rubocop-ast (1.48) still
+  # `require`s (prism/translation/parser35), so the default prism engine LoadErrors on 4.0.x. Use the
+  # whitequark `parser` gem instead (already in the bundle) and pin the target to 3.4 — the parser
+  # gem's ceiling; the codebase is 3.x-compatible. Drop this once rubocop ships Ruby 4.0 / prism 1.9
+  # support and revert TargetRubyVersion to the runtime.
+  ParserEngine: parser_whitequark
+  TargetRubyVersion: 3.4
   Exclude:
     - 'blog/vendor/bundle/**/*'
     - 'vendor/bundle/**/*'
