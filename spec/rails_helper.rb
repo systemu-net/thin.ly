@@ -1,6 +1,12 @@
 # This file is copied to spec/ when you run 'rails generate rspec:install'
 require 'spec_helper'
 ENV['RAILS_ENV'] ||= 'test'
+# The OpenRouter adapter resolves its key from ENV *or* Rails credentials at construction time
+# (`OpenRouterAdapter#initialize`). CI has neither (no OPENROUTER_API_KEY, no master key to decrypt
+# credentials), so `.new` would raise before the stubbed HTTP methods run. Every spec stubs the
+# adapter's `stream`/`complete`, so this dummy key is never used for a real request — it only lets
+# construction succeed hermetically. `||=` keeps a real dev key if one is already exported.
+ENV['OPENROUTER_API_KEY'] ||= 'test-openrouter-key'
 require_relative '../config/environment'
 # Prevent database truncation if the environment is production
 abort("The Rails environment is running in production mode!") if Rails.env.production?
@@ -9,6 +15,7 @@ abort("The Rails environment is running in production mode!") if Rails.env.produ
 # return unless Rails.env.test?
 require 'rspec/rails'
 require 'support/auth_helpers'
+require 'support/fake_redis'
 require 'sidekiq/testing'
 # Add additional requires below this line. Rails is not loaded until this point!
 

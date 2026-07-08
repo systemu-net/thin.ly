@@ -7,10 +7,13 @@
 #  email                  :string           default(""), not null
 #  encrypted_password     :string           default(""), not null
 #  jti                    :string           not null
+#  last_country           :string
+#  last_seen_at           :datetime
 #  provider               :string
 #  remember_created_at    :datetime
 #  reset_password_sent_at :datetime
 #  reset_password_token   :string
+#  role                   :string           default("member"), not null
 #  terms_accepted         :boolean          default(FALSE), not null
 #  terms_accepted_at      :datetime
 #  terms_accepted_version :string
@@ -23,6 +26,7 @@
 #
 #  index_users_on_email                 (email) UNIQUE
 #  index_users_on_jti                   (jti) UNIQUE
+#  index_users_on_last_seen_at          (last_seen_at)
 #  index_users_on_provider_and_uid      (provider,uid) UNIQUE
 #  index_users_on_reset_password_token  (reset_password_token) UNIQUE
 #
@@ -41,6 +45,8 @@ class User < ApplicationRecord
   has_many :subscriptions, dependent: :destroy
   has_many :plans, through: :subscriptions
   has_many :brand_pages, dependent: :destroy
+  has_many :credit_wallets, dependent: :destroy
+  has_many :usage_events, dependent: :destroy
   has_one :profile, dependent: :destroy
 
   mount_uploader :avatar, AvatarUploader
@@ -87,6 +93,18 @@ class User < ApplicationRecord
         terms_accepted: ActiveModel::Type::Boolean.new.cast(terms_accepted) || false
       )
     end
+  end
+
+  # Application roles. `member` is the default; `admin` unlocks staff-only
+  # surfaces (SPEC §6 — replaces the hard-coded jbuilder role).
+  ROLES = %w[member admin].freeze
+
+  def admin?
+    role == "admin"
+  end
+
+  def member?
+    role == "member"
   end
 
   def retrieve_stripe_customer

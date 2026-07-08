@@ -116,6 +116,8 @@ Rails.application.configure do
     "www.thin.ly",
     "thin.ly",
     "app.thin.ly",
+    "levelcode.ai", # LevelCode Cloud account app (served at /ai/*)
+    "www.levelcode.ai",
     ".elasticbeanstalk.com",
     /.*\.elasticbeanstalk\.com$/, # Allow all Elastic Beanstalk hosts
     /.*\.elb\.amazonaws\.com$/, # Allow ELB hostnames for health checks

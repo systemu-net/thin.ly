@@ -7,6 +7,7 @@
 #  current_period_end   :datetime
 #  current_period_start :datetime
 #  interval             :string
+#  product              :string           default("linkly"), not null
 #  status               :string
 #  created_at           :datetime         not null
 #  updated_at           :datetime         not null
@@ -17,7 +18,8 @@
 #
 # Indexes
 #
-#  index_subscriptions_on_user_id  (user_id)
+#  index_subscriptions_on_user_id              (user_id)
+#  index_subscriptions_on_user_id_and_product  (user_id,product)
 #
 # Foreign Keys
 #

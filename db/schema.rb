@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_06_21_030000) do
+ActiveRecord::Schema[7.2].define(version: 2026_07_07_120001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -22,6 +22,22 @@ ActiveRecord::Schema[7.2].define(version: 2026_06_21_030000) do
     t.datetime "updated_at", null: false
     t.index ["logable_type", "logable_id"], name: "index_api_requests_on_logable"
     t.index ["plan_id"], name: "index_api_requests_on_plan_id"
+  end
+
+  create_table "auth_events", force: :cascade do |t|
+    t.bigint "user_id"
+    t.string "email"
+    t.string "kind", null: false
+    t.string "provider"
+    t.string "outcome", null: false
+    t.string "reason"
+    t.string "ip"
+    t.string "country"
+    t.datetime "created_at", null: false
+    t.index ["created_at"], name: "index_auth_events_on_created_at"
+    t.index ["email"], name: "index_auth_events_on_email"
+    t.index ["outcome"], name: "index_auth_events_on_outcome"
+    t.index ["user_id"], name: "index_auth_events_on_user_id"
   end
 
   create_table "brand_pages", force: :cascade do |t|
@@ -78,6 +94,25 @@ ActiveRecord::Schema[7.2].define(version: 2026_06_21_030000) do
     t.index ["link_id"], name: "index_clicks_on_link_id"
     t.index ["region"], name: "index_clicks_on_region"
     t.index ["source"], name: "index_clicks_on_source"
+  end
+
+  create_table "credit_wallets", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "product", default: "levelcode", null: false
+    t.string "plan_key", null: false
+    t.bigint "input_cap", null: false
+    t.bigint "output_cap", null: false
+    t.bigint "input_used", default: 0, null: false
+    t.bigint "output_used", default: 0, null: false
+    t.datetime "period_start"
+    t.datetime "period_end"
+    t.string "overage_policy", default: "throttle", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "budget_micros", default: 0, null: false
+    t.bigint "spent_micros", default: 0, null: false
+    t.index ["user_id", "product"], name: "index_credit_wallets_on_user_id_and_product", unique: true
+    t.index ["user_id"], name: "index_credit_wallets_on_user_id"
   end
 
   create_table "link_campaigns", force: :cascade do |t|
@@ -287,6 +322,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_06_21_030000) do
     t.datetime "updated_at", null: false
     t.boolean "cancel_at_period_end", default: false, null: false
     t.string "stripe_price_id"
+    t.string "product", default: "linkly", null: false
+    t.index ["user_id", "product"], name: "index_subscriptions_on_user_id_and_product"
     t.index ["user_id"], name: "index_subscriptions_on_user_id"
   end
 
@@ -308,6 +345,31 @@ ActiveRecord::Schema[7.2].define(version: 2026_06_21_030000) do
     t.index ["status"], name: "index_threat_detections_on_status"
   end
 
+  create_table "usage_events", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "request_id"
+    t.string "model"
+    t.string "provider"
+    t.bigint "input_tokens", default: 0, null: false
+    t.bigint "output_tokens", default: 0, null: false
+    t.bigint "cached_input_tokens", default: 0, null: false
+    t.bigint "cost_micros", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.index ["request_id"], name: "index_usage_events_on_request_id_unique", unique: true, where: "(request_id IS NOT NULL)"
+    t.index ["user_id", "created_at"], name: "index_usage_events_on_user_id_and_created_at"
+    t.index ["user_id"], name: "index_usage_events_on_user_id"
+  end
+
+  create_table "usage_feedbacks", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "model"
+    t.string "rating", null: false
+    t.string "request_id"
+    t.datetime "created_at", null: false
+    t.index ["user_id", "created_at"], name: "index_usage_feedbacks_on_user_id_and_created_at"
+    t.index ["user_id"], name: "index_usage_feedbacks_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
@@ -324,16 +386,22 @@ ActiveRecord::Schema[7.2].define(version: 2026_06_21_030000) do
     t.string "uid"
     t.datetime "terms_accepted_at"
     t.string "terms_accepted_version"
+    t.string "role", default: "member", null: false
+    t.string "last_country"
+    t.datetime "last_seen_at"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["jti"], name: "index_users_on_jti", unique: true
+    t.index ["last_seen_at"], name: "index_users_on_last_seen_at"
     t.index ["provider", "uid"], name: "index_users_on_provider_and_uid", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
   add_foreign_key "api_requests", "plans"
+  add_foreign_key "auth_events", "users"
   add_foreign_key "brand_pages", "brand_pages", column: "published_version_id"
   add_foreign_key "brand_pages", "users"
   add_foreign_key "clicks", "links"
+  add_foreign_key "credit_wallets", "users"
   add_foreign_key "link_campaigns", "users"
   add_foreign_key "link_destination_histories", "links"
   add_foreign_key "link_governance_logs", "links"
@@ -350,4 +418,6 @@ ActiveRecord::Schema[7.2].define(version: 2026_06_21_030000) do
   add_foreign_key "qr_codes", "users"
   add_foreign_key "resources", "brand_pages", column: "page_id"
   add_foreign_key "subscriptions", "users"
+  add_foreign_key "usage_events", "users"
+  add_foreign_key "usage_feedbacks", "users"
 end
