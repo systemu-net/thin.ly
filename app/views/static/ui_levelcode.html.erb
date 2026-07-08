@@ -3,9 +3,11 @@
 
 <head>
   <meta charset="UTF-8" />
-  <!-- LevelCode-branded favicon (ascending-chevron mark, brand green) as an inline SVG data-URI, so
-       it isn't shared with thin.ly's /favicon.ico and needs no separately-hosted asset. -->
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120' fill='none' stroke='%2398c379' stroke-width='14' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M27 88 L60 64 L93 88' opacity='.45'/%3E%3Cpath d='M27 67 L60 43 L93 67' opacity='.72'/%3E%3Cpath d='M27 46 L60 22 L93 46'/%3E%3C/svg%3E" />
+  <!-- LevelCode-branded favicon: dark squircle + indigo→cyan brand gradient chevron (dotless),
+       matching the shipped app icon (levelcode-favicon.svg). Self-contained inline SVG data-URI —
+       not shared with thin.ly's /favicon.ico, needs no separately-hosted asset; strokes are
+       proportionally thicker (13/120) than the 1024px icon so the chevrons survive tab size. -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='104' x2='0' y2='14' gradientUnits='userSpaceOnUse'%3E%3Cstop offset='0' stop-color='%235b3fd6'/%3E%3Cstop offset='.45' stop-color='%237d6bff'/%3E%3Cstop offset='.75' stop-color='%235fb4ff'/%3E%3Cstop offset='1' stop-color='%23a8ecff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='120' height='120' rx='27' fill='%230a0c16'/%3E%3Cg fill='none' stroke='url(%23g)' stroke-width='13' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M28 92 L60 69 L92 92' opacity='.55'/%3E%3Cpath d='M28 68 L60 45 L92 68' opacity='.8'/%3E%3Cpath d='M28 44 L60 21 L92 44'/%3E%3C/g%3E%3C/svg%3E" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description"
     content="LevelCode Cloud — manage your plan, keys, and usage. Bring your own key, or run on the metered gateway with no middleman markup." />
