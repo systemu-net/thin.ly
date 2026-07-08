@@ -24,12 +24,18 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
   def json = JSON.parse(response.body)
 
   describe 'brand switch (StaticController#ui)' do
-    it 'serves the levelcode shell for /ai paths' do
+    it 'serves the levelcode shell for /ai paths on a LevelCode host' do
+      host! 'levelcode.ai' # strict isolation: the account shell only renders on a LevelCode host
       get '/ai/login'
       expect(response).to have_http_status(:ok)
       expect(response.body).to include('LevelCode Cloud')
       expect(response.body).to include('id="root"')
       # (csrf_meta_tags renders only when forgery protection is on — off in test env.)
+    end
+
+    it 'bounces /ai on the thin.ly host to the canonical LevelCode origin' do
+      get '/ai/login' # default host www.example.com (a non-LevelCode host)
+      expect(response).to redirect_to('https://levelcode.ai/ai/login')
     end
 
     it 'redirects a bare path on an levelcode host into /ai' do
