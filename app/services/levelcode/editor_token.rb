@@ -8,13 +8,13 @@ module Levelcode
   # LEVELCODE_JWT_SECRET, HS256, and carry an explicit scope. Revocation is a `jti`
   # denylist held in a Redis set (`levelcode:revoked:jti`).
   #
-  #   access  — TTL 60 min, scope "ai:chat account:read"
+  #   access  — TTL 8 h (a work session; revocable via jti, refresh-backed), scope "ai:chat ai:agent account:read"
   #   refresh — TTL 30 days, scope "refresh"
   module EditorToken
     module_function
 
     ALGORITHM      = "HS256"
-    ACCESS_TTL     = 60.minutes
+    ACCESS_TTL     = 8.hours
     REFRESH_TTL    = 30.days
     # ai:chat  — plain completions through the gateway
     # ai:agent — tool-calling (agent) turns; same endpoint, distinct scope so a
