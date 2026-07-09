@@ -289,8 +289,8 @@ module Api
             error: {
               code: "cap_reached",
               message: free ?
-                "You've hit your free monthly limit. Upgrade to Pro for Kimi K2.7 Code and higher caps." :
-                "Usage cap reached for the current billing period.",
+                "You've reached this month's free compute limit. Upgrade to Pro to unlock Kimi K2.7 Code — a sharper coding model — and much higher limits, so you can keep building without interruption." :
+                "You've reached your plan's usage limit for this billing period. It resets on your next renewal — or manage your plan to raise it.",
               # The editor surfaces this as an "Upgrade" CTA on the free tier.
               upgrade_url: (free ? "#{site_origin}/ai/pricing" : nil),
               topup_url: topup_url_for(wallet)
