@@ -6,6 +6,9 @@ echo "=== Starting Sidekiq via systemd ==="
 # Reload systemd in case service file changed
 systemctl daemon-reload
 
+# Enable so it comes back on instance reboot / app restart (not just this deploy)
+systemctl enable sidekiq
+
 # Start Sidekiq service
 echo "Starting Sidekiq service..."
 systemctl start sidekiq

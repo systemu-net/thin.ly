@@ -15,6 +15,17 @@ module Levelcode
 
     Result = Struct.new(:usage, :model, keyword_init: true)
 
+    # OpenRouter provider routing for the FREE model (gpt-oss). OpenRouter's "WandB" provider
+    # mishandles the gpt-oss "harmony" format and 401s with "Unknown role: final", so pin the free
+    # model to reliable providers and exclude WandB. Scoped to the free model — paid models keep full
+    # routing. See atompp-internal/orbits-build/DECISIONS.md (2026-07-08). If WandB reappears, verify
+    # the `ignore` slug against OpenRouter's provider list / Activity log.
+    FREE_MODEL_PROVIDER = {
+      "order" => %w[fireworks together deepinfra],
+      "ignore" => %w[wandb],
+      "allow_fallbacks" => true
+    }.freeze
+
     def initialize(api_key: ENV["OPENROUTER_API_KEY"] || Rails.application.credentials.fetch(:openrouter_api_key))
       @api_key = api_key
     end
@@ -35,7 +46,7 @@ module Levelcode
       # final usage chunk otherwise, and the request would consume tokens unmetered
       # (cap bypass + under-billing). Preserve any client-supplied stream_options.
       stream_opts = (body["stream_options"] || body[:stream_options] || {}).merge("include_usage" => true)
-      request = build_request(uri, body.merge("stream" => true, "stream_options" => stream_opts))
+      request = build_request(uri, with_free_model_routing(body).merge("stream" => true, "stream_options" => stream_opts))
 
       usage = nil
       model = body["model"] || body[:model]
@@ -70,7 +81,7 @@ module Levelcode
     # Non-streaming pass-through. Returns the parsed upstream JSON Hash.
     def complete(body)
       uri = URI(BASE_URL)
-      request = build_request(uri, body.merge("stream" => false))
+      request = build_request(uri, with_free_model_routing(body).merge("stream" => false))
       response = http(uri).request(request)
 
       unless response.code.to_i == 200
@@ -91,6 +102,17 @@ module Levelcode
     end
 
     private
+
+    # Inject the free-model provider routing (FREE_MODEL_PROVIDER) when the request targets the
+    # gpt-oss free model, unless the client already supplied its own `provider` preference. Every
+    # other model is returned unchanged so paid routing is untouched.
+    def with_free_model_routing(body)
+      model = (body["model"] || body[:model]).to_s
+      return body unless model.include?("gpt-oss")
+      return body if body.key?("provider") || body.key?(:provider)
+
+      body.merge("provider" => FREE_MODEL_PROVIDER)
+    end
 
     def http(uri)
       client = Net::HTTP.new(uri.host, uri.port)
