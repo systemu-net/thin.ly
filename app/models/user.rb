@@ -20,6 +20,7 @@
 #  uid                    :string
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
+#  levelcode_stripe_id    :string
 #  stripe_id              :string
 #
 # Indexes
@@ -27,6 +28,7 @@
 #  index_users_on_email                 (email) UNIQUE
 #  index_users_on_jti                   (jti) UNIQUE
 #  index_users_on_last_seen_at          (last_seen_at)
+#  index_users_on_levelcode_stripe_id   (levelcode_stripe_id) UNIQUE WHERE (levelcode_stripe_id IS NOT NULL)
 #  index_users_on_provider_and_uid      (provider,uid) UNIQUE
 #  index_users_on_reset_password_token  (reset_password_token) UNIQUE
 #
@@ -111,6 +113,17 @@ class User < ApplicationRecord
     Stripe::Customer.retrieve(stripe_id)
   end
 
+  # The user's customer id in the ISOLATED LevelCode Stripe account (distinct from the
+  # linkly `stripe_id`). Minted lazily on first LevelCode checkout/billing — most users
+  # never buy LevelCode, so we don't create it at signup like the linkly customer.
+  def levelcode_stripe_customer_id!
+    return levelcode_stripe_id if levelcode_stripe_id.present?
+
+    customer = Stripe::Customer.create({ email: email }, Levelcode::Billing.opts)
+    update!(levelcode_stripe_id: customer.id)
+    levelcode_stripe_id
+  end
+
   def plan
     @plan ||= plans.first
   end
@@ -138,8 +151,11 @@ class User < ApplicationRecord
   end
 
   def delete_stripe_customer
-    customer = retrieve_stripe_customer
-    customer.delete
+    retrieve_stripe_customer.delete
+    # Also remove the LevelCode-account customer (separate Stripe account) when present.
+    Stripe::Customer.delete(levelcode_stripe_id, {}, Levelcode::Billing.opts) if levelcode_stripe_id.present?
+  rescue Stripe::StripeError => e
+    Rails.logger.error("[User#delete_stripe_customer] #{e.class}: #{e.message}")
   end
 
   def create_default_subscription
