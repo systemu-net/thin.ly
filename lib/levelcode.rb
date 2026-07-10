@@ -126,6 +126,14 @@ module Levelcode
   # (Opus ≈ 7× Kimi) just burn the budget faster. ENV-tunable so pricing can move without a deploy.
   CREDIT_COGS_RATIO = ENV.fetch("LEVELCODE_CREDIT_COGS_RATIO", 0.50).to_f
 
+  # Time-released budget tranches (rolling usage windows). When > 1, the enforced ceiling rises in N
+  # equal steps from budget/N up to the full budget across the billing period (window = period / N), so
+  # a heavy user cannot drain the whole month on day one while a light user never notices. N = 1
+  # DISABLES tranching (ceiling == full budget from day one) — the SAFE DEFAULT, so this ships inert
+  # until the usage dashboard (Phase 2) and product sign-off land; set LEVELCODE_BUDGET_TRANCHES=3 to
+  # activate. NEVER applied to the free tier. See Metering.unlocked_budget_micros.
+  BUDGET_TRANCHES = ENV.fetch("LEVELCODE_BUDGET_TRANCHES", 1).to_i
+
   class << self
     # Look up a single plan definition by its key (e.g. "orbits_pro").
     def plan(key)

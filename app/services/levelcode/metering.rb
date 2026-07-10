@@ -42,9 +42,37 @@ module Levelcode
       decide(over_budget?(spent_micros(wallet), wallet), wallet)
     end
 
-    # True when this period's spend has reached the dollar budget.
+    # The dollar ceiling ENFORCED right now. Normally the wallet's full budget_micros, but when
+    # tranching is enabled (Levelcode::BUDGET_TRANCHES > 1) it rises in N equal steps from budget/N up
+    # to the full budget across the billing period (window = period / N): a heavy user can't front-load
+    # the whole month, while a light user stays under the rising ceiling and never notices. Pure
+    # function of the wallet + now — no state, no cron. Monotonic non-decreasing and capped at the full
+    # budget, so total served spend can NEVER exceed the budget (the margin guarantee). Spend tracking
+    # (the Redis counter / durable spent_micros) is untouched — a tranche unlock must never reset spend.
+    def unlocked_budget_micros(wallet, now = Time.current)
+      full = wallet.budget_micros.to_i
+      n    = Levelcode::BUDGET_TRANCHES
+      return full if full <= 0 || n <= 1                # disabled, or no managed plan (0)
+      return full if wallet.plan_key == FREE_PLAN_KEY   # NEVER tranche the free tier
+
+      start = wallet.period_start
+      fin   = wallet.period_end
+      # Only tranche when we actually know the billing-period boundaries; otherwise fail open to the
+      # full budget. (A provisioned paid wallet always has both set — this guards a malformed edge, and
+      # we deliberately do NOT anchor the schedule to created_at, which is unrelated to the period.)
+      return full if start.blank? || fin.blank? || fin <= start
+
+      window = (fin - start).to_f / n                   # seconds; derived from the REAL period length
+      return full if window <= 0                        # pathological n (astronomically large) underflows → don't divide
+
+      elapsed = [ (now - start).to_f, 0.0 ].max         # clamp clock-skew / future start → k = 1
+      k = (1 + (elapsed / window).floor).clamp(1, n)
+      (full * k) / n                                    # integer micro-$; == full EXACTLY at k == n
+    end
+
+    # True when this period's spend has reached the currently-unlocked dollar ceiling.
     def over_budget?(spent, wallet)
-      spent >= wallet.budget_micros.to_i
+      spent >= unlocked_budget_micros(wallet)
     end
 
     # Map (over_cap?, policy) → a Decision. Under cap: allow. Over cap: throttle
@@ -103,7 +131,7 @@ module Levelcode
         warn_redis(e)
       end
 
-      if new_spent > wallet.budget_micros.to_i
+      if new_spent > unlocked_budget_micros(wallet)
         begin
           redis.incrby(k, -estimate_micros) # roll back — this request doesn't fit the remaining budget
         rescue => e
