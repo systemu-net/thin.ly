@@ -349,7 +349,7 @@ module Api
           # generic ops-safe message. ALERT only on the classes that mean PAID AI is globally
           # down (platform balance, bad key, bad model id) — not on client-malformed 400s.
           { code: "service_unavailable", message: SERVICE_UNAVAILABLE_MSG, http: :service_unavailable,
-            alert: [401, 402, 404].include?(status) }
+            alert: [ 401, 402, 404 ].include?(status) }
         end
 
         # Log the raw upstream detail for us (never sent to the client). Page-worthy classes
