@@ -24,16 +24,21 @@ module Api
           # Show the LIVE per-period spend/usage (the same counters enforcement uses),
           # not the async-lagged wallet columns.
           in_used, out_used = wallet ? ::Levelcode::Metering.usage(wallet) : [ 0, 0 ]
-          spent = wallet ? ::Levelcode::Metering.spent_micros(wallet) : 0
-          budget = wallet&.budget_micros.to_i
+          state = wallet ? ::Levelcode::Metering.tranche_state(wallet) : nil
 
           render json: {
             plan: current_plan_name,
             model: ::Levelcode.gateway_model(wallet&.plan_key),
             # Credits (M14): the DOLLAR budget is the enforced allowance; token fields are informational.
-            budget_micros: budget,
-            spent_micros: spent,
-            credits_remaining_micros: [ budget - spent, 0 ].max,
+            # budget_micros is the full monthly allowance; credits_remaining_micros is measured against the
+            # currently-UNLOCKED ceiling (rolling usage windows) so the UI never shows more than
+            # enforcement will actually serve. next_unlock_at is when more unlocks (nil if all is, or
+            # tranching is off). With tranching disabled these equal the full-budget values as before.
+            budget_micros: state ? state[:full_micros] : 0,
+            ceiling_micros: state ? state[:ceiling_micros] : 0,
+            spent_micros: state ? state[:spent_micros] : 0,
+            credits_remaining_micros: state ? state[:remaining_micros] : 0,
+            next_unlock_at: state ? state[:next_unlock_at] : nil,
             input_used: in_used,
             input_cap: wallet&.input_cap.to_i,
             output_used: out_used,
@@ -49,16 +54,18 @@ module Api
         # (confirmed-price models are selectable; staged ones are shown but not yet billable).
         def models
           wallet = current_wallet
-          budget = wallet&.budget_micros.to_i
-          spent = wallet ? ::Levelcode::Metering.spent_micros(wallet) : 0
-          remaining = [ budget - spent, 0 ].max
+          state = wallet ? ::Levelcode::Metering.tranche_state(wallet) : nil
+          # turns-left is computed from what's usable NOW (the unlocked ceiling), not the full budget.
+          remaining = state ? state[:remaining_micros] : 0
 
           render json: {
             plan: current_plan_name,
             default_model: ::Levelcode.default_model(current_plan_key),
-            budget_micros: budget,
-            spent_micros: spent,
+            budget_micros: state ? state[:full_micros] : 0,
+            ceiling_micros: state ? state[:ceiling_micros] : 0,
+            spent_micros: state ? state[:spent_micros] : 0,
             credits_remaining_micros: remaining,
+            next_unlock_at: state ? state[:next_unlock_at] : nil,
             models: ::Levelcode.roster_for(current_plan_key, remaining)
           }, status: :ok
         end
