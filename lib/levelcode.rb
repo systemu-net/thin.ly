@@ -29,7 +29,7 @@ module Levelcode
       stripe_lookup_key: "orbits_pro",
       features: [
         "~260 Kimi turns/mo · ~39 on Opus 4.8",
-        "$10/mo of AI credits (dollar-metered)",
+        "Usage that refreshes through your billing cycle",
         "Kimi K2.7 Code + Opus 4.8",
         "Bring-your-own-key always free"
       ]
@@ -45,7 +45,7 @@ module Levelcode
       stripe_lookup_key: "orbits_pro_plus",
       features: [
         "~520 Kimi turns/mo · ~78 on Opus 4.8",
-        "$20/mo of AI credits (dollar-metered)",
+        "Usage that refreshes through your billing cycle",
         "Kimi K2.7 Code + Opus 4.8",
         "Priority routing"
       ]
@@ -61,7 +61,7 @@ module Levelcode
       stripe_lookup_key: "orbits_max",
       features: [
         "~780 Kimi turns/mo · ~117 on Opus 4.8",
-        "$30/mo of AI credits (dollar-metered)",
+        "Usage that refreshes through your billing cycle",
         "Kimi K2.7 Code + Opus 4.8",
         "Priority routing"
       ]
@@ -77,7 +77,7 @@ module Levelcode
       stripe_lookup_key: "orbits_ultra",
       features: [
         "~1,300 Kimi turns/mo · ~195 on Opus 4.8",
-        "$50/mo of AI credits (dollar-metered)",
+        "Usage that refreshes through your billing cycle",
         "Kimi K2.7 Code + Opus 4.8",
         "Highest priority routing"
       ]
