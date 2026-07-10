@@ -59,10 +59,11 @@ module Levelcode
       fin   = wallet.period_end
       return full if start.blank? || fin.blank? || fin <= start
 
-      window  = (fin - start).to_f / n                  # seconds; derived from the REAL period length
-      elapsed = [ (now - start).to_f, 0.0 ].max         # clamp clock-skew / future start → k = 1
-      k = (1 + (elapsed / window).floor).clamp(1, n)
-      (full * k) / n                                    # integer micro-$; == full EXACTLY at k == n
+window  = (fin - start).to_f / n                  # seconds; derived from the REAL period length
+return full if window <= 0.0
+elapsed = [ (now - start).to_f, 0.0 ].max         # clamp clock-skew / future start → k = 1
+k = (1 + (elapsed / window).floor).clamp(1, n)
+(full * k) / n                                    # integer micro-$; == full EXACTLY at k == n
     end
 
     # True when this period's spend has reached the currently-unlocked dollar ceiling.
