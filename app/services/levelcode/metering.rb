@@ -55,15 +55,19 @@ module Levelcode
       return full if full <= 0 || n <= 1                # disabled, or no managed plan (0)
       return full if wallet.plan_key == FREE_PLAN_KEY   # NEVER tranche the free tier
 
-      start = wallet.period_start || wallet.created_at
+      start = wallet.period_start
       fin   = wallet.period_end
+      # Only tranche when we actually know the billing-period boundaries; otherwise fail open to the
+      # full budget. (A provisioned paid wallet always has both set — this guards a malformed edge, and
+      # we deliberately do NOT anchor the schedule to created_at, which is unrelated to the period.)
       return full if start.blank? || fin.blank? || fin <= start
 
-window  = (fin - start).to_f / n                  # seconds; derived from the REAL period length
-return full if window <= 0.0
-elapsed = [ (now - start).to_f, 0.0 ].max         # clamp clock-skew / future start → k = 1
-k = (1 + (elapsed / window).floor).clamp(1, n)
-(full * k) / n                                    # integer micro-$; == full EXACTLY at k == n
+      window = (fin - start).to_f / n                   # seconds; derived from the REAL period length
+      return full if window <= 0                        # pathological n (astronomically large) underflows → don't divide
+
+      elapsed = [ (now - start).to_f, 0.0 ].max         # clamp clock-skew / future start → k = 1
+      k = (1 + (elapsed / window).floor).clamp(1, n)
+      (full * k) / n                                    # integer micro-$; == full EXACTLY at k == n
     end
 
     # True when this period's spend has reached the currently-unlocked dollar ceiling.

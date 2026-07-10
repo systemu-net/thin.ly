@@ -59,8 +59,15 @@ RSpec.describe Levelcode::Metering do
         expect(unlocked(wallet(budget: 0), t0)).to eq(0)
       end
 
-      it "falls back to the full budget when the period is missing (never raises in the hot path)" do
-        expect(unlocked(wallet(start: nil, finish: nil, created: nil), t0)).to eq(full)
+      it "fails open to the full budget when period_start is missing (never anchors to an unrelated time)" do
+        expect(unlocked(wallet(start: nil, finish: fin), t0 + window)).to eq(full) # start nil, end set → full
+        expect(unlocked(wallet(start: nil, finish: nil), t0)).to eq(full)
+      end
+
+      it "fails open (never raises) for a pathological tranche count that underflows the window" do
+        stub_const("Levelcode::BUDGET_TRANCHES", 10**400) # window = period / n → 0.0
+        expect { unlocked(wallet, t0 + (10 * 24 * 60 * 60)) }.not_to raise_error
+        expect(unlocked(wallet, t0 + (10 * 24 * 60 * 60))).to eq(full)
       end
 
       it "is monotonic non-decreasing and never exceeds the budget across the whole period" do
@@ -81,6 +88,33 @@ RSpec.describe Levelcode::Metering do
       # gated at the tranche ($3.33), NOT the full budget ($10) — this is the whole point of Phase 1.
       expect(described_class.send(:over_budget?, (full / 3) - 1, w)).to be(false)
       expect(described_class.send(:over_budget?, full / 3, w)).to be(true)
+    end
+  end
+
+  # The OTHER enforcement site — reserve!'s concurrency guard — must also gate at the unlocked ceiling,
+  # not the full budget, or a burst of concurrent admissions could overshoot the tranche once Phase 2
+  # flips tranching on. Redis is stubbed so this stays a focused unit test.
+  describe "reserve! (concurrency guard) gates at the unlocked ceiling" do
+    let(:spent_key) { "levelcode:used:test:spent" }
+    let(:paid) { wallet } # memoized so the before-block stub and the example share ONE double
+
+    before do
+      stub_const("Levelcode::BUDGET_TRANCHES", 3)
+      allow(described_class).to receive(:key).and_return(spent_key)
+      allow(described_class).to receive(:unlocked_budget_micros).with(paid).and_return(full / 3) # $3.33 window
+    end
+
+    it "admits a reservation that fits within the current tranche" do
+      allow(described_class).to receive(:redis).and_return(double("redis", expire: nil, incrby: 3_000_000))
+      expect(described_class.reserve!(paid, 3_000_000)).to have_attributes(ok: true, amount: 3_000_000)
+    end
+
+    it "rejects + rolls back a reservation over the tranche, even though it's under the full budget" do
+      fake = double("redis", expire: nil)
+      allow(described_class).to receive(:redis).and_return(fake)
+      allow(fake).to receive(:incrby).with(spent_key, 4_000_000).and_return(4_000_000)  # $4.0 > $3.33 tranche
+      expect(fake).to receive(:incrby).with(spent_key, -4_000_000).and_return(0)         # rolled back
+      expect(described_class.reserve!(paid, 4_000_000).ok).to be(false)
     end
   end
 end
