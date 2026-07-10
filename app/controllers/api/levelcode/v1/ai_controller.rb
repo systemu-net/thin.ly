@@ -285,16 +285,29 @@ module Api
         end
 
         def render_cap_reached(wallet)
-          free = wallet.plan_key.to_s == ::Levelcode::FREE_PLAN_KEY
+          free  = wallet.plan_key.to_s == ::Levelcode::FREE_PLAN_KEY
+          state = ::Levelcode::Metering.tranche_state(wallet)
+          # A rolling-window gate (more unlocks soon) is NOT the monthly cap — say so, and don't sell an
+          # upgrade for a wait. Only fires when tranching is on; otherwise it's the plain period message.
+          window_gated = state[:kind] == :window_exhausted && state[:next_unlock_at].present?
+
+          message =
+            if window_gated
+              "You've used the usage available right now. More unlocks #{state[:next_unlock_at].strftime('%b %-d')}."
+            elsif free
+              "You've reached this month's free compute limit. Upgrade to Pro to unlock Kimi K2.7 Code — a sharper coding model — and much higher limits, so you can keep building without interruption."
+            else
+              "You've reached your plan's usage limit for this billing period. It resets on your next renewal — or manage your plan to raise it."
+            end
+
           render json: {
             error: {
               code: "cap_reached",
-              message: free ?
-                "You've reached this month's free compute limit. Upgrade to Pro to unlock Kimi K2.7 Code — a sharper coding model — and much higher limits, so you can keep building without interruption." :
-                "You've reached your plan's usage limit for this billing period. It resets on your next renewal — or manage your plan to raise it.",
-              # The editor surfaces this as an "Upgrade" CTA on the free tier.
-              upgrade_url: (free ? "#{site_origin}/ai/pricing" : nil),
-              topup_url: topup_url_for(wallet)
+              message: message,
+              # The editor surfaces this as an "Upgrade" CTA on the free tier — but not for a rolling-window wait.
+              upgrade_url: (free && !window_gated ? "#{site_origin}/ai/pricing" : nil),
+              topup_url: topup_url_for(wallet),
+              next_unlock_at: (window_gated ? state[:next_unlock_at] : nil)
             }
           }, status: :payment_required
         end

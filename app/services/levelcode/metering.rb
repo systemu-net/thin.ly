@@ -70,6 +70,46 @@ module Levelcode
       (full * k) / n                                    # integer micro-$; == full EXACTLY at k == n
     end
 
+    # Dashboard / deny-surface view of the wallet's budget position: pairs the ENFORCED ceiling with
+    # when more unlocks, so the UI shows what's usable NOW (not the full monthly budget) and never
+    # over-promises. With tranching disabled (N=1) ceiling == full and next_unlock_at is nil, so callers
+    # behave exactly as before. `kind`: :period_exhausted (monthly cap hit → renewal) / :window_exhausted
+    # (gated now, more unlocks at next_unlock_at) / :ok.
+    def tranche_state(wallet, now = Time.current)
+      full      = wallet.budget_micros.to_i
+      ceiling   = unlocked_budget_micros(wallet, now)
+      spent     = spent_micros(wallet)
+      remaining = [ ceiling - spent, 0 ].max
+      unlock_at = ceiling < full ? next_tranche_unlock_at(wallet, now) : nil
+
+      kind =
+        if full.positive? && spent >= full then :period_exhausted
+        elsif ceiling < full && spent >= ceiling then :window_exhausted
+        else :ok
+        end
+
+      { full_micros: full, ceiling_micros: ceiling, spent_micros: spent, remaining_micros: remaining,
+        tranched: ceiling < full, next_unlock_at: unlock_at, resets_at: wallet.period_end, kind: kind }
+    end
+
+    # When the NEXT tranche unlocks — or nil if tranching is off, already fully unlocked, or the period
+    # is unknown. Same window/k math as unlocked_budget_micros, but returns the boundary time.
+    def next_tranche_unlock_at(wallet, now = Time.current)
+      n = Levelcode::BUDGET_TRANCHES
+      return nil if n <= 1
+
+      start = wallet.period_start
+      fin   = wallet.period_end
+      return nil if start.blank? || fin.blank? || fin <= start
+
+      window = (fin - start).to_f / n
+      return nil if window <= 0
+
+      elapsed = [ (now - start).to_f, 0.0 ].max
+      k = (1 + (elapsed / window).floor).clamp(1, n)
+      k < n ? start + (k * window) : nil # nil in the last window — nothing more unlocks
+    end
+
     # True when this period's spend has reached the currently-unlocked dollar ceiling.
     def over_budget?(spent, wallet)
       spent >= unlocked_budget_micros(wallet)

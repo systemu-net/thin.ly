@@ -109,12 +109,13 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
     it "returns 402 cap_reached for a topup wallet" do
       topup_wallet = instance_double(
         "CreditWallet", user_id: user.id, plan_key: "orbits_pro", input_cap: 1, output_cap: 1,
-        input_used: 5, output_used: 5, period_start: Time.current, period_end: Time.current,
-        overage_policy: "topup"
+        input_used: 5, output_used: 5, budget_micros: 10_000_000,
+        period_start: Time.current, period_end: Time.current, overage_policy: "topup"
       )
       allow(Levelcode::FreeTier).to receive(:wallet_for).and_return(topup_wallet)
       allow(Levelcode::Metering).to receive(:check!)
         .and_return(Levelcode::Metering::Decision.new(allowed: false, throttle: false, policy: "topup"))
+      allow(Levelcode::Metering).to receive(:spent_micros).with(topup_wallet).and_return(10_000_000)
 
       post "/api/levelcode/v1/ai/chat", params: body, as: :json
 
@@ -122,6 +123,28 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
       json = JSON.parse(response.body)
       expect(json.dig("error", "code")).to eq("cap_reached")
       expect(json.dig("error", "topup_url")).to be_present
+    end
+
+    it "says 'more unlocks soon' (not the monthly-cap message) when a rolling-window gate is hit" do
+      stub_const("Levelcode::BUDGET_TRANCHES", 3)
+      full = Levelcode.budget_micros("orbits_pro") # $10
+      gated = instance_double(
+        "CreditWallet", user_id: user.id, plan_key: "orbits_pro", budget_micros: full,
+        period_start: Time.current, period_end: 1.month.from_now, overage_policy: "stop"
+      )
+      allow(Levelcode::FreeTier).to receive(:wallet_for).and_return(gated)
+      allow(Levelcode::Metering).to receive(:check!)
+        .and_return(Levelcode::Metering::Decision.new(allowed: false, throttle: false, policy: "stop"))
+      allow(Levelcode::Metering).to receive(:spent_micros).with(gated).and_return(full / 2) # past the $3.33 tranche, under $10
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response).to have_http_status(:payment_required)
+      json = JSON.parse(response.body)
+      expect(json.dig("error", "code")).to eq("cap_reached")
+      expect(json.dig("error", "message")).to match(/more unlocks/i)
+      expect(json.dig("error", "next_unlock_at")).to be_present
+      expect(json.dig("error", "upgrade_url")).to be_nil # don't sell an upgrade for a wait
     end
   end
 
@@ -256,7 +279,7 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
   describe "POST /api/levelcode/v1/ai/chat on the FREE tier (M11)" do
     let(:free_wallet) do
       instance_double(
-        "CreditWallet", user_id: user.id, plan_key: "free",
+        "CreditWallet", user_id: user.id, plan_key: "free", budget_micros: 300_000,
         input_cap: Levelcode::FREE_INPUT_CAP, output_cap: Levelcode::FREE_OUTPUT_CAP,
         input_used: 0, output_used: 0, period_start: Time.current, period_end: 1.month.from_now,
         overage_policy: "stop"
@@ -303,6 +326,7 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
     it "402s cap_reached with an upgrade_url when the free monthly cap is hit" do
       allow(Levelcode::Metering).to receive(:check!)
         .and_return(Levelcode::Metering::Decision.new(allowed: false, throttle: false, policy: "stop"))
+      allow(Levelcode::Metering).to receive(:spent_micros).with(free_wallet).and_return(300_000)
 
       post "/api/levelcode/v1/ai/chat", params: { model: "x", stream: true, messages: [] }, as: :json
 

@@ -117,4 +117,54 @@ RSpec.describe Levelcode::Metering do
       expect(described_class.reserve!(paid, 4_000_000).ok).to be(false)
     end
   end
+
+  # Phase 2: the dashboard/deny view — pairs the enforced ceiling with when more unlocks so the UI
+  # matches enforcement (never shows more than will be served).
+  describe ".tranche_state" do
+    def state_for(wal, now, spent:)
+      allow(described_class).to receive(:spent_micros).with(wal).and_return(spent)
+      described_class.tranche_state(wal, now)
+    end
+
+    context "with tranching disabled (N=1)" do
+      it "reports the full budget as the ceiling, no unlock date — identical to pre-tranche behavior" do
+        s = state_for(wallet, t0, spent: 1_000_000)
+        expect(s).to include(full_micros: full, ceiling_micros: full, tranched: false, next_unlock_at: nil, kind: :ok)
+        expect(s[:remaining_micros]).to eq(full - 1_000_000)
+      end
+    end
+
+    context "with tranching enabled (N=3)" do
+      before { stub_const("Levelcode::BUDGET_TRANCHES", 3) }
+      let(:window) { (fin - t0) / 3 }
+
+      it "first window: ceiling budget/3, remaining vs the ceiling, unlock date set, kind :ok" do
+        s = state_for(wallet, t0, spent: 0)
+        expect(s[:ceiling_micros]).to eq(full / 3)
+        expect(s[:remaining_micros]).to eq(full / 3)
+        expect(s[:tranched]).to be(true)
+        expect(s[:next_unlock_at]).to eq(t0 + window)
+        expect(s[:kind]).to eq(:ok)
+      end
+
+      it "kind :window_exhausted when spend is past the ceiling but under the full budget" do
+        s = state_for(wallet, t0, spent: full / 2) # $5 spent vs the $3.33 first tranche
+        expect(s[:kind]).to eq(:window_exhausted)
+        expect(s[:remaining_micros]).to eq(0)
+        expect(s[:next_unlock_at]).to eq(t0 + window)
+      end
+
+      it "kind :period_exhausted once spend reaches the full budget" do
+        s = state_for(wallet, t0 + (2 * window), spent: full)
+        expect(s[:kind]).to eq(:period_exhausted)
+      end
+
+      it "next_unlock_at is nil in the last window (nothing more unlocks)" do
+        s = state_for(wallet, t0 + (2 * window), spent: 0)
+        expect(s[:ceiling_micros]).to eq(full)
+        expect(s[:tranched]).to be(false)
+        expect(s[:next_unlock_at]).to be_nil
+      end
+    end
+  end
 end

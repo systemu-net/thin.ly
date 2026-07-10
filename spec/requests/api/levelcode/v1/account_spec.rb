@@ -132,6 +132,31 @@ RSpec.describe "Api::Levelcode::V1::Account", type: :request do
       end
     end
 
+    context "with rolling usage windows active (LEVELCODE_BUDGET_TRANCHES=3)" do
+      let!(:wallet) do
+        CreditWallet.create!(
+          user: user, product: "levelcode", plan_key: "orbits_pro",
+          input_cap: 15_000_000, output_cap: 2_000_000,
+          budget_micros: Levelcode.budget_micros("orbits_pro"), spent_micros: 0,
+          period_start: Time.current, period_end: 1.month.from_now, overage_policy: "throttle"
+        )
+      end
+
+      it "reports remaining against the UNLOCKED ceiling (budget/3), not the full budget, with an unlock date" do
+        stub_const("Levelcode::BUDGET_TRANCHES", 3)
+        allow(Levelcode::Metering).to receive(:spent_micros).and_return(0)
+        full = Levelcode.budget_micros("orbits_pro")
+
+        get USAGE_URL
+
+        body = response.parsed_body
+        expect(body["budget_micros"]).to eq(full)                 # full monthly allowance unchanged
+        expect(body["ceiling_micros"]).to eq(full / 3)            # only the first tranche is unlocked
+        expect(body["credits_remaining_micros"]).to eq(full / 3)  # remaining is vs the ceiling, NOT the full budget
+        expect(body["next_unlock_at"]).to be_present              # and we say when more unlocks
+      end
+    end
+
     context "when the user has no wallet yet (M11 free tier)" do
       it "provisions the free tier — gpt-oss engine, free caps, hard-cap policy" do
         get USAGE_URL
