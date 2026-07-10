@@ -69,6 +69,14 @@ module Levelcode
             next if payload.empty?
             break if payload == "[DONE]"
 
+            # A terminal error frame can arrive MID-STREAM, after the 200 OK (provider
+            # outage, upstream rate-limit, mid-generation credit exhaustion). Raise the
+            # SAME UpstreamError as a pre-stream non-200 so the controller sanitizes it
+            # through one boundary and aborts — the raw frame is NEVER teed to the client.
+            if (code = error_frame_status(payload))
+              raise UpstreamError.new(code, payload)
+            end
+
             usage = extract_usage(payload) || usage
             on_chunk.call(payload)
           end
@@ -140,6 +148,18 @@ module Levelcode
       parsed = JSON.parse(payload)
       parsed["usage"]
     rescue JSON::ParserError
+      nil
+    end
+
+    # If a chunk is a terminal error frame (`{"error":{...}}`), return its numeric
+    # status (or 0 when none — the controller's classifier maps 0 to the generic
+    # our-side message). Returns nil for a normal content chunk.
+    def error_frame_status(payload)
+      parsed = JSON.parse(payload)
+      return nil unless parsed.is_a?(Hash) && parsed["error"].present?
+
+      parsed.dig("error", "code").to_i
+    rescue JSON::ParserError, TypeError
       nil
     end
 

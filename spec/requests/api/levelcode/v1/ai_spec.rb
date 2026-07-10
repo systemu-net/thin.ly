@@ -125,6 +125,93 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
     end
   end
 
+  describe "upstream error sanitization (no raw provider error ever reaches the editor)" do
+    # The exact leaky OpenRouter 402 body from the field report.
+    let(:leaky_402) do
+      '{"error":{"message":"This request requires more credits, or fewer max_tokens. ' \
+      "You requested up to 8192 tokens, but can only afford 4675. To increase, visit " \
+      'https://openrouter.ai/settings/credits and add more credits","code":402}}'
+    end
+    let(:leak_terms) { [ /openrouter/i, /credits/i, /max_tokens/i, /8192/ ] }
+
+    def upstream(status, body)
+      Levelcode::OpenRouterAdapter::UpstreamError.new(status, body)
+    end
+
+    before do
+      allow(Levelcode::Metering).to receive(:check!)
+        .and_return(Levelcode::Metering::Decision.new(allowed: true, throttle: false, policy: "throttle"))
+    end
+
+    context "non-streaming" do
+      let(:body) { { model: "moonshotai/kimi-k2.6", stream: false, messages: [ { role: "user", content: "hi" } ] } }
+
+      it "maps an upstream 402 (platform credits exhausted) to a safe 503 with no leaked internals" do
+        allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:complete).and_raise(upstream(402, leaky_402))
+
+        post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+        expect(response).to have_http_status(:service_unavailable)
+        json = JSON.parse(response.body)
+        expect(json.dig("error", "code")).to eq("service_unavailable")
+        expect(json.dig("error", "status")).to be_nil # the upstream status number must not leak
+        leak_terms.each { |t| expect(response.body).not_to match(t) }
+      end
+
+      it "maps an upstream 429 to service_busy" do
+        allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:complete)
+          .and_raise(upstream(429, '{"error":{"message":"rate limited"}}'))
+
+        post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+        expect(response).to have_http_status(:service_unavailable)
+        expect(JSON.parse(response.body).dig("error", "code")).to eq("service_busy")
+      end
+
+      it "maps a context-length 400 to a user-fixable context_length/400" do
+        allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:complete)
+          .and_raise(upstream(400, '{"error":{"message":"maximum context length is 200000 tokens"}}'))
+
+        post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+        expect(response).to have_http_status(:bad_request)
+        expect(JSON.parse(response.body).dig("error", "code")).to eq("context_length")
+      end
+    end
+
+    context "streaming" do
+      let(:body) do
+        { model: "moonshotai/kimi-k2.6", stream: true, stream_options: { include_usage: true },
+          messages: [ { role: "user", content: "hi" } ] }
+      end
+
+      it "sanitizes a pre-stream upstream error into a safe SSE frame (no status field, no leak)" do
+        allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:stream).and_raise(upstream(402, leaky_402))
+
+        post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+        expect(response).to have_http_status(:ok) # 200 + event-stream already committed
+        expect(response.body).to include("service_unavailable")
+        expect(response.body).not_to include('"status"')
+        leak_terms.each { |t| expect(response.body).not_to match(t) }
+      end
+
+      it "sanitizes a MID-stream error after good content (regression for the primary leak)" do
+        good = '{"choices":[{"delta":{"content":"partial "}}]}'
+        allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:stream) do |_a, _b, on_chunk:|
+          on_chunk.call(good)              # 200 committed + content already flowed to the client
+          raise upstream(402, leaky_402)   # what the adapter now raises on a mid-stream error frame
+        end
+
+        post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+        expect(response.body).to include("data: #{good}\n\n") # the good content still reached the user
+        expect(response.body).to include("service_unavailable") # followed by the sanitized error
+        leak_terms.each { |t| expect(response.body).not_to match(t) }
+      end
+    end
+  end
+
   describe "scope enforcement (ai:chat vs ai:agent)" do
     before do
       allow(Levelcode::Metering).to receive(:check!)

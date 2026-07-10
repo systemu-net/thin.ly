@@ -114,8 +114,9 @@ module Api
             @captured_model ||= result&.model
             write_raw("data: [DONE]\n\n")
           rescue ::Levelcode::OpenRouterAdapter::UpstreamError => e
-            Rails.logger.warn("[Api::Levelcode::V1::AiController] upstream #{e.status}: #{e.body.to_s[0, 800]}")
-            write_sse(upstream_error_json(e))
+            klass = classify_upstream(e)
+            log_upstream(e, klass)
+            write_sse(upstream_error_json(klass))
           rescue IOError, ActionController::Live::ClientDisconnected
             # Client hung up mid-stream; nothing more to write.
             Rails.logger.info("[Api::Levelcode::V1::AiController] client disconnected mid-stream")
@@ -206,9 +207,9 @@ module Api
           render json: upstream, status: :ok
         rescue ::Levelcode::OpenRouterAdapter::UpstreamError => e
           ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0) unless settled # no generation → release
-          Rails.logger.warn("[Api::Levelcode::V1::AiController] upstream #{e.status}: #{e.body.to_s[0, 800]}")
-          render json: { error: { code: "upstream_error", message: upstream_message(e) } },
-                 status: :bad_gateway
+          klass = classify_upstream(e)
+          log_upstream(e, klass)
+          render json: { error: { code: klass[:code], message: klass[:message] } }, status: klass[:http]
         rescue => e
           # Any OTHER failure (timeout, connection reset, malformed upstream JSON) before meter! settled
           # would STRAND the reservation (spend over-counted) — release it. `settled` guards against a
@@ -308,19 +309,58 @@ module Api
           ENV["SITE_ORIGIN"].presence || "https://levelcode.ai"
         end
 
-        def upstream_error_json(error)
-          { error: { code: "upstream_error", status: error.status, message: upstream_message(error) } }.to_json
+        def upstream_error_json(klass)
+          { error: { code: klass[:code], message: klass[:message] } }.to_json
         end
 
-        # Surface the REAL upstream reason (the OpenRouter error message) instead of
-        # a generic label — e.g. "moonshotai/kimi-k2.6 is not a valid model ID" or
-        # "No auth credentials found" — so failures are diagnosable in the editor.
-        def upstream_message(error)
-          parsed = JSON.parse(error.body.to_s)
-          msg = parsed.dig("error", "message") || parsed["message"]
-          msg.presence || "Upstream returned #{error.status}"
-        rescue JSON::ParserError, TypeError
-          "Upstream returned #{error.status}"
+        # User-facing copy for upstream failures. Deliberately generic — NO provider name,
+        # token math, credits URL, or upstream status number ever reaches the client.
+        SERVICE_UNAVAILABLE_MSG =
+          "The AI service is temporarily unavailable. This is on our side — not your " \
+          "account or your usage. Please try again in a moment.".freeze
+        SERVICE_BUSY_MSG =
+          "The AI service is busy right now. Please wait a moment and try again.".freeze
+        INPUT_FLAGGED_MSG =
+          "This request was blocked by the model's content filter. Try rephrasing your " \
+          "prompt and send again.".freeze
+        CONTEXT_LENGTH_MSG =
+          "This conversation is too long for the model's context window. Start a new chat, " \
+          "remove some pinned files, or switch to a larger-context model.".freeze
+
+        # Map a raw UpstreamError to a SAFE, classified editor error. The raw body is read
+        # here ONLY to classify + log — it is NEVER returned to the client. Anything not
+        # positively identified as a user-side condition is treated as an our-side outage
+        # (fail safe), so a new/unknown upstream error can never leak internal structure.
+        def classify_upstream(error)
+          status = error.status.to_i
+          low    = error.body.to_s.downcase
+
+          if status == 403 && low.include?("flag") # content moderation (user-side)
+            return { code: "input_flagged", message: INPUT_FLAGGED_MSG, http: :bad_request, alert: false }
+          end
+          if status == 400 && low.match?(/context (length|window)|maximum context/) # user-side
+            return { code: "context_length", message: CONTEXT_LENGTH_MSG, http: :bad_request, alert: false }
+          end
+          if status == 429 # upstream throttle (transient)
+            return { code: "service_busy", message: SERVICE_BUSY_MSG, http: :service_unavailable, alert: false }
+          end
+
+          # credits(402) / auth(401) / bad-model-id(404) / provider outage / unknown → one
+          # generic ops-safe message. ALERT only on the classes that mean PAID AI is globally
+          # down (platform balance, bad key, bad model id) — not on client-malformed 400s.
+          { code: "service_unavailable", message: SERVICE_UNAVAILABLE_MSG, http: :service_unavailable,
+            alert: [401, 402, 404].include?(status) }
+        end
+
+        # Log the raw upstream detail for us (never sent to the client). Page-worthy classes
+        # go to error with a greppable [LEVELCODE_ALERT] tag; user-side/transient stay at warn.
+        def log_upstream(error, klass)
+          detail = "upstream #{error.status} -> #{klass[:code]}: #{error.body.to_s[0, 800]}"
+          if klass[:alert]
+            Rails.logger.error("[LEVELCODE_ALERT] [Api::Levelcode::V1::AiController] #{detail}")
+          else
+            Rails.logger.warn("[Api::Levelcode::V1::AiController] #{detail}")
+          end
         end
 
         # Mint a fresh SERVER-side idempotency/billing id per turn. Deriving it from request.request_id
