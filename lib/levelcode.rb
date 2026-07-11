@@ -53,11 +53,16 @@ module Levelcode
     {
       key: "orbits_max",
       name: "Max",
-      price_cents: 6_000,
+      price_cents: 8_000,
       interval: "month",
       input_cap: 55_000_000,
       output_cap: 7_000_000,
       turns: 780,
+      # DECOY tier (asymmetric dominance): priced ABOVE its value line — $80 for the ~780-turn /
+      # $30-budget allowance of the old $60 Max — so it's dominated by Pro+ ($40) and Ultra ($100)
+      # and steers buyers to those. budget_micros is PINNED (NOT price × CREDIT_COGS_RATIO) to keep
+      # it a genuine worse-value anchor and hold margin. See Levelcode.budget_micros.
+      budget_micros: 30_000_000,
       stripe_lookup_key: "orbits_max",
       features: [
         "~780 Kimi turns/mo · ~117 on Opus 4.8",
@@ -302,6 +307,11 @@ module Levelcode
     def budget_micros(plan_key)
       p = plan(plan_key)
       return 0 unless p
+
+      # A plan may PIN an explicit budget, decoupling it from price — used by the Max "decoy" tier,
+      # which is priced above its value line to anchor buyers toward Pro+/Ultra (see PLANS). Its
+      # allowance stays at the pre-decoy level while the price rises, so it's a genuine worse-value tier.
+      return p[:budget_micros].to_i if p[:budget_micros]
 
       # Revenue-based (Cursor-style): the monthly credit allowance is a fixed fraction of the plan's
       # price, so gross margin = 1 - CREDIT_COGS_RATIO regardless of which models the user picks.

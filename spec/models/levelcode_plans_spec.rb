@@ -12,7 +12,8 @@ RSpec.describe Levelcode do
       expected = {
         'orbits_pro'      => { price_cents: 2_000,  input_cap: 15_000_000, output_cap: 2_000_000 },
         'orbits_pro_plus' => { price_cents: 4_000,  input_cap: 35_000_000, output_cap: 4_500_000 },
-        'orbits_max'      => { price_cents: 6_000,  input_cap: 55_000_000, output_cap: 7_000_000 },
+        'orbits_max'      => { price_cents: 8_000,  input_cap: 55_000_000, output_cap: 7_000_000 }, # decoy tier
+
         'orbits_ultra'    => { price_cents: 10_000, input_cap: 95_000_000, output_cap: 12_000_000 }
       }
 
@@ -25,6 +26,19 @@ RSpec.describe Levelcode do
         expect(plan[:stripe_lookup_key]).to eq(plan[:key])
         expect(plan[:features]).to be_an(Array).and be_present
       end
+    end
+
+    it 'keeps Max a DECOY: priced $80 but its budget is pinned below the price × ratio line' do
+      # Asymmetric-dominance pricing — Max is intentionally worse value than Pro+ and Ultra so buyers
+      # pick $40 or $100. Its budget is PINNED (not price × CREDIT_COGS_RATIO), so don't "fix" the gap.
+      max = Levelcode.plan('orbits_max')
+      expect(max[:price_cents]).to eq(8_000)
+      expect(max[:budget_micros]).to eq(30_000_000)                       # pinned, decoupled from price
+      expect(Levelcode.budget_micros('orbits_max')).to eq(30_000_000)     # override honored
+      # Value ratio (budget ÷ price) is strictly worse than both neighbors → dominated → decoy.
+      ratio = ->(k) { Levelcode.budget_micros(k) / (Levelcode.plan(k)[:price_cents] * 10_000.0) }
+      expect(ratio.call('orbits_max')).to be < ratio.call('orbits_pro_plus')
+      expect(ratio.call('orbits_max')).to be < ratio.call('orbits_ultra')
     end
   end
 
