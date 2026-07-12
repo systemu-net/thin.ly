@@ -309,6 +309,19 @@ module Levelcode
       (p[:price_cents] / 100.0 * CREDIT_COGS_RATIO * 1_000_000).round
     end
 
+    # Convert an internal COST-denominated micro-$ figure (the unit the wallet budget + metering are
+    # enforced in — what a request actually costs at the wire) into the RETAIL micro-$ the CUSTOMER
+    # sees, i.e. what they PAID. Because a paid plan's budget_micros == price × CREDIT_COGS_RATIO,
+    # dividing by the ratio yields the price; spent/remaining scale the same way, so the gross margin
+    # is preserved and "≈ turns left" (computed from the cost balance) is unchanged — only the dollar
+    # headline on the dashboard rises from the cost budget to the amount actually paid. The free tier
+    # has no price (its budget is a raw cost figure), so it is shown as-is.
+    def retail_micros(cost_micros, plan_key)
+      return cost_micros.to_i if plan_key.blank? || plan_key.to_s == FREE_PLAN_KEY || CREDIT_COGS_RATIO <= 0
+
+      (cost_micros.to_f / CREDIT_COGS_RATIO).round
+    end
+
     # The free tier's DOLLAR budget (micro-$): its token caps run on the open-weights engine
     # (worst case, no cache credit) — ~$0.30/mo. This is the hard ceiling free users burn.
     # FREE_MODEL is ENV-overridable, so fall back to the canonical gpt-oss rates if the override
