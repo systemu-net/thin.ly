@@ -105,12 +105,14 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
                                 cancel_at_period_end: false,
                                 price_id: "price_test123",
                                 plan_nickname: "Pro",
-                                price_nickname: "Pro Monthly")
+                                price_nickname: "Pro Monthly",
+                                lookup_key: nil)
     plan_double = double("stripe_plan", product: product_id, interval: interval, nickname: plan_nickname)
-    # `lookup_key` is what Levelcode::WebhookSync (invoked on every webhook via the
-    # shared controller) reads to detect an LevelCode Cloud plan; shortener prices
-    # don't set one, so a real Stripe price returns nil here — mirror that.
-    price_double = double("stripe_price", id: price_id, nickname: price_nickname, product: product_id, lookup_key: nil)
+    # `lookup_key` is what both Levelcode::WebhookSync AND the shortener handlers read to
+    # tell the two products apart. Shortener prices don't set one (nil); a LevelCode Cloud
+    # price carries a Levelcode::PLANS key (e.g. "orbits_pro"). Pass `lookup_key:` to
+    # simulate a LevelCode subscription reaching this shared webhook.
+    price_double = double("stripe_price", id: price_id, nickname: price_nickname, product: product_id, lookup_key: lookup_key)
     item_double = double("stripe_item",
                          plan:                 plan_double,
                          price:                price_double,
@@ -401,6 +403,10 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
     # ── checkout.session.async_payment_failed ────────────────────────────────
 
     describe "checkout.session.async_payment_failed" do
+      # The failure handler now resolves the subscription's product before emailing; stub the
+      # retrieve so skip_levelcode_id? sees a shortener price (lookup_key nil) and proceeds normally.
+      before { allow(Stripe::Subscription).to receive(:retrieve).and_return(build_stripe_subscription) }
+
       context "when the user exists" do
         let(:obj)   { build_checkout_session(customer: user.stripe_id) }
         let(:event) { build_event("checkout.session.async_payment_failed", obj) }
@@ -691,6 +697,10 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
     # ── invoice.payment_failed ───────────────────────────────────────────────
 
     describe "invoice.payment_failed" do
+      # The handler resolves the invoice's subscription product before emailing; stub the retrieve
+      # so skip_levelcode_id? sees a shortener price (lookup_key nil) and proceeds normally.
+      before { allow(Stripe::Subscription).to receive(:retrieve).and_return(build_stripe_subscription) }
+
       context "when the user exists" do
         let(:invoice) { build_invoice(customer: user.stripe_id) }
         let(:event)   { build_event("invoice.payment_failed", invoice) }
@@ -733,6 +743,10 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
     # ── invoice.payment_action_required ─────────────────────────────────────
 
     describe "invoice.payment_action_required" do
+      # The handler resolves the invoice's subscription product before emailing; stub the retrieve
+      # so skip_levelcode_id? sees a shortener price (lookup_key nil) and proceeds normally.
+      before { allow(Stripe::Subscription).to receive(:retrieve).and_return(build_stripe_subscription) }
+
       context "when the user exists" do
         let(:invoice) { build_invoice(customer: user.stripe_id) }
         let(:event)   { build_event("invoice.payment_action_required", invoice) }
@@ -1081,6 +1095,112 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
         it "returns 200 without raising" do
           post_stripe_webhook(event)
           expect(response).to have_http_status(:ok)
+        end
+      end
+    end
+
+    # ── Product-key routing: LevelCode Cloud events must NOT touch the shortener ──
+    #
+    # One Stripe account hosts both products. Levelcode::WebhookSync owns LevelCode
+    # subscriptions (price lookup_key ∈ Levelcode::PLANS) and provisions the CreditWallet.
+    # The shortener handlers must skip them — otherwise a LevelCode purchase resolves to the
+    # user's link-shortener Subscription row and its empty links/qr_codes metadata zeroes the
+    # shortener Plan. Here WebhookSync is stubbed (its own behavior lives in webhook_sync_spec);
+    # we assert only that the SHORTENER side leaves the Plan/Subscription untouched and sends
+    # no shortener email.
+    describe "LevelCode Cloud subscriptions (product-key routing)" do
+      let(:levelcode_sub) { build_stripe_subscription(lookup_key: "orbits_pro") }
+
+      before do
+        user
+        subscription # active shortener subscription
+        plan
+        # Give the shortener Plan distinctive values so we can prove they are NOT modified.
+        plan.update_columns(name: "Shortener Pro", links: 200, qr_codes: 100, brand_pages: 10)
+        allow(Levelcode::WebhookSync).to receive(:call) # isolate the shortener side
+        ActionMailer::Base.deliveries.clear
+      end
+
+      context "checkout.session.completed" do
+        let(:obj)   { build_checkout_session(customer: user.stripe_id) }
+        let(:event) { build_event("checkout.session.completed", obj) }
+
+        before { allow(Stripe::Subscription).to receive(:retrieve).and_return(levelcode_sub) }
+
+        it "returns 200, leaves the shortener Plan intact, and sends no shortener email" do
+          post_stripe_webhook(event)
+          expect(response).to have_http_status(:ok)
+          expect(plan.reload.name).to eq("Shortener Pro")
+          expect(plan.links).to eq(200)
+          expect(ActionMailer::Base.deliveries).to be_empty
+        end
+      end
+
+      context "invoice.paid" do
+        let(:invoice) { build_invoice(billing_reason: "subscription_cycle") }
+        let(:event)   { build_event("invoice.paid", invoice) }
+
+        before { allow(Stripe::Subscription).to receive(:retrieve).and_return(levelcode_sub) }
+
+        it "returns 200, does not zero the shortener Plan, and sends no shortener email" do
+          post_stripe_webhook(event)
+          expect(response).to have_http_status(:ok)
+          expect(plan.reload.links).to eq(200)
+          expect(subscription.reload.status).to eq("active")
+          expect(ActionMailer::Base.deliveries).to be_empty
+        end
+      end
+
+      context "customer.subscription.updated" do
+        let(:event) { build_event("customer.subscription.updated", levelcode_sub) }
+
+        it "returns 200 and does not touch the shortener Subscription/Plan" do
+          post_stripe_webhook(event)
+          expect(response).to have_http_status(:ok)
+          expect(plan.reload.links).to eq(200)
+          expect(subscription.reload.status).to eq("active")
+          expect(ActionMailer::Base.deliveries).to be_empty
+        end
+      end
+
+      context "customer.subscription.deleted (even when the Stripe sub id matches the shortener row)" do
+        # Worst case: the ids collide. The lookup_key guard must still protect the shortener —
+        # a LevelCode cancellation must not reset the shortener Plan to Free or cancel its sub.
+        let(:levelcode_sub) { build_stripe_subscription(id: stripe_subscription_id, lookup_key: "orbits_pro") }
+        let(:event) { build_event("customer.subscription.deleted", levelcode_sub) }
+
+        it "returns 200 and does NOT cancel the shortener sub or reset its Plan to Free" do
+          post_stripe_webhook(event)
+          expect(response).to have_http_status(:ok)
+          expect(subscription.reload.status).to eq("active")
+          expect(plan.reload.name).to eq("Shortener Pro")
+          expect(ActionMailer::Base.deliveries).to be_empty
+        end
+      end
+
+      context "invoice.payment_failed for a LevelCode subscription" do
+        let(:invoice) { build_invoice(customer: user.stripe_id) }
+        let(:event)   { build_event("invoice.payment_failed", invoice) }
+
+        before { allow(Stripe::Subscription).to receive(:retrieve).and_return(levelcode_sub) }
+
+        it "returns 200 and does NOT send a shortener-branded payment-failed email" do
+          post_stripe_webhook(event)
+          expect(response).to have_http_status(:ok)
+          expect(ActionMailer::Base.deliveries).to be_empty
+        end
+      end
+
+      context "invoice.payment_action_required for a LevelCode subscription" do
+        let(:invoice) { build_invoice(customer: user.stripe_id) }
+        let(:event)   { build_event("invoice.payment_action_required", invoice) }
+
+        before { allow(Stripe::Subscription).to receive(:retrieve).and_return(levelcode_sub) }
+
+        it "returns 200 and does NOT send a shortener-branded action-required email" do
+          post_stripe_webhook(event)
+          expect(response).to have_http_status(:ok)
+          expect(ActionMailer::Base.deliveries).to be_empty
         end
       end
     end
