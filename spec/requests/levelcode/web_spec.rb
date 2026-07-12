@@ -316,8 +316,8 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       it 'downgrade → applies at period end (proration_behavior none)' do
         stub_price(price_double(id: 'price_pro', amount: 2000))
         stub_current_stripe_sub(amount: 10_000) # currently on Ultra
+        expect(Stripe::Checkout::Session).not_to receive(:create)
         expect(Stripe::Subscription).to receive(:update).with('sub_x', hash_including(proration_behavior: 'none'))
-
         post '/ai/checkout', params: { lookup_key: 'orbits_pro' }
 
         expect(response).to have_http_status(:ok)
