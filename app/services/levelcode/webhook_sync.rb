@@ -162,7 +162,7 @@ module Levelcode
       ).welcome.deliver_later
       Rails.logger.info("[Levelcode::WebhookSync] Welcome email queued for #{user.email} (plan=#{lookup_key})")
     rescue StandardError => e
-      Rails.logger.error("[Levelcode::WebhookSync] Welcome email enqueue failed for #{user.email}: #{e.message}")
+      Rails.logger.error("[Levelcode::WebhookSync] Welcome email enqueue failed for #{user.email}: #{e.class}: #{e.message}")
     end
 
     def teardown(customer_id)
