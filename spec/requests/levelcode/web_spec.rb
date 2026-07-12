@@ -271,8 +271,7 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       allow(Stripe::Price).to receive(:list).and_return(double('price_list', data: [ price ]))
     end
 
-    # Existing Stripe subscription whose single item sits at `amount` (micro-dollars via unit_amount).
-    def stub_current_stripe_sub(amount:, price_id: 'price_current')
+    # Existing Stripe subscription whose single item sits at `amount` (in cents via unit_amount).
       item = double('item', id: 'si_1', price: double('cur_price', id: price_id, unit_amount: amount))
       allow(Stripe::Subscription).to receive(:retrieve).with('sub_x')
                                                        .and_return(double('sub', items: double('items', data: [ item ])))
