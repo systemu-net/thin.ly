@@ -133,6 +133,8 @@ class Api::V1::WebhooksController < ApplicationController
     return unless user
 
     stripe_subscription = Stripe::Subscription.retrieve(subscription_id)
+    return if skip_levelcode?(stripe_subscription, "checkout #{session.id}")
+
     subscription = Subscription.find_by(subscription_id: stripe_subscription.id) ||
                    Subscription.find_by(customer_id: user.stripe_id)
 
@@ -168,6 +170,8 @@ class Api::V1::WebhooksController < ApplicationController
     return unless user
 
     stripe_subscription = Stripe::Subscription.retrieve(subscription_id)
+    return if skip_levelcode?(stripe_subscription, "invoice #{invoice.id}")
+
     subscription = Subscription.find_by(customer_id: user.stripe_id)
     unless subscription
       Rails.logger.error("[Stripe Webhook] Subscription not found for customer: #{user.stripe_id}")
@@ -207,6 +211,8 @@ class Api::V1::WebhooksController < ApplicationController
   # ─── Subscription Handlers ─────────────────────────────────────
 
   def handle_subscription_updated(stripe_subscription)
+    return if skip_levelcode?(stripe_subscription, "subscription.updated #{stripe_subscription.id}")
+
     user = find_user_by_stripe_id(stripe_subscription.customer)
     return unless user
 
@@ -243,6 +249,8 @@ class Api::V1::WebhooksController < ApplicationController
   end
 
   def handle_subscription_deleted(stripe_subscription)
+    return if skip_levelcode?(stripe_subscription, "subscription.deleted #{stripe_subscription.id}")
+
     user = find_user_by_stripe_id(stripe_subscription.customer)
     return unless user
 
@@ -265,6 +273,8 @@ class Api::V1::WebhooksController < ApplicationController
   end
 
   def handle_trial_will_end(stripe_subscription)
+    return if skip_levelcode?(stripe_subscription, "trial_will_end #{stripe_subscription.id}")
+
     user = find_user_by_stripe_id(stripe_subscription.customer)
     return unless user
 
@@ -313,6 +323,30 @@ class Api::V1::WebhooksController < ApplicationController
       Rails.logger.error("[Stripe Webhook] User not found for stripe customer: #{stripe_customer_id}")
     end
     user
+  end
+
+  # ─── Product-key routing ────────────────────────────────────────
+  #
+  # One Stripe account can host BOTH products (the link shortener AND LevelCode Cloud).
+  # Levelcode::WebhookSync runs first on every event and owns LevelCode subscriptions
+  # (it provisions the CreditWallet). The shortener handlers below MUST skip those — a
+  # LevelCode price carries a Levelcode::PLANS lookup_key, whereas shortener prices don't.
+  # Without this guard a LevelCode purchase's checkout/invoice/subscription events resolve
+  # to the user's link-shortener Subscription row and, because LevelCode products carry no
+  # links/qr_codes metadata, sync_subscription would zero the shortener Plan
+  # (metadata["links"].to_i => 0). Mirror image of Levelcode::WebhookSync#levelcode_plan?.
+  def levelcode_subscription?(stripe_subscription)
+    lookup_key = stripe_subscription&.items&.data&.first&.price&.lookup_key
+    lookup_key.present? && Levelcode.plan(lookup_key).present?
+  end
+
+  # `return if skip_levelcode?(sub, context)` — logs and short-circuits a shortener handler
+  # when the event actually belongs to LevelCode Cloud (owned by Levelcode::WebhookSync).
+  def skip_levelcode?(stripe_subscription, context)
+    return false unless levelcode_subscription?(stripe_subscription)
+
+    Rails.logger.info("[Stripe Webhook] #{context}: LevelCode Cloud subscription — owned by Levelcode::WebhookSync, skipping shortener sync")
+    true
   end
 
   def sync_subscription(subscription, stripe_subscription)
