@@ -171,22 +171,35 @@ module Levelcode
       render json: { redirect: editor_callback_with_code(redirect_uri, code) }
     end
 
-    # POST /ai/checkout  (JSON, authenticate_user!) — Stripe Checkout session.
+    # POST /ai/checkout  (JSON, authenticate_user!) — start a subscription, or change plan in place.
+    #
+    # First purchase → a Stripe Checkout Session; returns { url } for the SPA to redirect to.
+    # Existing active levelcode subscription → change the plan on the SAME Stripe subscription so
+    # Stripe PRORATES (upgrade: immediate prorated charge for the difference; downgrade: applied at
+    # period end, so the customer keeps the tier they already paid for). Returns
+    # { status: "plan_changed", … } with no url. Mirrors
+    # Api::Levelcode::V1::CheckoutsController#handle_plan_change. Previously this ALWAYS opened a new
+    # Checkout Session, which charged the full new price and could leave a duplicate subscription.
     def checkout
       lookup_key = params[:lookup_key].to_s
       prices = Stripe::Price.list(lookup_keys: [ lookup_key ], expand: [ "data.product" ])
       price = prices.data[0]
       return render_error("plan_unavailable", "That plan is unavailable.", :unprocessable_content) unless price
 
-      session_obj = Stripe::Checkout::Session.create(
-        customer: current_user.stripe_id,
-        mode: "subscription",
-        client_reference_id: current_user.id,
-        line_items: [ { quantity: 1, price: price.id } ],
-        success_url: absolute_url("/ai/account"),
-        cancel_url: absolute_url("/ai/pricing")
-      )
-      render json: { url: session_obj.url }
+      subscription = current_user.subscriptions.find_by(product: "levelcode")
+      if subscription&.subscription_id.present? && subscription.status.in?(%w[active trialing past_due])
+        change_levelcode_plan(subscription.subscription_id, price)
+      else
+        session_obj = Stripe::Checkout::Session.create(
+          customer: current_user.stripe_id,
+          mode: "subscription",
+          client_reference_id: current_user.id,
+          line_items: [ { quantity: 1, price: price.id } ],
+          success_url: absolute_url("/ai/account"),
+          cancel_url: absolute_url("/ai/pricing")
+        )
+        render json: { url: session_obj.url }
+      end
     rescue Stripe::StripeError => e
       Rails.logger.error("[Levelcode web checkout] #{e.class}: #{e.message}")
       render_error("stripe_error", "Could not start checkout. Please try again.", :bad_gateway)
@@ -362,6 +375,40 @@ module Levelcode
 
     def render_error(code, message, status)
       render json: { error: { code: code, message: message } }, status: status
+    end
+
+    # Change the plan on an existing levelcode subscription IN PLACE so Stripe prorates, instead of
+    # opening a second full-price Checkout Session. Upgrade → create_prorations (Stripe charges the
+    # prorated difference now on the payment method on file; a 3DS step is emailed by Stripe if
+    # needed). Downgrade → none (the switch applies at period end). The webhook
+    # (customer.subscription.updated / invoice.paid) syncs the wallet + sends the plan-change email.
+    def change_levelcode_plan(stripe_sub_id, new_price)
+stripe_sub = Stripe::Subscription.retrieve(stripe_sub_id)
+item = stripe_sub.items&.data&.first
+return render_error("stripe_error", "Could not change plan. Please try again.", :bad_gateway) unless item&.price
+      if item.price.id == new_price.id
+        return render_error("already_subscribed", "You're already on this plan.", :unprocessable_content)
+      end
+
+      current_amount = item.price.unit_amount
+      new_amount = new_price.unit_amount
+      # Only treat it as an upgrade on a real numeric increase — never prorate-charge off a nil price.
+      upgrading = !current_amount.nil? && !new_amount.nil? && new_amount > current_amount
+
+      Stripe::Subscription.update(
+        stripe_sub_id,
+        items: [ { id: item.id, price: new_price.id } ],
+        proration_behavior: upgrading ? "create_prorations" : "none",
+        payment_behavior: "allow_incomplete"
+      )
+
+      render json: {
+        status: "plan_changed",
+        change_type: upgrading ? "upgraded" : "downgraded",
+        message: upgrading ?
+          "Your plan is upgraded — the new limits are effective now, and you were charged only the prorated difference." :
+          "Your plan will change at the end of your current billing period. You keep your current plan until then."
+      }
     end
   end
 end
