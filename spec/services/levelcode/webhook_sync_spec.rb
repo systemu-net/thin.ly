@@ -302,6 +302,7 @@ RSpec.describe Levelcode::WebhookSync do
       expect(@mailer).to have_received(:plan_changed)
       expect(@welcome_delivery).to have_received(:deliver_later)
       expect(@mailer).not_to have_received(:welcome)
+    end
 
     it "queues a DOWNGRADE email on a paid→cheaper change (Ultra → Pro)" do
       paid_wallet!(plan_key: "orbits_ultra")
@@ -315,6 +316,7 @@ RSpec.describe Levelcode::WebhookSync do
       expect(@mailer).to have_received(:plan_changed)
       expect(@welcome_delivery).to have_received(:deliver_later)
       expect(@mailer).not_to have_received(:welcome)
+    end
 
     it "does NOT queue a plan-change email on a renewal (same plan, invoice.paid)" do
       paid_wallet!(plan_key: "orbits_pro", period_end: 1.day.ago)
