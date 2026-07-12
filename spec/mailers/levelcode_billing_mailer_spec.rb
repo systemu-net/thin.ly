@@ -85,9 +85,9 @@ RSpec.describe LevelcodeBillingMailer, type: :mailer do
       ).plan_changed
 
       expect(mail.subject).to eq("Your LevelCode Cloud plan will change to Pro")
-      expect(mail.html_part.body.to_s).to match(/next billing period/i)
+      expect(mail.html_part.body.to_s).to match(/next billing date/i)
       expect(mail.html_part.body.to_s).to include("August 1, 2026")
-      expect(mail.text_part.body.to_s).to match(/next billing period/i)
+      expect(mail.text_part.body.to_s).to match(/next billing date/i)
     end
   end
 

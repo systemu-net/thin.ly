@@ -37,7 +37,7 @@
                 Hi <%= @user.email %>, your LevelCode Cloud plan changed from
                 <strong><%= @from_name %></strong> to <strong><%= @plan_name %></strong>.
                 <% if @downgrade %>
-                  Your new rate<%= @price.present? ? " (#{@price})" : "" %> and limits take effect at the start of your next billing period<%= @effective_on.present? ? " on #{@effective_on}" : "" %>.
+                  Your new rate<%= @price.present? ? " (#{@price})" : "" %> starts at your next billing date<%= @effective_on.present? ? ", #{@effective_on}" : "" %>. Your plan details are below.
                 <% else %>
                   The higher limits are active right away, and you were charged only the prorated difference for the rest of this billing period.
                 <% end %>
@@ -66,7 +66,7 @@
                       <% end %>
                       <% if @effective_on.present? %>
                       <tr>
-                        <td style="padding:5px 0;color:#807a6b;"><%= @downgrade ? "Takes effect" : "Renews" %></td>
+                        <td style="padding:5px 0;color:#807a6b;"><%= @downgrade ? "New rate from" : "Renews" %></td>
                         <td style="padding:5px 0;color:#1b1a17;"><%= @effective_on %></td>
                       </tr>
                       <% end %>
