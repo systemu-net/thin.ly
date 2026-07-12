@@ -300,8 +300,8 @@ RSpec.describe Levelcode::WebhookSync do
       expect(LevelcodeBillingMailer).to have_received(:with)
         .with(hash_including(direction: "upgrade", plan_key: "orbits_pro_plus"))
       expect(@mailer).to have_received(:plan_changed)
+      expect(@welcome_delivery).to have_received(:deliver_later)
       expect(@mailer).not_to have_received(:welcome)
-    end
 
     it "queues a DOWNGRADE email on a paid→cheaper change (Ultra → Pro)" do
       paid_wallet!(plan_key: "orbits_ultra")
