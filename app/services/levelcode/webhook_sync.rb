@@ -113,6 +113,13 @@ module Levelcode
 
       wallet = CreditWallet.find_or_initialize_by(user: user, product: PRODUCT)
 
+      # First-ever PAID purchase = the wallet is new OR still on the free plan. FreeTier may have
+      # already created a free wallet the first time this user hit the gateway, so new_record? alone
+      # would miss the common free→paid upgrade. Captured BEFORE update! flips plan_key. Renewals
+      # (invoice.paid subscription_cycle) and upgrades (subscription.updated) see an already-paid key →
+      # false → the welcome email fires exactly once, never on renewal, never duplicated.
+      first_paid_purchase = wallet.new_record? || wallet.plan_key.to_s == Levelcode::FREE_PLAN_KEY
+
       # Treat an ADVANCING period_end as a fresh billing period (roll) and reset the metered counters —
       # even on customer.subscription.updated — so the prior period's spend can't enforce against the
       # new one. A same-period update (card change, cancel toggle) leaves spend untouched.
@@ -140,6 +147,22 @@ module Levelcode
       # otherwise resurrect the pre-reset spend via max(Redis, durable).
       Levelcode::Metering.clear!(wallet) if did_reset
       Rails.logger.info("[Levelcode::WebhookSync] Wallet synced for #{user.email} (plan=#{lookup_key}, reset=#{did_reset})")
+
+      deliver_welcome_email(user, plan, lookup_key, period_end) if first_paid_purchase
+    end
+
+    # Best-effort LevelCode Cloud welcome on the first paid purchase. This MUST NOT raise out of call():
+    # a mailer/enqueue failure is not a Stripe::StripeError, so it would escape WebhookSync, get re-raised
+    # as SyncError by the controller, release Stripe idempotency, and return 500 — making Stripe RETRY a
+    # perfectly healthy paid provision purely because an email couldn't enqueue. So swallow everything and
+    # only log. deliver_later (never deliver_now) keeps SMTP off the webhook request path entirely.
+    def deliver_welcome_email(user, plan, lookup_key, period_end)
+      LevelcodeBillingMailer.with(
+        user: user, plan: plan, plan_key: lookup_key, period_end: period_end
+      ).welcome.deliver_later
+      Rails.logger.info("[Levelcode::WebhookSync] Welcome email queued for #{user.email} (plan=#{lookup_key})")
+    rescue StandardError => e
+      Rails.logger.error("[Levelcode::WebhookSync] Welcome email enqueue failed for #{user.email}: #{e.class}: #{e.message}")
     end
 
     def teardown(customer_id)
