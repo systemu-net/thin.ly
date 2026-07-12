@@ -49,7 +49,11 @@ module Levelcode
       when "customer.subscription.updated"
         provision_from_stripe_subscription(@object, @object.customer)
       when "customer.subscription.deleted"
-        teardown(@object.customer)
+        # Only a LevelCode subscription's cancellation tears the wallet down. In a shared Stripe
+        # account the same user may ALSO hold a link-shortener subscription — deleting THAT must not
+        # zero the LevelCode CreditWallet. Guard on the deleted subscription's price lookup_key, the
+        # same filter the provision_* paths already apply via levelcode_plan?.
+        teardown(@object.customer) if levelcode_plan?(lookup_key_for(@object))
       end
     rescue Stripe::StripeError => e
       Rails.logger.error("[Levelcode::WebhookSync] Stripe error on #{@event.type}: #{e.class}: #{e.message}")

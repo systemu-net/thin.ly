@@ -167,20 +167,39 @@ RSpec.describe Levelcode::WebhookSync do
   end
 
   describe "customer.subscription.deleted" do
-    it "tears the wallet down to free" do
+    it "tears the wallet down to free when a LEVELCODE subscription is canceled" do
       CreditWallet.create!(
         user: user, product: "levelcode", plan_key: "orbits_pro",
         input_cap: 10, output_cap: 10, input_used: 5, output_used: 5,
         period_start: 1.day.ago, period_end: 1.month.from_now, overage_policy: "throttle"
       )
 
-      sub = double("Stripe::Subscription", customer: "cus_test123")
+      sub = stripe_subscription(lookup_key: "orbits_pro")
+      allow(sub).to receive(:customer).and_return("cus_test123")
       described_class.call(event("customer.subscription.deleted", sub))
 
       wallet = CreditWallet.find_by(user: user, product: "levelcode")
       expect(wallet.plan_key).to eq("free")
       expect(wallet.input_cap).to eq(0)
       expect(wallet.input_used).to eq(0)
+    end
+
+    it "does NOT tear down the LevelCode wallet when a SHORTENER subscription is canceled (shared account)" do
+      CreditWallet.create!(
+        user: user, product: "levelcode", plan_key: "orbits_pro",
+        input_cap: 10, output_cap: 10, input_used: 5, output_used: 5,
+        period_start: 1.day.ago, period_end: 1.month.from_now, overage_policy: "throttle"
+      )
+
+      # A link-shortener price carries a non-Levelcode lookup_key.
+      sub = stripe_subscription(lookup_key: "creator_monthly")
+      allow(sub).to receive(:customer).and_return("cus_test123")
+      described_class.call(event("customer.subscription.deleted", sub))
+
+      wallet = CreditWallet.find_by(user: user, product: "levelcode")
+      expect(wallet.plan_key).to eq("orbits_pro") # untouched — the paid LevelCode wallet survives
+      expect(wallet.input_cap).to eq(10)
+      expect(wallet.input_used).to eq(5)
     end
   end
 

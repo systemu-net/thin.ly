@@ -80,7 +80,7 @@ class Api::V1::WebhooksController < ApplicationController
 
     when "checkout.session.async_payment_failed"
       # Delayed payment method failed after checkout.
-      handle_payment_failed(obj.customer)
+      handle_payment_failed(obj.customer, subscription_id: obj.subscription)
 
     # ── Invoice Events ───────────────────────────────────────────
     when "invoice.paid"
@@ -96,7 +96,7 @@ class Api::V1::WebhooksController < ApplicationController
 
     when "invoice.payment_failed"
       # A payment attempt on an invoice failed.
-      handle_payment_failed(obj.customer)
+      handle_payment_failed(obj.customer, subscription_id: invoice_subscription_id(obj))
 
     when "invoice.payment_action_required"
       # Customer needs to complete an action (e.g. 3D Secure authentication).
@@ -155,11 +155,7 @@ class Api::V1::WebhooksController < ApplicationController
   # ─── Invoice Handlers ──────────────────────────────────────────
 
   def handle_invoice_paid(invoice)
-    # Stripe API 2024-12-18 moved subscription to invoice.parent.subscription_details,
-    # but older events (replays, test clocks) and some edge cases still use invoice.subscription.
-    # Try the modern path first, fall back to legacy, and only skip if both are blank.
-    subscription_id = invoice.parent&.subscription_details&.subscription
-    subscription_id = invoice.try(:subscription) if subscription_id.blank?
+    subscription_id = invoice_subscription_id(invoice)
 
     unless subscription_id.present?
       Rails.logger.info("[Stripe Webhook] invoice.paid is not subscription-related, skipping")
@@ -196,6 +192,8 @@ class Api::V1::WebhooksController < ApplicationController
   end
 
   def handle_payment_action_required(invoice)
+    return if skip_levelcode_id?(invoice_subscription_id(invoice), "payment_action_required #{invoice.id}")
+
     user = find_user_by_stripe_id(invoice.customer)
     return unless user
 
@@ -287,7 +285,9 @@ class Api::V1::WebhooksController < ApplicationController
 
   # ─── Shared Helpers ─────────────────────────────────────────────
 
-  def handle_payment_failed(customer_id)
+  def handle_payment_failed(customer_id, subscription_id: nil)
+    return if skip_levelcode_id?(subscription_id, "payment_failed")
+
     user = find_user_by_stripe_id(customer_id)
     return unless user
 
@@ -347,6 +347,26 @@ class Api::V1::WebhooksController < ApplicationController
 
     Rails.logger.info("[Stripe Webhook] #{context}: LevelCode Cloud subscription — owned by Levelcode::WebhookSync, skipping shortener sync")
     true
+  end
+
+  # Same guard for handlers that only hold a subscription id (the payment-failure / action-required
+  # paths). Retrieves the subscription to read its lookup_key. Fails OPEN to the shortener path on a
+  # missing id or any Stripe error — a possibly-misbranded dunning email beats dropping the notice.
+  def skip_levelcode_id?(subscription_id, context)
+    return false if subscription_id.blank?
+
+    skip_levelcode?(Stripe::Subscription.retrieve(subscription_id), context)
+  rescue Stripe::StripeError => e
+    Rails.logger.warn("[Stripe Webhook] #{context}: could not resolve product for #{subscription_id} (#{e.message}); treating as shortener")
+    false
+  end
+
+  # The subscription id on an invoice. Stripe API 2024-12-18 moved it to
+  # parent.subscription_details.subscription; older/replayed events still carry invoice.subscription.
+  def invoice_subscription_id(invoice)
+    id = invoice.parent&.subscription_details&.subscription
+    id = invoice.try(:subscription) if id.blank?
+    id
   end
 
   def sync_subscription(subscription, stripe_subscription)

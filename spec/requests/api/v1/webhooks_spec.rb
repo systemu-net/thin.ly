@@ -403,6 +403,10 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
     # ── checkout.session.async_payment_failed ────────────────────────────────
 
     describe "checkout.session.async_payment_failed" do
+      # The failure handler now resolves the subscription's product before emailing; stub the
+      # retrieve so skip_levelcode_id? sees a shortener price (lookup_key nil) and proceeds normally.
+      before { allow(Stripe::Subscription).to receive(:retrieve).and_return(build_stripe_subscription) }
+
       context "when the user exists" do
         let(:obj)   { build_checkout_session(customer: user.stripe_id) }
         let(:event) { build_event("checkout.session.async_payment_failed", obj) }
@@ -693,6 +697,10 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
     # ── invoice.payment_failed ───────────────────────────────────────────────
 
     describe "invoice.payment_failed" do
+      # The handler resolves the invoice's subscription product before emailing; stub the retrieve
+      # so skip_levelcode_id? sees a shortener price (lookup_key nil) and proceeds normally.
+      before { allow(Stripe::Subscription).to receive(:retrieve).and_return(build_stripe_subscription) }
+
       context "when the user exists" do
         let(:invoice) { build_invoice(customer: user.stripe_id) }
         let(:event)   { build_event("invoice.payment_failed", invoice) }
@@ -735,6 +743,10 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
     # ── invoice.payment_action_required ─────────────────────────────────────
 
     describe "invoice.payment_action_required" do
+      # The handler resolves the invoice's subscription product before emailing; stub the retrieve
+      # so skip_levelcode_id? sees a shortener price (lookup_key nil) and proceeds normally.
+      before { allow(Stripe::Subscription).to receive(:retrieve).and_return(build_stripe_subscription) }
+
       context "when the user exists" do
         let(:invoice) { build_invoice(customer: user.stripe_id) }
         let(:event)   { build_event("invoice.payment_action_required", invoice) }
@@ -1162,6 +1174,32 @@ RSpec.describe "Api::V1::Webhooks", type: :request do
           expect(response).to have_http_status(:ok)
           expect(subscription.reload.status).to eq("active")
           expect(plan.reload.name).to eq("Shortener Pro")
+          expect(ActionMailer::Base.deliveries).to be_empty
+        end
+      end
+
+      context "invoice.payment_failed for a LevelCode subscription" do
+        let(:invoice) { build_invoice(customer: user.stripe_id) }
+        let(:event)   { build_event("invoice.payment_failed", invoice) }
+
+        before { allow(Stripe::Subscription).to receive(:retrieve).and_return(levelcode_sub) }
+
+        it "returns 200 and does NOT send a shortener-branded payment-failed email" do
+          post_stripe_webhook(event)
+          expect(response).to have_http_status(:ok)
+          expect(ActionMailer::Base.deliveries).to be_empty
+        end
+      end
+
+      context "invoice.payment_action_required for a LevelCode subscription" do
+        let(:invoice) { build_invoice(customer: user.stripe_id) }
+        let(:event)   { build_event("invoice.payment_action_required", invoice) }
+
+        before { allow(Stripe::Subscription).to receive(:retrieve).and_return(levelcode_sub) }
+
+        it "returns 200 and does NOT send a shortener-branded action-required email" do
+          post_stripe_webhook(event)
+          expect(response).to have_http_status(:ok)
           expect(ActionMailer::Base.deliveries).to be_empty
         end
       end
