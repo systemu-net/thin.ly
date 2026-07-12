@@ -337,6 +337,7 @@ RSpec.describe Levelcode::WebhookSync do
 
       expect(LevelcodeBillingMailer).to have_received(:with).with(hash_including(plan_key: "orbits_pro_plus"))
       expect(@mailer).to have_received(:canceled)
+      expect(@welcome_delivery).to have_received(:deliver_later)
       expect(CreditWallet.find_by(user: user, product: "levelcode").plan_key).to eq("free")
     end
   end
