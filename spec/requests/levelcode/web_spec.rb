@@ -252,4 +252,88 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       expect(response).not_to have_http_status(:ok)
     end
   end
+
+  describe 'POST /ai/checkout' do
+    let(:user) { User.create!(email: 'buyer@example.com', password: 'password123', terms_accepted: true) }
+
+    # Sign the browser in (Devise session cookie) so authenticate_user!/current_user resolve.
+    before do
+      allow(Levelcode::OneTimeCode).to receive(:redeem).with('handoff').and_return(user)
+      get '/ai/auth/handoff', params: { code: 'handoff' }
+      expect(response).to redirect_to('/ai/account')
+    end
+
+    def price_double(id:, amount:)
+      double('Stripe::Price', id: id, unit_amount: amount)
+    end
+
+    def stub_price(price)
+      allow(Stripe::Price).to receive(:list).and_return(double('price_list', data: [ price ]))
+    end
+
+    # Existing Stripe subscription whose single item sits at `amount` (micro-dollars via unit_amount).
+    def stub_current_stripe_sub(amount:, price_id: 'price_current')
+      item = double('item', id: 'si_1', price: double('cur_price', id: price_id, unit_amount: amount))
+      allow(Stripe::Subscription).to receive(:retrieve).with('sub_x')
+                                                       .and_return(double('sub', items: double('items', data: [ item ])))
+    end
+
+    context 'first purchase (no active levelcode subscription)' do
+      it 'opens a Checkout Session and returns { url } (never an in-place update)' do
+        stub_price(price_double(id: 'price_pro', amount: 2000))
+        expect(Stripe::Subscription).not_to receive(:update)
+        expect(Stripe::Checkout::Session).to receive(:create)
+          .with(hash_including(customer: 'cus_test', mode: 'subscription'))
+          .and_return(double('session', url: 'https://checkout.stripe.com/s/1'))
+
+        post '/ai/checkout', params: { lookup_key: 'orbits_pro' }
+
+        expect(response).to have_http_status(:ok)
+        expect(json).to eq('url' => 'https://checkout.stripe.com/s/1')
+      end
+    end
+
+    context 'with an active levelcode subscription' do
+      before { user.subscriptions.create!(product: 'levelcode', subscription_id: 'sub_x', status: 'active') }
+
+      it 'upgrade → prorates on the SAME subscription (no second full-price checkout)' do
+        stub_price(price_double(id: 'price_pro_plus', amount: 4000))
+        stub_current_stripe_sub(amount: 2000) # currently on Pro
+        expect(Stripe::Checkout::Session).not_to receive(:create)
+        expect(Stripe::Subscription).to receive(:update).with(
+          'sub_x',
+          hash_including(proration_behavior: 'create_prorations',
+                         items: [ hash_including(id: 'si_1', price: 'price_pro_plus') ])
+        )
+
+        post '/ai/checkout', params: { lookup_key: 'orbits_pro_plus' }
+
+        expect(response).to have_http_status(:ok)
+        expect(json).to include('status' => 'plan_changed', 'change_type' => 'upgraded')
+        expect(json).not_to have_key('url')
+      end
+
+      it 'downgrade → applies at period end (proration_behavior none)' do
+        stub_price(price_double(id: 'price_pro', amount: 2000))
+        stub_current_stripe_sub(amount: 10_000) # currently on Ultra
+        expect(Stripe::Subscription).to receive(:update).with('sub_x', hash_including(proration_behavior: 'none'))
+
+        post '/ai/checkout', params: { lookup_key: 'orbits_pro' }
+
+        expect(response).to have_http_status(:ok)
+        expect(json['change_type']).to eq('downgraded')
+      end
+
+      it 'same plan → 422 already_subscribed, no Stripe write' do
+        stub_price(price_double(id: 'price_same', amount: 4000))
+        stub_current_stripe_sub(amount: 4000, price_id: 'price_same')
+        expect(Stripe::Subscription).not_to receive(:update)
+
+        post '/ai/checkout', params: { lookup_key: 'orbits_pro_plus' }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(json.dig('error', 'code')).to eq('already_subscribed')
+      end
+    end
+  end
 end
