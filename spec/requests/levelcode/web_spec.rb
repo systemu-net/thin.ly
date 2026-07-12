@@ -272,6 +272,7 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
     end
 
     # Existing Stripe subscription whose single item sits at `amount` (in cents via unit_amount).
+    def stub_current_stripe_sub(amount:, price_id: 'price_current')
       item = double('item', id: 'si_1', price: double('cur_price', id: price_id, unit_amount: amount))
       allow(Stripe::Subscription).to receive(:retrieve).with('sub_x')
                                                        .and_return(double('sub', items: double('items', data: [ item ])))
@@ -328,6 +329,8 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
         stub_current_stripe_sub(amount: 4000, price_id: 'price_same')
         expect(Stripe::Checkout::Session).not_to receive(:create)
         expect(Stripe::Subscription).not_to receive(:update)
+
+        post '/ai/checkout', params: { lookup_key: 'orbits_pro_plus' }
 
         expect(response).to have_http_status(:unprocessable_content)
         expect(json.dig('error', 'code')).to eq('already_subscribed')
