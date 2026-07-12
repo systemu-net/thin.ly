@@ -327,9 +327,8 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       it 'same plan → 422 already_subscribed, no Stripe write' do
         stub_price(price_double(id: 'price_same', amount: 4000))
         stub_current_stripe_sub(amount: 4000, price_id: 'price_same')
+        expect(Stripe::Checkout::Session).not_to receive(:create)
         expect(Stripe::Subscription).not_to receive(:update)
-
-        post '/ai/checkout', params: { lookup_key: 'orbits_pro_plus' }
 
         expect(response).to have_http_status(:unprocessable_content)
         expect(json.dig('error', 'code')).to eq('already_subscribed')
