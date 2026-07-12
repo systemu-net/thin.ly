@@ -120,9 +120,11 @@ RSpec.describe "Api::Levelcode::V1::Account", type: :request do
         expect(response).to have_http_status(:ok)
         body = response.parsed_body
         expect(body["plan"]).to eq("Pro") # friendly Levelcode name, not the raw "orbits_pro" key
-        expect(body["budget_micros"]).to eq(Levelcode.budget_micros("orbits_pro"))
-        expect(body["spent_micros"]).to eq(5_000_000)
-        expect(body["credits_remaining_micros"]).to eq(Levelcode.budget_micros("orbits_pro") - 5_000_000)
+        # Retail credits: the API shows what the user PAID — the $20 price — not the $10 cost budget.
+        expect(body["budget_micros"]).to eq(20_000_000)
+        expect(body["budget_micros"]).to eq(Levelcode.retail_micros(Levelcode.budget_micros("orbits_pro"), "orbits_pro"))
+        expect(body["spent_micros"]).to eq(Levelcode.retail_micros(5_000_000, "orbits_pro"))
+        expect(body["credits_remaining_micros"]).to eq(Levelcode.retail_micros(Levelcode.budget_micros("orbits_pro") - 5_000_000, "orbits_pro"))
         expect(body["input_used"]).to eq(1_234)
         expect(body["input_cap"]).to eq(15_000_000)
         expect(body["output_used"]).to eq(567)
@@ -150,9 +152,9 @@ RSpec.describe "Api::Levelcode::V1::Account", type: :request do
         get USAGE_URL
 
         body = response.parsed_body
-        expect(body["budget_micros"]).to eq(full)                 # full monthly allowance unchanged
-        expect(body["ceiling_micros"]).to eq(full / 3)            # only the first tranche is unlocked
-        expect(body["credits_remaining_micros"]).to eq(full / 3)  # remaining is vs the ceiling, NOT the full budget
+        expect(body["budget_micros"]).to eq(Levelcode.retail_micros(full, "orbits_pro"))          # full allowance, retail
+        expect(body["ceiling_micros"]).to eq(Levelcode.retail_micros(full / 3, "orbits_pro"))     # only the first tranche is unlocked
+        expect(body["credits_remaining_micros"]).to eq(Levelcode.retail_micros(full / 3, "orbits_pro")) # vs the ceiling, NOT the full budget
         expect(body["next_unlock_at"]).to be_present              # and we say when more unlocks
       end
     end

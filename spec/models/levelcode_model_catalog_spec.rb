@@ -75,6 +75,26 @@ RSpec.describe "Levelcode credit economics (M14)" do
     end
   end
 
+  describe ".retail_micros — the dashboard denomination (what the customer PAID)" do
+    it "scales the cost budget back up to the plan PRICE (cost ÷ margin)" do
+      # budget_micros == price × 0.50, so retail(budget) == the full price the user paid.
+      { "orbits_pro" => 20_000_000, "orbits_pro_plus" => 40_000_000,
+        "orbits_max" => 60_000_000, "orbits_ultra" => 100_000_000 }.each do |key, price_micros|
+        expect(Levelcode.retail_micros(Levelcode.budget_micros(key), key)).to eq(price_micros)
+      end
+    end
+
+    it "scales spend by the same factor (preserving the spent/budget ratio, so % and turns-left hold)" do
+      cost = Levelcode.budget_micros("orbits_pro_plus")            # $20 cost
+      expect(Levelcode.retail_micros(cost / 2, "orbits_pro_plus")).to eq(20_000_000) # half the cost → half of $40
+    end
+
+    it "leaves the free tier (no price) untouched" do
+      expect(Levelcode.retail_micros(300_000, "free")).to eq(300_000)
+      expect(Levelcode.retail_micros(300_000, nil)).to eq(300_000)
+    end
+  end
+
   describe ".turns_for — equivalent turns a budget buys on a model" do
     it "reproduces the turn counts for the $10 Pro budget (50% of revenue)" do
       expect(Levelcode.turns_for("orbits_pro", "moonshotai/kimi-k2.7-code")).to be_within(2).of(260)

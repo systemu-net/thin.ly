@@ -30,14 +30,17 @@ module Api
             plan: current_plan_name,
             model: ::Levelcode.gateway_model(wallet&.plan_key),
             # Credits (M14): the DOLLAR budget is the enforced allowance; token fields are informational.
-            # budget_micros is the full monthly allowance; credits_remaining_micros is measured against the
-            # currently-UNLOCKED ceiling (rolling usage windows) so the UI never shows more than
+            # These four figures are RETAIL micro-$ — what the customer PAID (cost ÷ margin), not the
+            # internal cost budget — so a $40 plan reads "$40" here while metering/enforcement stay in
+            # cost dollars and "≈ turns left" (below) is unaffected. See Levelcode.retail_micros.
+            # budget_micros is the full monthly allowance; credits_remaining_micros is measured against
+            # the currently-UNLOCKED ceiling (rolling usage windows) so the UI never shows more than
             # enforcement will actually serve. next_unlock_at is when more unlocks (nil if all is, or
             # tranching is off). With tranching disabled these equal the full-budget values as before.
-            budget_micros: state ? state[:full_micros] : 0,
-            ceiling_micros: state ? state[:ceiling_micros] : 0,
-            spent_micros: state ? state[:spent_micros] : 0,
-            credits_remaining_micros: state ? state[:remaining_micros] : 0,
+            budget_micros: state ? retail(state[:full_micros]) : 0,
+            ceiling_micros: state ? retail(state[:ceiling_micros]) : 0,
+            spent_micros: state ? retail(state[:spent_micros]) : 0,
+            credits_remaining_micros: state ? retail(state[:remaining_micros]) : 0,
             next_unlock_at: state ? state[:next_unlock_at] : nil,
             input_used: in_used,
             input_cap: wallet&.input_cap.to_i,
@@ -56,15 +59,18 @@ module Api
           wallet = current_wallet
           state = wallet ? ::Levelcode::Metering.tranche_state(wallet) : nil
           # turns-left is computed from what's usable NOW (the unlocked ceiling), not the full budget.
+          # Keep this in COST micro-$ — roster_for divides it by each model's real per-turn cost, so the
+          # turns are margin-independent. Only the customer-facing dollar figures are shown at RETAIL.
           remaining = state ? state[:remaining_micros] : 0
 
           render json: {
             plan: current_plan_name,
             default_model: ::Levelcode.default_model(current_plan_key),
-            budget_micros: state ? state[:full_micros] : 0,
-            ceiling_micros: state ? state[:ceiling_micros] : 0,
-            spent_micros: state ? state[:spent_micros] : 0,
-            credits_remaining_micros: remaining,
+            # Retail micro-$ (what the customer paid) — see #usage + Levelcode.retail_micros.
+            budget_micros: state ? retail(state[:full_micros]) : 0,
+            ceiling_micros: state ? retail(state[:ceiling_micros]) : 0,
+            spent_micros: state ? retail(state[:spent_micros]) : 0,
+            credits_remaining_micros: retail(remaining),
             next_unlock_at: state ? state[:next_unlock_at] : nil,
             models: ::Levelcode.roster_for(current_plan_key, remaining)
           }, status: :ok
@@ -89,6 +95,12 @@ module Api
 
         def current_plan_key
           current_wallet&.plan_key || "free"
+        end
+
+        # Present an internal COST micro-$ figure as the RETAIL amount the customer paid (cost ÷ margin
+        # for a paid plan; unchanged for free). See Levelcode.retail_micros.
+        def retail(cost_micros)
+          ::Levelcode.retail_micros(cost_micros, current_plan_key)
         end
 
         # Friendly plan label for display (e.g. "Pro") — the Levelcode plan NAME, not the
