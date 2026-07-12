@@ -7,6 +7,10 @@ RSpec.describe Levelcode::WebhookSync do
   before do
     allow(Stripe::Customer).to receive(:create).and_return(double(id: "cus_test123"))
     user # materialize
+    # Stub the LevelCode welcome mailer so provisioning tests neither render nor enqueue a real email;
+    # the dedicated block below asserts exactly when it fires.
+    @welcome_delivery = double("delivery", deliver_later: true)
+    allow(LevelcodeBillingMailer).to receive(:with).and_return(double("mailer", welcome: @welcome_delivery))
   end
 
   # A Stripe subscription double whose single item carries the given lookup_key.
@@ -211,6 +215,69 @@ RSpec.describe Levelcode::WebhookSync do
       expect {
         described_class.call(event("customer.subscription.updated", sub))
       }.not_to change(CreditWallet, :count)
+    end
+  end
+
+  describe "LevelCode Cloud welcome email (fires once, on first paid purchase)" do
+    let(:session) { double("session", mode: "subscription", subscription: "sub_123", customer: "cus_test123") }
+
+    before do
+      allow(Stripe::Subscription).to receive(:retrieve).with("sub_123")
+        .and_return(stripe_subscription(lookup_key: "orbits_pro"))
+    end
+
+    def paid_wallet!(plan_key: "orbits_pro", period_end: 1.month.from_now)
+      CreditWallet.create!(
+        user: user, product: "levelcode", plan_key: plan_key,
+        input_cap: 10, output_cap: 10, period_start: 1.day.ago, period_end: period_end, overage_policy: "throttle"
+      )
+    end
+
+    it "queues the welcome on a brand-new wallet (checkout.session.completed)" do
+      described_class.call(event("checkout.session.completed", session))
+
+      expect(LevelcodeBillingMailer).to have_received(:with).with(hash_including(plan_key: "orbits_pro"))
+      expect(@welcome_delivery).to have_received(:deliver_later)
+    end
+
+    it "queues the welcome on a free→paid upgrade (a FREE wallet already exists)" do
+      CreditWallet.create!(
+        user: user, product: "levelcode", plan_key: Levelcode::FREE_PLAN_KEY,
+        input_cap: 0, output_cap: 0, budget_micros: 0,
+        period_start: 2.days.ago, period_end: 1.day.ago, overage_policy: "throttle"
+      )
+
+      described_class.call(event("checkout.session.completed", session))
+
+      expect(LevelcodeBillingMailer).to have_received(:with).with(hash_including(plan_key: "orbits_pro"))
+    end
+
+    it "does NOT queue a welcome on a renewal (already-paid wallet, invoice.paid)" do
+      paid_wallet!(period_end: 1.day.ago)
+      invoice = double("invoice",
+                       parent: double("parent", subscription_details: double("sd", subscription: "sub_123")),
+                       customer: "cus_test123")
+
+      described_class.call(event("invoice.paid", invoice))
+
+      expect(LevelcodeBillingMailer).not_to have_received(:with)
+    end
+
+    it "does NOT queue a welcome on a plan change (already-paid wallet, subscription.updated)" do
+      paid_wallet!
+      sub = stripe_subscription(lookup_key: "orbits_pro_plus")
+      allow(sub).to receive(:customer).and_return("cus_test123")
+
+      described_class.call(event("customer.subscription.updated", sub))
+
+      expect(LevelcodeBillingMailer).not_to have_received(:with)
+    end
+
+    it "is best-effort: an email enqueue failure never escapes as SyncError, and provisioning still commits" do
+      allow(LevelcodeBillingMailer).to receive(:with).and_raise(StandardError, "queue down")
+
+      expect { described_class.call(event("checkout.session.completed", session)) }.not_to raise_error
+      expect(CreditWallet.find_by(user: user, product: "levelcode").plan_key).to eq("orbits_pro")
     end
   end
 end

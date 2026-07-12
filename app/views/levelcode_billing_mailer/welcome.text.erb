@@ -1,0 +1,34 @@
+Welcome to LevelCode Cloud
+
+Hi <%= @user.email %>, thanks for subscribing. You're on LevelCode Cloud <%= @plan_name %> —
+metered access to the flagship coding models straight inside the editor, no API keys to juggle.
+
+YOUR PLAN
+  Plan:   LevelCode Cloud <%= @plan_name %>
+<% if @price.present? -%>
+  Price:  <%= @price %>
+<% end -%>
+<% if @turns.present? -%>
+  Usage:  ~<%= @turns %> model turns / month
+<% end -%>
+<% if @renews_on.present? -%>
+  Renews: <%= @renews_on %>
+<% end -%>
+
+SWITCH IT ON IN THE EDITOR
+  1. Install LevelCode for macOS — get the latest build at <%= @download_url %>
+  2. Sign in — in LevelCode, run "Sign in to LevelCode" from the AI chat; a browser
+     opens, you sign in, and the editor connects to your account automatically.
+  3. Turn on your plan — open Settings and set  <%= @provider_setting %>  to  gateway .
+     This is the switch that moves AI from your own key over to your metered LevelCode plan.
+  4. Pick a model — run "LevelCode: AI: Select Model..." to unlock your plan's full roster.
+
+View your usage & billing:
+  <%= @account_url %>
+
+Track usage, download invoices, or cancel anytime from your account dashboard.
+
+Questions? Just reply to this email — we read every one.
+
+© <%= Date.today.year %> LevelCode
+Terms: https://levelcode.ai/terms  ·  Privacy: https://levelcode.ai/privacy
