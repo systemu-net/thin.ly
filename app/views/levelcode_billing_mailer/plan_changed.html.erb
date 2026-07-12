@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>Your LevelCode Cloud plan changed</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f1ea;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f1ea;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:100%;background-color:#ffffff;border:1px solid #e2ddd0;border-radius:14px;overflow:hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:28px 40px 20px;border-bottom:1px solid #efe9dc;">
+              <span style="font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,Helvetica,Arial,sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.02em;color:#1b1a17;">LevelCode</span>
+              <span style="font-family:'Space Grotesk',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,Helvetica,Arial,sans-serif;font-size:20px;font-weight:500;letter-spacing:-0.02em;color:#807a6b;">&nbsp;Cloud</span>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 40px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,Helvetica,Arial,sans-serif;color:#1b1a17;">
+
+              <h1 style="margin:0 0 14px;font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-0.02em;color:#1b1a17;">
+                <% if @downgrade %>
+                  Your plan will change to <%= @plan_name %>
+                <% else %>
+                  You&rsquo;re now on <%= @plan_name %>
+                  <span style="color:#7C5CD6;">&#10003;</span>
+                <% end %>
+              </h1>
+
+              <p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#3f3c34;">
+                Hi <%= @user.email %>, your LevelCode Cloud plan changed from
+                <strong><%= @from_name %></strong> to <strong><%= @plan_name %></strong>.
+                <% if @downgrade %>
+                  Your new rate<%= @price.present? ? " (#{@price})" : "" %> and limits take effect at the start of your next billing period<%= @effective_on.present? ? " on #{@effective_on}" : "" %>.
+                <% else %>
+                  The higher limits are active right away, and you were charged only the prorated difference for the rest of this billing period.
+                <% end %>
+              </p>
+
+              <!-- Plan summary -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#faf8f3;border:1px solid #e9e3d6;border-radius:10px;margin:0 0 28px;">
+                <tr>
+                  <td style="padding:18px 20px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,Helvetica,Arial,sans-serif;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+                      <tr>
+                        <td style="padding:5px 0;color:#807a6b;width:150px;">New plan</td>
+                        <td style="padding:5px 0;color:#1b1a17;font-weight:600;">LevelCode Cloud <%= @plan_name %></td>
+                      </tr>
+                      <% if @price.present? %>
+                      <tr>
+                        <td style="padding:5px 0;color:#807a6b;">Price</td>
+                        <td style="padding:5px 0;color:#1b1a17;font-weight:600;"><%= @price %></td>
+                      </tr>
+                      <% end %>
+                      <% if @turns.present? %>
+                      <tr>
+                        <td style="padding:5px 0;color:#807a6b;">Monthly usage</td>
+                        <td style="padding:5px 0;color:#1b1a17;">~<%= @turns %> model turns / month</td>
+                      </tr>
+                      <% end %>
+                      <% if @effective_on.present? %>
+                      <tr>
+                        <td style="padding:5px 0;color:#807a6b;"><%= @downgrade ? "Takes effect" : "Renews" %></td>
+                        <td style="padding:5px 0;color:#1b1a17;"><%= @effective_on %></td>
+                      </tr>
+                      <% end %>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:4px 0 8px;">
+                <tr>
+                  <td style="border-radius:9px;background-color:#7C5CD6;">
+                    <a href="<%= @account_url %>" style="display:inline-block;padding:12px 26px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">View your usage &amp; billing</a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:14px 0 4px;font-size:13px;line-height:1.55;color:#807a6b;">
+                Didn&rsquo;t make this change? Manage or undo it from your
+                <a href="<%= @account_url %>" style="color:#6847B8;text-decoration:underline;">account dashboard</a>.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:22px 40px 30px;border-top:1px solid #efe9dc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,Helvetica,Arial,sans-serif;">
+              <p style="margin:0 0 10px;font-size:13px;line-height:1.55;color:#807a6b;">
+                Questions? Just reply to this email — we read every one.
+              </p>
+              <p style="margin:0;font-size:12px;color:#a49d8c;">
+                &copy; <%= Date.today.year %> LevelCode &middot;
+                <a href="https://levelcode.ai/terms" style="color:#807a6b;text-decoration:underline;">Terms</a> &middot;
+                <a href="https://levelcode.ai/privacy" style="color:#807a6b;text-decoration:underline;">Privacy</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

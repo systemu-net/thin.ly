@@ -38,7 +38,57 @@ class LevelcodeBillingMailer < ApplicationMailer
     )
   end
 
+  # Sent when an existing subscriber moves between paid plans (upgrade or downgrade) — enqueued
+  # best-effort from Levelcode::WebhookSync#provision_from_stripe_subscription on a paid→paid change.
+  #
+  # Params (via .with): user:, from_plan: (old PLANS hash), plan: (new PLANS hash), plan_key:,
+  #   direction: "upgrade" | "downgrade", period_end: (DateTime — the current period's end).
+  def plan_changed
+    @user        = params[:user]
+    @direction   = params[:direction].to_s
+    @downgrade   = @direction == "downgrade"
+    @from_name   = plan_name(params[:from_plan])
+    @plan        = params[:plan] || {}
+    @plan_name   = plan_name(@plan)
+    @price       = format_price(@plan[:price_cents])
+    @turns       = @plan[:turns]
+    # Downgrades apply at period end (proration_behavior "none"); upgrades are immediate/prorated.
+    @effective_on = params[:period_end]&.strftime("%B %-d, %Y")
+    @account_url = "#{LEVELCODE_SITE}/ai/account"
+
+    subject =
+      if @downgrade
+        "Your LevelCode Cloud plan will change to #{@plan_name}"
+      else
+        "You're now on LevelCode Cloud #{@plan_name}"
+      end
+
+    mail(to: @user.email, from: LEVELCODE_FROM, subject: subject)
+  end
+
+  # Sent when a paid subscription is canceled / reverts to the free tier — enqueued best-effort
+  # from Levelcode::WebhookSync#teardown (customer.subscription.deleted).
+  #
+  # Params (via .with): user:, plan: (the canceled PLANS hash), plan_key:, ends_on: (DateTime|nil).
+  def canceled
+    @user        = params[:user]
+    @from_name   = plan_name(params[:plan])
+    @ends_on     = params[:ends_on]&.strftime("%B %-d, %Y")
+    @account_url = "#{LEVELCODE_SITE}/ai/account"
+    @pricing_url = "#{LEVELCODE_SITE}/ai/pricing"
+
+    mail(
+      to: @user.email,
+      from: LEVELCODE_FROM,
+      subject: "Your LevelCode Cloud #{@from_name} plan has been canceled"
+    )
+  end
+
   private
+
+  def plan_name(plan)
+    (plan && plan[:name]).presence || "Cloud"
+  end
 
   def format_price(cents)
     return nil if cents.blank?

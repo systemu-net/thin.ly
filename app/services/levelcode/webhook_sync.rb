@@ -118,7 +118,10 @@ module Levelcode
       # would miss the common free→paid upgrade. Captured BEFORE update! flips plan_key. Renewals
       # (invoice.paid subscription_cycle) and upgrades (subscription.updated) see an already-paid key →
       # false → the welcome email fires exactly once, never on renewal, never duplicated.
-      first_paid_purchase = wallet.new_record? || wallet.plan_key.to_s == Levelcode::FREE_PLAN_KEY
+      # Captured BEFORE update! flips plan_key, so we can tell first-paid-purchase (→ welcome) from a
+      # paid→paid change (→ plan-change email) from a renewal/no-op (same key → no email).
+      prev_plan_key = wallet.plan_key.to_s
+      first_paid_purchase = wallet.new_record? || prev_plan_key == Levelcode::FREE_PLAN_KEY
 
       # Treat an ADVANCING period_end as a fresh billing period (roll) and reset the metered counters —
       # even on customer.subscription.updated — so the prior period's spend can't enforce against the
@@ -148,7 +151,20 @@ module Levelcode
       Levelcode::Metering.clear!(wallet) if did_reset
       Rails.logger.info("[Levelcode::WebhookSync] Wallet synced for #{user.email} (plan=#{lookup_key}, reset=#{did_reset})")
 
-      deliver_welcome_email(user, plan, lookup_key, period_end) if first_paid_purchase
+      if first_paid_purchase
+        deliver_welcome_email(user, plan, lookup_key, period_end)
+      elsif paid_plan_change?(prev_plan_key, lookup_key)
+        deliver_plan_change_email(user, prev_plan_key, plan, lookup_key, period_end)
+      end
+    end
+
+    # A move between two DIFFERENT paid plans (upgrade or downgrade). Excludes first-paid (handled as
+    # the welcome above), renewals/no-op updates (same key), and any transition to the free key.
+    def paid_plan_change?(prev_plan_key, new_plan_key)
+      prev_plan_key.present? &&
+        prev_plan_key != new_plan_key &&
+        new_plan_key.to_s != Levelcode::FREE_PLAN_KEY &&
+        Levelcode.plan(prev_plan_key).present?
     end
 
     # Best-effort LevelCode Cloud welcome on the first paid purchase. This MUST NOT raise out of call():
@@ -165,12 +181,43 @@ module Levelcode
       Rails.logger.error("[Levelcode::WebhookSync] Welcome email enqueue failed for #{user.email}: #{e.class}: #{e.message}")
     end
 
+    # Best-effort upgrade/downgrade notice on a paid→paid change. Best-effort for the same reason as the
+    # welcome — a mailer failure must not fail an otherwise-healthy provision and trigger a Stripe retry.
+    def deliver_plan_change_email(user, from_key, plan, plan_key, period_end)
+      from_plan = Levelcode.plan(from_key)
+      direction = plan[:price_cents].to_i > from_plan[:price_cents].to_i ? "upgrade" : "downgrade"
+      LevelcodeBillingMailer.with(
+        user: user, from_plan: from_plan, plan: plan, plan_key: plan_key,
+        direction: direction, period_end: period_end
+      ).plan_changed.deliver_later
+      Rails.logger.info("[Levelcode::WebhookSync] Plan-change (#{direction}) email queued for #{user.email} (#{from_key}→#{plan_key})")
+    rescue StandardError => e
+      Rails.logger.error("[Levelcode::WebhookSync] Plan-change email enqueue failed for #{user.email}: #{e.class}: #{e.message}")
+    end
+
+    # Best-effort cancellation notice on teardown (customer.subscription.deleted). Only for a user who
+    # was on a PAID plan — a no-op / already-free wallet has nothing to announce.
+    def deliver_canceled_email(user, from_key, ends_on)
+      return unless from_key.present? && from_key != Levelcode::FREE_PLAN_KEY && Levelcode.plan(from_key)
+
+      LevelcodeBillingMailer.with(
+        user: user, plan: Levelcode.plan(from_key), plan_key: from_key, ends_on: ends_on
+      ).canceled.deliver_later
+      Rails.logger.info("[Levelcode::WebhookSync] Cancellation email queued for #{user.email} (was #{from_key})")
+    rescue StandardError => e
+      Rails.logger.error("[Levelcode::WebhookSync] Cancellation email enqueue failed for #{user.email}: #{e.class}: #{e.message}")
+    end
+
     def teardown(customer_id)
       user = find_user(customer_id)
       return unless user
 
       wallet = CreditWallet.find_by(user: user, product: PRODUCT)
       return unless wallet
+
+      # Captured BEFORE the reset flips plan_key → free, so the email can name the plan that ended.
+      canceled_plan_key = wallet.plan_key.to_s
+      canceled_period_end = wallet.period_end
 
       wallet.update!(
         plan_key: "free",
@@ -183,6 +230,8 @@ module Levelcode
       )
       Levelcode::Metering.clear!(wallet) # drop stale hot counters so they can't resurrect spend
       Rails.logger.info("[Levelcode::WebhookSync] Wallet reset to free for #{user.email}")
+
+      deliver_canceled_email(user, canceled_plan_key, canceled_period_end)
     end
 
     # ── Helpers ───────────────────────────────────────────────────
