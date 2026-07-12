@@ -10,7 +10,8 @@ RSpec.describe Levelcode::WebhookSync do
     # Stub the LevelCode welcome mailer so provisioning tests neither render nor enqueue a real email;
     # the dedicated block below asserts exactly when it fires.
     @welcome_delivery = double("delivery", deliver_later: true)
-    allow(LevelcodeBillingMailer).to receive(:with).and_return(double("mailer", welcome: @welcome_delivery))
+    @mailer = double("mailer", welcome: @welcome_delivery, plan_changed: @welcome_delivery, canceled: @welcome_delivery)
+    allow(LevelcodeBillingMailer).to receive(:with).and_return(@mailer)
   end
 
   # A Stripe subscription double whose single item carries the given lookup_key.
@@ -263,14 +264,14 @@ RSpec.describe Levelcode::WebhookSync do
       expect(LevelcodeBillingMailer).not_to have_received(:with)
     end
 
-    it "does NOT queue a welcome on a plan change (already-paid wallet, subscription.updated)" do
+    it "does NOT queue a WELCOME on a plan change (that path sends a plan-change email instead)" do
       paid_wallet!
       sub = stripe_subscription(lookup_key: "orbits_pro_plus")
       allow(sub).to receive(:customer).and_return("cus_test123")
 
       described_class.call(event("customer.subscription.updated", sub))
 
-      expect(LevelcodeBillingMailer).not_to have_received(:with)
+      expect(@mailer).not_to have_received(:welcome)
     end
 
     it "is best-effort: an email enqueue failure never escapes as SyncError, and provisioning still commits" do
@@ -278,6 +279,69 @@ RSpec.describe Levelcode::WebhookSync do
 
       expect { described_class.call(event("checkout.session.completed", session)) }.not_to raise_error
       expect(CreditWallet.find_by(user: user, product: "levelcode").plan_key).to eq("orbits_pro")
+    end
+  end
+
+  describe "LevelCode plan-change & cancellation emails" do
+    def paid_wallet!(plan_key: "orbits_pro", period_end: 1.month.from_now)
+      CreditWallet.create!(
+        user: user, product: "levelcode", plan_key: plan_key,
+        input_cap: 10, output_cap: 10, period_start: 1.day.ago, period_end: period_end, overage_policy: "throttle"
+      )
+    end
+
+    it "queues an UPGRADE email on a paid→pricier change (Pro → Pro+)" do
+      paid_wallet!(plan_key: "orbits_pro")
+      sub = stripe_subscription(lookup_key: "orbits_pro_plus")
+      allow(sub).to receive(:customer).and_return("cus_test123")
+
+      described_class.call(event("customer.subscription.updated", sub))
+
+      expect(LevelcodeBillingMailer).to have_received(:with)
+        .with(hash_including(direction: "upgrade", plan_key: "orbits_pro_plus"))
+      expect(@mailer).to have_received(:plan_changed)
+      expect(@welcome_delivery).to have_received(:deliver_later)
+      expect(@mailer).not_to have_received(:welcome)
+    end
+
+    it "queues a DOWNGRADE email on a paid→cheaper change (Ultra → Pro)" do
+      paid_wallet!(plan_key: "orbits_ultra")
+      sub = stripe_subscription(lookup_key: "orbits_pro")
+      allow(sub).to receive(:customer).and_return("cus_test123")
+
+      described_class.call(event("customer.subscription.updated", sub))
+
+      expect(LevelcodeBillingMailer).to have_received(:with)
+        .with(hash_including(direction: "downgrade", plan_key: "orbits_pro"))
+      expect(@mailer).to have_received(:plan_changed)
+      expect(@welcome_delivery).to have_received(:deliver_later)
+      expect(@mailer).not_to have_received(:welcome)
+    end
+
+    it "does NOT queue a plan-change email on a renewal (same plan, invoice.paid)" do
+      paid_wallet!(plan_key: "orbits_pro", period_end: 1.day.ago)
+      allow(Stripe::Subscription).to receive(:retrieve).with("sub_123")
+        .and_return(stripe_subscription(lookup_key: "orbits_pro"))
+      invoice = double("invoice",
+                       parent: double("parent", subscription_details: double("sd", subscription: "sub_123")),
+                       customer: "cus_test123")
+
+      described_class.call(event("invoice.paid", invoice))
+
+      expect(@mailer).not_to have_received(:plan_changed)
+    end
+
+    it "queues a CANCELLATION email on customer.subscription.deleted (was on a paid plan) + resets to free" do
+      paid_wallet!(plan_key: "orbits_pro_plus")
+      deleted = stripe_subscription(lookup_key: "orbits_pro_plus")
+      allow(deleted).to receive(:customer).and_return("cus_test123")
+
+      described_class.call(event("customer.subscription.deleted", deleted))
+
+      expect(LevelcodeBillingMailer).to have_received(:with).with(hash_including(plan_key: "orbits_pro_plus"))
+      expect(@mailer).to have_received(:canceled)
+      expect(@welcome_delivery).to have_received(:deliver_later)
+      expect(CreditWallet.find_by(user: user, product: "levelcode").plan_key).to eq("free")
     end
   end
 end

@@ -1,0 +1,14 @@
+LevelCode Cloud
+
+YOUR <%= @from_name.upcase %> PLAN HAS BEEN CANCELED
+
+Hi <%= @user.email %>, your LevelCode Cloud <%= @from_name %> subscription is canceled<%= @ends_on.present? ? " as of #{@ends_on}" : "" %>. You won't be billed again.
+
+Your account stays on the free tier — you keep LevelCode and the open-weights model in the editor, plus you can always bring your own API key. Nothing to uninstall.
+
+Resubscribe anytime: <%= @pricing_url %>
+
+Changed your mind, or canceled by accident? Pick a plan again from your account dashboard: <%= @account_url %>
+We'd love to hear what we could do better — just reply to this email.
+
+© <%= Date.today.year %> LevelCode · https://levelcode.ai/terms · https://levelcode.ai/privacy

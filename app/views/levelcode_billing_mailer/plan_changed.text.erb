@@ -1,0 +1,33 @@
+LevelCode Cloud
+
+<% if @downgrade -%>
+YOUR PLAN WILL CHANGE TO <%= @plan_name.upcase %>
+<% else -%>
+YOU'RE NOW ON <%= @plan_name.upcase %>
+<% end -%>
+
+Hi <%= @user.email %>, your LevelCode Cloud plan changed from <%= @from_name %> to <%= @plan_name %>.
+<% if @downgrade -%>
+Your new rate<%= @price.present? ? " (#{@price})" : "" %> starts at your next billing date<%= @effective_on.present? ? ", #{@effective_on}" : "" %>. Your plan details are below.
+<% else -%>
+The higher limits are active right away, and you were charged only the prorated difference for the rest of this billing period.
+<% end -%>
+
+Your plan
+---------
+New plan:      LevelCode Cloud <%= @plan_name %>
+<% if @price.present? -%>
+Price:         <%= @price %>
+<% end -%>
+<% if @turns.present? -%>
+Monthly usage: ~<%= @turns %> model turns / month
+<% end -%>
+<% if @effective_on.present? -%>
+<%= @downgrade ? "New rate from: " : "Renews:        " %><%= @effective_on %>
+<% end -%>
+
+View your usage & billing: <%= @account_url %>
+
+Didn't make this change? Manage or undo it from your account dashboard: <%= @account_url %>
+
+© <%= Date.today.year %> LevelCode · https://levelcode.ai/terms · https://levelcode.ai/privacy
