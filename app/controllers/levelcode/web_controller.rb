@@ -383,9 +383,9 @@ module Levelcode
     # needed). Downgrade → none (the switch applies at period end). The webhook
     # (customer.subscription.updated / invoice.paid) syncs the wallet + sends the plan-change email.
     def change_levelcode_plan(stripe_sub_id, new_price)
-      stripe_sub = Stripe::Subscription.retrieve(stripe_sub_id)
-      item = stripe_sub.items.data[0]
-
+stripe_sub = Stripe::Subscription.retrieve(stripe_sub_id)
+item = stripe_sub.items&.data&.first
+return render_error("stripe_error", "Could not change plan. Please try again.", :bad_gateway) unless item&.price
       if item.price.id == new_price.id
         return render_error("already_subscribed", "You're already on this plan.", :unprocessable_content)
       end
