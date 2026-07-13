@@ -24,6 +24,11 @@ Rails.application.routes.draw do
   # root "posts#index"
 
   namespace :api, defaults: { format: :json } do
+    # LevelCode editor update feed (Code-OSS contract): GET /api/update/:target/:quality/:commit
+    # → 204 up-to-date (default) or 200 update JSON. Public, no auth. Kept a sibling of the namespaces
+    # so it matches before the "*path" catch-all; the /api/ prefix keeps it off the SPA HTML funnel.
+    get "update/:target/:quality/:commit", to: "updates#show", constraints: { commit: %r{[^/]+} }
+
     namespace :v1 do
       resources :links, only: %i[index show create update destroy], param: :lookup_code do
         collection do
