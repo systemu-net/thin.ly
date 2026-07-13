@@ -82,5 +82,35 @@ RSpec.describe "Api::Updates", type: :request do
         expect(response.content_type.to_s).not_to include("text/html")
       end
     end
+
+    context "FAIL-SAFE — an INCOMPLETE feed entry is treated as unpublished (never a 200 with null fields)" do
+      it "returns 204 when the entry is missing url" do
+        set_feed("darwin-arm64" => { "stable" => { "commit" => "def456newsha", "product_version" => "0.5.0" } })
+        get UPDATE_URL
+        expect(response).to have_http_status(:no_content)
+      end
+
+      it "returns 204 when the entry is missing product_version" do
+        set_feed("darwin-arm64" => { "stable" => { "commit" => "def456newsha", "url" => "https://x/z.zip" } })
+        get UPDATE_URL
+        expect(response).to have_http_status(:no_content)
+      end
+    end
+
+    context "FAIL-SAFE — valid JSON that isn't an object (null / array / scalar)" do
+      it "returns 204 deterministically, without hitting the exception rescue path" do
+        allow(Rails.logger).to receive(:warn)
+        ENV["LEVELCODE_UPDATE_FEED"] = "null"
+        get UPDATE_URL
+        expect(response).to have_http_status(:no_content)
+        expect(Rails.logger).not_to have_received(:warn).with(/Api::Updates/)
+      end
+
+      it "returns 204 for a JSON array too" do
+        ENV["LEVELCODE_UPDATE_FEED"] = "[]"
+        get UPDATE_URL
+        expect(response).to have_http_status(:no_content)
+      end
+    end
   end
 end

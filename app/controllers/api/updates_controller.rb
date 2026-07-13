@@ -20,8 +20,12 @@ class Api::UpdatesController < ApplicationController
     response.set_header("Cache-Control", "no-store")
 
     rel = latest_release(params[:target], params[:quality])
-    # Nothing published for this target/quality, or the running build is already the latest → up to date.
-    return head(:no_content) if rel.blank? || rel[:commit].blank? || rel[:commit] == params[:commit]
+    # 204 (up to date) when there's nothing published, the entry is INCOMPLETE (missing a field the updater
+    # needs to install — a 200 with null url/version would re-trigger the "invalid response"), or the
+    # running build is already the latest.
+    return head(:no_content) if rel.blank? ||
+                                rel[:commit].blank? || rel[:url].blank? || rel[:product_version].blank? ||
+                                rel[:commit] == params[:commit]
 
     render json: {
       version: rel[:commit], # the latest build's commit — the editor compares this to the running commit
@@ -51,7 +55,10 @@ class Api::UpdatesController < ApplicationController
 
   def parsed_feed
     raw = ENV["LEVELCODE_UPDATE_FEED"].presence
-    raw ? JSON.parse(raw) : {}
+    parsed = raw ? JSON.parse(raw) : {}
+    # Valid JSON that isn't an object (e.g. `null`, `[]`, a scalar) → treat as empty, so `latest_release`
+    # never hits a NoMethodError on `dig` and gets shunted to the rescue path. Keeps behavior deterministic.
+    parsed.is_a?(Hash) ? parsed : {}
   rescue JSON::ParserError => e
     Rails.logger.warn("[Api::Updates] bad LEVELCODE_UPDATE_FEED JSON: #{e.message}")
     {}
