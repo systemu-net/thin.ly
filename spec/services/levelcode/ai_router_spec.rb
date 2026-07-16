@@ -66,6 +66,18 @@ RSpec.describe Levelcode::AiRouter do
       it "leaves a plain-string body untouched (nothing to strip)" do
         expect(routed(base_body, "moonshotai/kimi-k2.7-code")["messages"]).to eq(base_body["messages"])
       end
+
+      # The matcher is a Claude-SEGMENT match, not an `anthropic/` prefix match: a future non-Claude
+      # Anthropic model must not inherit the Claude-only cache_control field (it could reject the request).
+      it "does NOT treat a non-Claude anthropic/* id as Anthropic-family" do
+        sys = routed(base_body, "anthropic/some-future-nonclaude")["messages"].find { |m| m["role"] == "system" }
+        expect(sys["content"]).to eq("You are the agent.") # untouched string → no breakpoint injected
+      end
+
+      it "does NOT match a look-alike id whose segment merely starts with 'claude'" do
+        sys = routed(base_body, "anthropic/claudeXYZ")["messages"].find { |m| m["role"] == "system" }
+        expect(sys["content"]).to eq("You are the agent.")
+      end
     end
 
     context "safety" do
@@ -83,6 +95,23 @@ RSpec.describe Levelcode::AiRouter do
 
       it "no-ops on a body with no messages" do
         expect(routed({ "stream" => true }, "anthropic/claude-sonnet-5")).to eq("model" => "anthropic/claude-sonnet-5", "stream" => true)
+      end
+
+      # The rescue runs with the user's prompt in scope, and NoMethodError interpolates the inspected
+      # receiver — logging e.message would spill prompt text into the logs.
+      it "logs the exception class + call site but NEVER e.message (it can carry prompt content)" do
+        secret = "SECRET-PROMPT-TEXT"
+        allow_any_instance_of(described_class).to receive(:mark_cacheable!)
+          .and_raise(NoMethodError, %(undefined method 'x' for {"content"=>"#{secret}"}:Hash))
+
+        logged = nil
+        allow(Rails.logger).to receive(:warn) { |msg| logged = msg }
+
+        out = routed(base_body, "anthropic/claude-sonnet-5")
+
+        expect(logged).to include("NoMethodError")
+        expect(logged).not_to include(secret)
+        expect(out["messages"]).to eq(base_body["messages"]) # still passes the body through unchanged
       end
     end
   end

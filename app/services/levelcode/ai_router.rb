@@ -12,9 +12,14 @@ module Levelcode
     # Fallback only — the caller always passes an explicit model.
     DEFAULT_MODEL = ENV.fetch("LEVELCODE_MODEL", "moonshotai/kimi-k2.7-code").freeze
 
-    # Anthropic/Claude upstreams (native or OpenRouter-routed) — the only ones that honor an explicit
-    # cache_control breakpoint. Everything else auto-caches server-side and would reject the field.
-    ANTHROPIC_FAMILY = %r{(?:^|/)claude|(?:^|/)anthropic/}i
+    # Claude upstreams (native `claude-…` or OpenRouter-routed `anthropic/claude-…`) — the only ones that
+    # honor an explicit cache_control breakpoint. Everything else auto-caches server-side and would reject
+    # the field. Deliberately NARROW: it matches a `claude` id SEGMENT (followed by a separator or end), not
+    # a bare `anthropic/` prefix, so a future non-Claude `anthropic/*` model or a look-alike id
+    # (`…/claudeXYZ`) is treated as non-Anthropic. Failing closed costs at most "no caching"; guessing wrong
+    # would inject an Anthropic-only field into an upstream that REJECTS the request — the same
+    # never-break-the-paying-request rule apply_cache_policy follows.
+    ANTHROPIC_FAMILY = %r{(?:^|/)claude(?:[-._:]|$)}i
 
     def self.call(body, model:, on_chunk:)
       new(body, model: model).call(on_chunk: on_chunk)
@@ -80,7 +85,11 @@ module Levelcode
       end
       routed.merge("messages" => out)
     rescue StandardError => e
-      Rails.logger.warn("[Levelcode::AiRouter] cache policy skipped: #{e.class}: #{e.message}")
+      # Exception CLASS + call site only — never e.message. This rescue wraps the user's `messages`, and
+      # NoMethodError (and friends) interpolate the INSPECTED RECEIVER into their message, so logging it
+      # would spill prompt content into the logs on every malformed body. The backtrace head carries no
+      # user data and localizes the bug better than a scrubbed message would.
+      Rails.logger.warn("[Levelcode::AiRouter] cache policy skipped: #{e.class} at #{e.backtrace&.first}")
       routed
     end
 
