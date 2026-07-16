@@ -3,8 +3,16 @@ require "rails_helper"
 # The LevelCode editor update feed (Code-OSS contract). See Api::UpdatesController.
 RSpec.describe "Api::Updates", type: :request do
   UPDATE_URL = "/api/update/darwin-arm64/stable/abc123runningsha".freeze
+  # The notify-only levelcode-updater extension's UA — pre-signing, the only client served a 200.
+  NOTIFY_UA = { "User-Agent" => "LevelCode Updater" }.freeze
 
-  after { ENV.delete("LEVELCODE_UPDATE_FEED") }
+  after do
+    ENV.delete("LEVELCODE_UPDATE_FEED")
+    ENV.delete("LEVELCODE_UPDATE_FEED_SIGNED")
+  end
+
+  # No spec below may hit GitHub — the fallback is stubbed quiet unless a context opts in.
+  before { allow(Levelcode::EditorReleaseFeed).to receive(:latest).and_return(nil) }
 
   def set_feed(map)
     ENV["LEVELCODE_UPDATE_FEED"] = map.to_json
@@ -45,8 +53,8 @@ RSpec.describe "Api::Updates", type: :request do
         } })
       end
 
-      it "returns 200 JSON in the exact Code-OSS feed shape" do
-        get UPDATE_URL
+      it "returns 200 JSON in the exact Code-OSS feed shape (to the notify-only updater)" do
+        get UPDATE_URL, headers: NOTIFY_UA
         expect(response).to have_http_status(:ok)
         body = response.parsed_body
         expect(body["version"]).to eq("def456newsha") # editor notifies because != running commit
@@ -59,8 +67,72 @@ RSpec.describe "Api::Updates", type: :request do
 
       it "falls back to the GitHub releases page when the feed omits release_notes_url" do
         set_feed("darwin-arm64" => { "stable" => { "commit" => "def456newsha", "product_version" => "0.5.0", "url" => "https://x/z.zip" } })
-        get UPDATE_URL
+        get UPDATE_URL, headers: NOTIFY_UA
         expect(response.parsed_body["releaseNotesUrl"]).to eq("https://github.com/levelcodeai/levelcode/releases/latest")
+      end
+    end
+
+    context "UNSIGNED-BUILD GUARD — a newer build exists, but the client matters" do
+      before do
+        set_feed("darwin-arm64" => { "stable" => {
+          "commit" => "def456newsha", "product_version" => "0.5.0", "url" => "https://x/z.zip"
+        } })
+      end
+
+      it "serves 204 to the built-in Squirrel updater (it would auto-download and fail on unsigned builds)" do
+        get UPDATE_URL, headers: { "User-Agent" => "LevelCode/0.5.0 Squirrel/1.0" }
+        expect(response).to have_http_status(:no_content)
+      end
+
+      it "serves 204 to a UA-less client" do
+        get UPDATE_URL
+        expect(response).to have_http_status(:no_content)
+      end
+
+      it "serves the notify-only extension (it only OPENS the url, never installs it)" do
+        get UPDATE_URL, headers: NOTIFY_UA
+        expect(response).to have_http_status(:ok)
+      end
+
+      it "serves EVERY client once signed feed assets ship (LEVELCODE_UPDATE_FEED_SIGNED=1)" do
+        ENV["LEVELCODE_UPDATE_FEED_SIGNED"] = "1"
+        get UPDATE_URL, headers: { "User-Agent" => "LevelCode/0.5.0 Squirrel/1.0" }
+        expect(response).to have_http_status(:ok)
+      end
+    end
+
+    context "GitHub-Releases fallback — no env feed configured" do
+      before do
+        allow(Levelcode::EditorReleaseFeed).to receive(:latest)
+          .with(target: "darwin-arm64", quality: "stable")
+          .and_return(
+            commit: "fd81887anewsha", product_version: "0.6.0",
+            url: "https://github.com/levelcodeai/levelcode/releases/tag/v0.6.0",
+            sha256hash: nil, timestamp: 1_784_231_903,
+            release_notes_url: "https://github.com/levelcodeai/levelcode/releases/tag/v0.6.0"
+          )
+      end
+
+      it "announces the release straight from GitHub — publishing a release IS the announcement" do
+        get UPDATE_URL, headers: NOTIFY_UA
+        expect(response).to have_http_status(:ok)
+        body = response.parsed_body
+        expect(body["version"]).to eq("fd81887anewsha")
+        expect(body["productVersion"]).to eq("0.6.0")
+        expect(body["url"]).to eq("https://github.com/levelcodeai/levelcode/releases/tag/v0.6.0")
+      end
+
+      it "the env feed WINS over the GitHub fallback when both exist (the manual pin)" do
+        set_feed("darwin-arm64" => { "stable" => {
+          "commit" => "pinnedsha", "product_version" => "0.6.1", "url" => "https://x/pinned.zip"
+        } })
+        get UPDATE_URL, headers: NOTIFY_UA
+        expect(response.parsed_body["version"]).to eq("pinnedsha")
+      end
+
+      it "returns 204 when the running build IS the GitHub latest" do
+        get "/api/update/darwin-arm64/stable/fd81887anewsha", headers: NOTIFY_UA
+        expect(response).to have_http_status(:no_content)
       end
     end
 
