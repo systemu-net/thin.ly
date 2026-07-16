@@ -78,16 +78,34 @@ RSpec.describe LevelcodeBillingMailer, type: :mailer do
       expect(body).not_to match(/thin\.ly/i)
     end
 
-    it "downgrade: period-end framing with the effective date" do
+    # The downgrade is deferred to the boundary by a Stripe subscription schedule (Levelcode::PlanChange), so
+    # the copy may now promise the customer keeps their CURRENT limits until then. That claim would have been
+    # FALSE before the schedule fix, when the entitlement dropped the moment they clicked downgrade.
+    it "downgrade: future-dated framing that promises the current tier's limits until the boundary" do
       mail = described_class.with(
         user: user, from_plan: pro_plus, plan: pro, plan_key: "orbits_pro",
         direction: "downgrade", period_end: Time.utc(2026, 8, 1).to_datetime
       ).plan_changed
 
       expect(mail.subject).to eq("Your LevelCode Cloud plan will change to Pro")
-      expect(mail.html_part.body.to_s).to match(/next billing date/i)
-      expect(mail.html_part.body.to_s).to include("August 1, 2026")
-      expect(mail.text_part.body.to_s).to match(/next billing date/i)
+      [ mail.html_part.body.to_s, mail.text_part.body.to_s ].each do |body|
+        expect(body).to match(/will change from/i)
+        expect(body).to match(/Nothing changes today/i)
+        expect(body).to include("Pro+ limits")    # the tier they KEEP, not the one they move to
+        expect(body).to include("August 1, 2026") # when it actually switches
+        expect(body).to include("$20/mo")         # the new rate, starting then
+        expect(body).not_to match(/right away/i)  # that's the upgrade framing
+      end
+    end
+
+    it "downgrade: renders without a period_end (falls back to 'end of your current billing period')" do
+      mail = described_class.with(
+        user: user, from_plan: pro_plus, plan: pro, plan_key: "orbits_pro",
+        direction: "downgrade", period_end: nil
+      ).plan_changed
+
+      expect { mail.html_part.body.to_s }.not_to raise_error
+      expect(mail.text_part.body.to_s).to include("end of your current billing period")
     end
   end
 

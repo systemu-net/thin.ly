@@ -34,11 +34,15 @@
               </h1>
 
               <p style="margin:0 0 22px;font-size:15px;line-height:1.6;color:#3f3c34;">
-                Hi <%= @user.email %>, your LevelCode Cloud plan changed from
-                <strong><%= @from_name %></strong> to <strong><%= @plan_name %></strong>.
                 <% if @downgrade %>
-                  Your new rate<%= @price.present? ? " (#{@price})" : "" %> starts at your next billing date<%= @effective_on.present? ? ", #{@effective_on}" : "" %>. Your plan details are below.
+                  Hi <%= @user.email %>, your LevelCode Cloud plan will change from
+                  <strong><%= @from_name %></strong> to <strong><%= @plan_name %></strong><%= @effective_on.present? ? " on #{@effective_on}" : " at the end of your current billing period" %>.
+                  Nothing changes today &mdash; you keep your <%= @from_name %> limits for the rest of the billing
+                  period you&rsquo;ve already paid for. Your new rate<%= @price.present? ? " (#{@price})" : "" %> starts
+                  <%= @effective_on.present? ? "on #{@effective_on}" : "then" %>.
                 <% else %>
+                  Hi <%= @user.email %>, your LevelCode Cloud plan changed from
+                  <strong><%= @from_name %></strong> to <strong><%= @plan_name %></strong>.
                   The higher limits are active right away, and you were charged only the prorated difference for the rest of this billing period.
                 <% end %>
               </p>

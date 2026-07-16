@@ -181,16 +181,24 @@ module Levelcode
       Rails.logger.error("[Levelcode::WebhookSync] Welcome email enqueue failed for #{user.email}: #{e.class}: #{e.message}")
     end
 
-    # Best-effort upgrade/downgrade notice on a paid→paid change. Best-effort for the same reason as the
-    # welcome — a mailer failure must not fail an otherwise-healthy provision and trigger a Stripe retry.
+    # Best-effort notice on a paid→paid change. Best-effort for the same reason as the welcome — a mailer
+    # failure must not fail an otherwise-healthy provision and trigger a Stripe retry.
+    #
+    # UPGRADES ONLY. An upgrade lands immediately, so this webhook is where it's first observed and is the
+    # right place to announce it. A downgrade is DEFERRED to period end by Levelcode::PlanChange (a Stripe
+    # subscription schedule), which announces it at request time — when the customer can still act on it.
+    # The wallet therefore only sees the paid→cheaper transition later, when the schedule rolls the
+    # subscription at the boundary; announcing it *there* would be a duplicate, a month late, and would read
+    # as news when the customer already knows. So the webhook stays silent on downgrades.
     def deliver_plan_change_email(user, from_key, plan, plan_key, period_end)
       from_plan = Levelcode.plan(from_key)
-      direction = plan[:price_cents].to_i > from_plan[:price_cents].to_i ? "upgrade" : "downgrade"
+      return if plan[:price_cents].to_i <= from_plan[:price_cents].to_i
+
       LevelcodeBillingMailer.with(
         user: user, from_plan: from_plan, plan: plan, plan_key: plan_key,
-        direction: direction, period_end: period_end
+        direction: "upgrade", period_end: period_end
       ).plan_changed.deliver_later
-      Rails.logger.info("[Levelcode::WebhookSync] Plan-change (#{direction}) email queued for #{user.email} (#{from_key}→#{plan_key})")
+      Rails.logger.info("[Levelcode::WebhookSync] Plan-change (upgrade) email queued for #{user.email} (#{from_key}→#{plan_key})")
     rescue StandardError => e
       Rails.logger.error("[Levelcode::WebhookSync] Plan-change email enqueue failed for #{user.email}: #{e.class}: #{e.message}")
     end

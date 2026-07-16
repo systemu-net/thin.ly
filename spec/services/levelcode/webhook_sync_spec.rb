@@ -304,18 +304,41 @@ RSpec.describe Levelcode::WebhookSync do
       expect(@mailer).not_to have_received(:welcome)
     end
 
-    it "queues a DOWNGRADE email on a paid→cheaper change (Ultra → Pro)" do
+    # Downgrades are deferred to period end by a Stripe subscription schedule and announced by
+    # Levelcode::PlanChange at REQUEST time (see its spec). By the time the wallet sees the paid→cheaper
+    # transition, the schedule has rolled the subscription at the boundary — a month after the customer
+    # asked for it — so announcing it here would be a duplicate arriving as stale news.
+    it "does NOT queue a downgrade email on a paid→cheaper change (Levelcode::PlanChange already announced it)" do
       paid_wallet!(plan_key: "orbits_ultra")
       sub = stripe_subscription(lookup_key: "orbits_pro")
       allow(sub).to receive(:customer).and_return("cus_test123")
 
       described_class.call(event("customer.subscription.updated", sub))
 
-      expect(LevelcodeBillingMailer).to have_received(:with)
-        .with(hash_including(direction: "downgrade", plan_key: "orbits_pro"))
-      expect(@mailer).to have_received(:plan_changed)
-      expect(@welcome_delivery).to have_received(:deliver_later)
+      expect(@mailer).not_to have_received(:plan_changed)
       expect(@mailer).not_to have_received(:welcome)
+    end
+
+    # The wallet still has to LAND the downgrade when the schedule rolls the subscription at the boundary —
+    # silent, but it must actually drop the tier and reset the period's spend.
+    it "still provisions the wallet DOWN when the scheduled downgrade rolls at the period boundary" do
+      old_end = Time.at(1_700_000_000).to_datetime
+      CreditWallet.create!(
+        user: user, product: "levelcode", plan_key: "orbits_ultra",
+        input_cap: 10, output_cap: 10, budget_micros: 50_000_000, spent_micros: 9_000_000,
+        period_start: old_end - 1.month, period_end: old_end, overage_policy: "throttle"
+      )
+      # New period (period_end advances) carrying the now-active cheaper price — i.e. the schedule rolled.
+      sub = stripe_subscription(lookup_key: "orbits_pro", period_start: 1_700_000_000, period_end: 1_705_000_000)
+      allow(sub).to receive(:customer).and_return("cus_test123")
+
+      described_class.call(event("customer.subscription.updated", sub))
+
+      wallet = CreditWallet.find_by(user: user, product: "levelcode")
+      expect(wallet.plan_key).to eq("orbits_pro")
+      expect(wallet.budget_micros).to eq(Levelcode.budget_micros("orbits_pro"))
+      expect(wallet.spent_micros).to eq(0) # fresh period
+      expect(@mailer).not_to have_received(:plan_changed) # still silent — announced at schedule time
     end
 
     it "does NOT queue a plan-change email on a renewal (same plan, invoice.paid)" do

@@ -263,19 +263,32 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       expect(response).to redirect_to('/ai/account')
     end
 
-    def price_double(id:, amount:)
-      double('Stripe::Price', id: id, unit_amount: amount)
+    def price_double(id:, amount:, lookup_key: 'orbits_pro')
+      double('Stripe::Price', id: id, unit_amount: amount, lookup_key: lookup_key)
     end
 
     def stub_price(price)
       allow(Stripe::Price).to receive(:list).and_return(double('price_list', data: [ price ]))
     end
 
-    # Existing Stripe subscription whose single item sits at `amount` (in cents via unit_amount).
-    def stub_current_stripe_sub(amount:, price_id: 'price_current')
-      item = double('item', id: 'si_1', price: double('cur_price', id: price_id, unit_amount: amount))
+    # Existing Stripe subscription whose single item sits at `amount` (in cents via unit_amount), with the
+    # period the customer has already paid for running until 20 days out.
+    def stub_current_stripe_sub(amount:, price_id: 'price_current', lookup_key: 'orbits_ultra')
+      item = double('item', id: 'si_1',
+                            price: double('cur_price', id: price_id, unit_amount: amount, lookup_key: lookup_key),
+                            current_period_start: 1.day.ago.to_i, current_period_end: 20.days.from_now.to_i)
       allow(Stripe::Subscription).to receive(:retrieve).with('sub_x')
-                                                       .and_return(double('sub', items: double('items', data: [ item ])))
+                                                       .and_return(double('sub', id: 'sub_x', schedule: nil,
+                                                                                 items: double('items', data: [ item ])))
+    end
+
+    # A subscription schedule mirroring the current (paid-through) phase.
+    def stub_schedule
+      phase = double('phase', start_date: 1.day.ago.to_i, end_date: 20.days.from_now.to_i)
+      sched = double('sched', id: 'sub_sched_1', phases: [ phase ])
+      allow(Stripe::SubscriptionSchedule).to receive(:create).and_return(sched)
+      allow(Stripe::SubscriptionSchedule).to receive(:update).and_return(sched)
+      sched
     end
 
     context 'first purchase (no active levelcode subscription)' do
@@ -313,15 +326,27 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
         expect(json).not_to have_key('url')
       end
 
-      it 'downgrade → applies at period end (proration_behavior none)' do
-        stub_price(price_double(id: 'price_pro', amount: 2000))
-        stub_current_stripe_sub(amount: 10_000) # currently on Ultra
+      # Ultra → Pro must NOT touch the subscription item now: that would drop the wallet to Pro mid-period
+      # via customer.subscription.updated, losing the tier the customer already paid for. It is scheduled at
+      # the period boundary instead.
+      it 'downgrade → schedules the switch at period end, never swaps the item now' do
+        stub_price(price_double(id: 'price_pro', amount: 2000, lookup_key: 'orbits_pro'))
+        stub_current_stripe_sub(amount: 10_000, lookup_key: 'orbits_ultra') # currently on Ultra
+        stub_schedule
         expect(Stripe::Checkout::Session).not_to receive(:create)
-        expect(Stripe::Subscription).to receive(:update).with('sub_x', hash_including(proration_behavior: 'none'))
+        expect(Stripe::Subscription).not_to receive(:update)
+        expect(Stripe::SubscriptionSchedule).to receive(:update).with(
+          'sub_sched_1',
+          hash_including(end_behavior: 'release',
+                         phases: [ hash_including(items: [ { price: 'price_current', quantity: 1 } ]),
+                                   hash_including(items: [ { price: 'price_pro', quantity: 1 } ]) ])
+        ).and_return(double('sched', id: 'sub_sched_1'))
+
         post '/ai/checkout', params: { lookup_key: 'orbits_pro' }
 
         expect(response).to have_http_status(:ok)
         expect(json['change_type']).to eq('downgraded')
+        expect(json['message']).to include('keep your current plan')
       end
 
       it 'same plan → 422 already_subscribed, no Stripe write' do
