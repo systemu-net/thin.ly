@@ -38,8 +38,10 @@ class LevelcodeBillingMailer < ApplicationMailer
     )
   end
 
-  # Sent when an existing subscriber moves between paid plans (upgrade or downgrade) — enqueued
-  # best-effort from Levelcode::WebhookSync#provision_from_stripe_subscription on a paid→paid change.
+  # Sent when an existing subscriber moves between paid plans.
+  #   upgrade   — enqueued best-effort from Levelcode::WebhookSync, which observes the immediate flip.
+  #   downgrade — enqueued best-effort from Levelcode::PlanChange when the change is SCHEDULED, since the
+  #               switch itself is deferred to period end and the webhook only sees it a month later.
   #
   # Params (via .with): user:, from_plan: (old PLANS hash), plan: (new PLANS hash), plan_key:,
   #   direction: "upgrade" | "downgrade", period_end: (DateTime — the current period's end).
@@ -52,7 +54,9 @@ class LevelcodeBillingMailer < ApplicationMailer
     @plan_name   = plan_name(@plan)
     @price       = format_price(@plan[:price_cents])
     @turns       = @plan[:turns]
-    # Downgrades apply at period end (proration_behavior "none"); upgrades are immediate/prorated.
+    # A downgrade is deferred to the period boundary by a Stripe subscription schedule, so this date is BOTH
+    # when the new rate starts AND when the current (higher) plan's limits stop — the customer keeps the
+    # tier they already paid for until then. Upgrades are immediate/prorated, so it's just the renewal date.
     @effective_on = params[:period_end]&.strftime("%B %-d, %Y")
     @account_url = "#{LEVELCODE_SITE}/ai/account"
 

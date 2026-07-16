@@ -174,10 +174,10 @@ module Levelcode
     # POST /ai/checkout  (JSON, authenticate_user!) — start a subscription, or change plan in place.
     #
     # First purchase → a Stripe Checkout Session; returns { url } for the SPA to redirect to.
-    # Existing active levelcode subscription → change the plan on the SAME Stripe subscription so
-    # Stripe PRORATES (upgrade: immediate prorated charge for the difference; downgrade: applied at
-    # period end, so the customer keeps the tier they already paid for). Returns
-    # { status: "plan_changed", … } with no url. Mirrors
+    # Existing active levelcode subscription → change the plan on the SAME Stripe subscription via
+    # Levelcode::PlanChange (upgrade: immediate prorated charge for the difference; downgrade: a Stripe
+    # subscription schedule that keeps the current, higher tier until period end, so the customer keeps the
+    # allowance they already paid for). Returns { status: "plan_changed", … } with no url. Mirrors
     # Api::Levelcode::V1::CheckoutsController#handle_plan_change. Previously this ALWAYS opened a new
     # Checkout Session, which charged the full new price and could leave a duplicate subscription.
     def checkout
@@ -377,38 +377,17 @@ module Levelcode
       render json: { error: { code: code, message: message } }, status: status
     end
 
-    # Change the plan on an existing levelcode subscription IN PLACE so Stripe prorates, instead of
-    # opening a second full-price Checkout Session. Upgrade → create_prorations (Stripe charges the
-    # prorated difference now on the payment method on file; a 3DS step is emailed by Stripe if
-    # needed). Downgrade → none (the switch applies at period end). The webhook
-    # (customer.subscription.updated / invoice.paid) syncs the wallet + sends the plan-change email.
+    # Change the plan on an existing levelcode subscription IN PLACE (via Levelcode::PlanChange) instead of
+    # opening a second full-price Checkout Session. Upgrade → immediate prorated swap; downgrade → a
+    # subscription schedule that defers the switch to period end (see the service for why). Stripe errors
+    # bubble to #checkout's rescue; a same-plan re-purchase is a 422 already_subscribed.
     def change_levelcode_plan(stripe_sub_id, new_price)
-stripe_sub = Stripe::Subscription.retrieve(stripe_sub_id)
-item = stripe_sub.items&.data&.first
-return render_error("stripe_error", "Could not change plan. Please try again.", :bad_gateway) unless item&.price
-      if item.price.id == new_price.id
-        return render_error("already_subscribed", "You're already on this plan.", :unprocessable_content)
-      end
-
-      current_amount = item.price.unit_amount
-      new_amount = new_price.unit_amount
-      # Only treat it as an upgrade on a real numeric increase — never prorate-charge off a nil price.
-      upgrading = !current_amount.nil? && !new_amount.nil? && new_amount > current_amount
-
-      Stripe::Subscription.update(
-        stripe_sub_id,
-        items: [ { id: item.id, price: new_price.id } ],
-        proration_behavior: upgrading ? "create_prorations" : "none",
-        payment_behavior: "allow_incomplete"
+      result = Levelcode::PlanChange.call(
+        user: current_user, subscription_id: stripe_sub_id, new_price: new_price
       )
-
-      render json: {
-        status: "plan_changed",
-        change_type: upgrading ? "upgraded" : "downgraded",
-        message: upgrading ?
-          "Your plan is upgraded — the new limits are effective now, and you were charged only the prorated difference." :
-          "Your plan will change at the end of your current billing period. You keep your current plan until then."
-      }
+      render json: { status: "plan_changed", change_type: result.change_type, message: result.message }
+    rescue Levelcode::PlanChange::SamePlanError
+      render_error("already_subscribed", "You're already on this plan.", :unprocessable_content)
     end
   end
 end

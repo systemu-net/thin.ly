@@ -6,10 +6,13 @@ YOUR PLAN WILL CHANGE TO <%= @plan_name.upcase %>
 YOU'RE NOW ON <%= @plan_name.upcase %>
 <% end -%>
 
-Hi <%= @user.email %>, your LevelCode Cloud plan changed from <%= @from_name %> to <%= @plan_name %>.
 <% if @downgrade -%>
-Your new rate<%= @price.present? ? " (#{@price})" : "" %> starts at your next billing date<%= @effective_on.present? ? ", #{@effective_on}" : "" %>. Your plan details are below.
+Hi <%= @user.email %>, your LevelCode Cloud plan will change from <%= @from_name %> to <%= @plan_name %><%= @effective_on.present? ? " on #{@effective_on}" : " at the end of your current billing period" %>.
+
+Nothing changes today - you keep your <%= @from_name %> limits for the rest of the billing period you've already paid for. Your new rate<%= @price.present? ? " (#{@price})" : "" %> starts <%= @effective_on.present? ? "on #{@effective_on}" : "then" %>.
 <% else -%>
+Hi <%= @user.email %>, your LevelCode Cloud plan changed from <%= @from_name %> to <%= @plan_name %>.
+
 The higher limits are active right away, and you were charged only the prorated difference for the rest of this billing period.
 <% end -%>
 
