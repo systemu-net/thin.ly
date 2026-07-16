@@ -58,7 +58,22 @@ RSpec.describe Levelcode::PlanChange do
     it "never opens a subscription schedule (upgrades take effect now)" do
       expect(Stripe::SubscriptionSchedule).not_to receive(:create)
       expect(Stripe::SubscriptionSchedule).not_to receive(:update)
+      expect(Stripe::SubscriptionSchedule).not_to receive(:release)
       call(ultra_price)
+    end
+
+    # Upgrade AFTER a scheduled downgrade: the pending schedule must be detached first, or Stripe
+    # rejects the direct update / the schedule flips the price back down at the boundary anyway.
+    it "releases a pending downgrade schedule BEFORE the immediate swap (never cancels it)" do
+      allow(Stripe::Subscription).to receive(:retrieve).with("sub_x")
+        .and_return(stripe_sub(pro_price, schedule: "sub_sched_pending"))
+
+      expect(Stripe::SubscriptionSchedule).to receive(:release).with("sub_sched_pending").ordered
+      expect(Stripe::Subscription).to receive(:update)
+        .with("sub_x", hash_including(items: [ { id: "si_1", price: "price_ultra" } ])).ordered
+        .and_return(double("updated"))
+
+      expect(call(ultra_price).change_type).to eq("upgraded")
     end
 
     it "does NOT email — the webhook announces the upgrade when it observes the flip" do
@@ -129,6 +144,35 @@ RSpec.describe Levelcode::PlanChange do
       expect(Stripe::SubscriptionSchedule).to receive(:update).with("sub_sched_existing", anything).and_return(existing)
 
       call(pro_price)
+    end
+
+    # A subscriber who already went through one scheduled downgrade has a schedule whose ACTIVE phase is
+    # our open-ended final phase (no end_date). The next downgrade must fall back to the item's
+    # current_period_end — never Time.at(nil), never an end_date-less first phase.
+    it "handles a reused schedule whose active phase is open-ended: the item's period end is the boundary" do
+      open_phase = double("phase", start_date: period_start, end_date: nil)
+      existing = double("Stripe::SubscriptionSchedule", id: "sub_sched_existing", phases: [ open_phase ])
+      allow(Stripe::Subscription).to receive(:retrieve).with("sub_x")
+        .and_return(stripe_sub(ultra_price, schedule: "sub_sched_existing"))
+      allow(Stripe::SubscriptionSchedule).to receive(:retrieve).with("sub_sched_existing").and_return(existing)
+
+      expect(Stripe::SubscriptionSchedule).to receive(:update).with(
+        "sub_sched_existing",
+        hash_including(
+          phases: [
+            {
+              items: [ { price: "price_ultra", quantity: 1 } ],
+              start_date: period_start,
+              end_date: period_end # from the item — the phase has none
+            },
+            { items: [ { price: "price_pro", quantity: 1 } ] }
+          ]
+        )
+      ).and_return(existing)
+
+      expect(call(pro_price).change_type).to eq("downgraded")
+      expect(LevelcodeBillingMailer).to have_received(:with)
+        .with(hash_including(period_end: Time.at(period_end).to_datetime))
     end
 
     it "is best-effort about the email: an enqueue failure never fails the plan change" do

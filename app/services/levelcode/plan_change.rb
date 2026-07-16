@@ -9,7 +9,9 @@ module Levelcode
   # UPGRADE (new price > current): swap the item price IMMEDIATELY with create_prorations — Stripe charges
   # the prorated difference on the payment method on file (Stripe emails a 3DS step if needed) and the
   # customer.subscription.updated webhook re-provisions the wallet UP right away. Levelcode::WebhookSync
-  # sends the upgrade email, because it observes the change actually landing.
+  # sends the upgrade email, because it observes the change actually landing. Any attached schedule (a
+  # pending deferred downgrade) is RELEASED first, so it can't reject the update or flip the price back
+  # down at the boundary.
   #
   # DOWNGRADE (new price <= current): do NOT swap the item price now. Swapping immediately — even with
   # proration_behavior "none", which only defers the *charge* — drops the item to the cheaper price on the
@@ -61,7 +63,7 @@ module Levelcode
         apply_upgrade(stripe_sub, item)
         Result.new(change_type: "upgraded", message: UPGRADE_MESSAGE)
       else
-        effective_on = schedule_downgrade(stripe_sub, current_price)
+        effective_on = schedule_downgrade(stripe_sub, item, current_price)
         notify_downgrade(current_price.lookup_key, effective_on)
         Result.new(change_type: "downgraded", message: DOWNGRADE_MESSAGE)
       end
@@ -76,6 +78,7 @@ module Levelcode
 
     # Immediate, prorated swap on the same subscription (Stripe charges the difference now).
     def apply_upgrade(stripe_sub, item)
+      release_schedule(stripe_sub)
       Stripe::Subscription.update(
         stripe_sub.id,
         items: [ { id: item.id, price: @new_price.id } ],
@@ -84,12 +87,30 @@ module Levelcode
       )
     end
 
+    # A previously scheduled (deferred) downgrade must not survive an upgrade: with the schedule still
+    # attached, Stripe either rejects the direct Subscription.update or lets the schedule flip the price
+    # at the boundary anyway — silently undoing the upgrade the customer just paid a proration for.
+    # RELEASE (never cancel) detaches the schedule and leaves the subscription running on its current
+    # item, which the update above then upgrades immediately.
+    def release_schedule(stripe_sub)
+      sched = stripe_sub.respond_to?(:schedule) ? stripe_sub.schedule : nil
+      return if sched.blank?
+
+      Stripe::SubscriptionSchedule.release(sched.is_a?(String) ? sched : sched.id)
+    end
+
     # Attach (or reuse) a subscription schedule so the current price runs to period end and the new (lower)
     # price takes over at the boundary. Returns the DateTime the downgrade takes effect — the end of the
     # period the customer already paid for — for the notification email.
-    def schedule_downgrade(stripe_sub, current_price)
+    def schedule_downgrade(stripe_sub, item, current_price)
       schedule = existing_schedule(stripe_sub) || Stripe::SubscriptionSchedule.create(from_subscription: stripe_sub.id)
       phase = current_phase(schedule)
+      # The paid-through boundary. A fresh from_subscription schedule stamps it on the phase, but a
+      # REUSED schedule's active phase can be OPEN-ENDED (our own final phase carries no end_date, so
+      # once a first scheduled downgrade rolls past its boundary that phase is the active one) — the
+      # item's current_period_end is the authoritative boundary either way. Time.at(nil) must never
+      # happen here, and an end_date-less first phase would be an invalid schedule update.
+      boundary = (phase && phase.end_date) || item.current_period_end
 
       Stripe::SubscriptionSchedule.update(
         schedule.id,
@@ -100,18 +121,21 @@ module Levelcode
         phases: [
           {
             items: [ { price: current_price.id, quantity: 1 } ],
-            start_date: phase.start_date,
-            end_date: phase.end_date
+            start_date: (phase && phase.start_date) || item.current_period_start,
+            end_date: boundary
           },
           {
-            # No start_date → begins exactly when the current phase ends (the paid-through boundary), and no
-            # end_date → runs on indefinitely at the new price.
+            # No start_date → begins exactly when the current phase ends (the paid-through boundary). We pass
+            # no end_date either, but Stripe still gives this final phase ONE billing cycle and then, per
+            # end_behavior, RELEASES the subscription back to normal billing at the new price — where it goes
+            # on renewing indefinitely. So "no end_date" means "one cycle, then released", not "runs forever
+            # on the schedule". Verified against Stripe test mode with a test clock.
             items: [ { price: @new_price.id, quantity: 1 } ]
           }
         ]
       )
 
-      Time.at(phase.end_date).to_datetime
+      Time.at(boundary).to_datetime
     end
 
     # The subscription may already carry a schedule (e.g. a prior deferred downgrade) — reuse it, since
