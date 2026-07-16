@@ -5,16 +5,22 @@
 #   • 200 { version, productVersion, url, sha256hash, timestamp, releaseNotesUrl }  → a newer build exists
 #     (`version` is the LATEST build's commit; the editor notifies when it differs from the running commit).
 #
-# Today this returns 204 (up to date): it makes the editor's "Check for Updates" report "Up to Date"
-# instead of "The server sent an invalid response" (the old 404 that broke both the native Squirrel updater
-# and the levelcode-updater extension). Real in-app updates on macOS need a Developer-ID-signed .zip feed
-# asset (Squirrel.Mac auto-installs + verifies the signature) — until that ships, users update via the
-# download page and this feed stays quiet. Populate LEVELCODE_UPDATE_FEED to switch it on.
+# The release source, in priority order:
+#   1. LEVELCODE_UPDATE_FEED (env JSON) — the manual override/pin, and later the home of signed
+#      .zip feed assets (Squirrel.Mac auto-installs + verifies the signature).
+#   2. GitHub Releases (Levelcode::EditorReleaseFeed, cached 5 min) — the zero-maintenance default:
+#      publishing a release on levelcodeai/levelcode IS the announcement.
+#
+# UNSIGNED-BUILD GUARD: the built-in Squirrel updater AUTO-DOWNLOADS a 200's url and fails on
+# ad-hoc-signed builds (and the GitHub-backed url is a web page, not a signed .zip). Until signed
+# builds ship (flip LEVELCODE_UPDATE_FEED_SIGNED=1), only the notify-only levelcode-updater
+# extension — which merely OPENS the url — is served a release; everything else gets 204.
 #
 # FAIL-SAFE: this endpoint must NEVER return 5xx or HTML — the native updater and the extension both treat
 # anything that isn't 204/valid-JSON as an error. Any exception or unknown release resolves to 204.
 class Api::UpdatesController < ApplicationController
   RELEASE_NOTES_FALLBACK = "https://github.com/levelcodeai/levelcode/releases/latest".freeze
+  NOTIFY_ONLY_UA_PREFIX = "LevelCode Updater".freeze
 
   def show
     response.set_header("Cache-Control", "no-store")
@@ -26,6 +32,10 @@ class Api::UpdatesController < ApplicationController
     return head(:no_content) if rel.blank? ||
                                 rel[:commit].blank? || rel[:url].blank? || rel[:product_version].blank? ||
                                 rel[:commit] == params[:commit]
+
+    # Unsigned-build guard (see class comment): a newer build exists, but only the notify-only
+    # extension may hear about it until signed feed assets ship.
+    return head(:no_content) unless notify_only_client? || signed_feed?
 
     render json: {
       version: rel[:commit], # the latest build's commit — the editor compares this to the running commit
@@ -42,15 +52,29 @@ class Api::UpdatesController < ApplicationController
 
   private
 
-  # The latest published build for a target/quality, or nil. Config-driven (LEVELCODE_UPDATE_FEED, a JSON
-  # map) so the feed is fast and can't be rate-limited; absent/empty → nil → 204 (the notify-via-site state).
+  # The notify-only levelcode-updater extension identifies itself; the built-in Squirrel updater
+  # (and anything else) does not.
+  def notify_only_client?
+    request.user_agent.to_s.start_with?(NOTIFY_ONLY_UA_PREFIX)
+  end
+
+  # Signed .zip feed assets are live — every client (incl. Squirrel auto-install) may take the 200.
+  def signed_feed?
+    ENV["LEVELCODE_UPDATE_FEED_SIGNED"] == "1"
+  end
+
+  # The latest published build for a target/quality, or nil. The env feed (LEVELCODE_UPDATE_FEED, a JSON
+  # map) wins when it has an entry — the manual pin / signed-asset home; otherwise fall back to the
+  # cached GitHub Releases lookup. Absent both → nil → 204.
   #   LEVELCODE_UPDATE_FEED = {"darwin-arm64":{"stable":{"commit":"…","product_version":"0.4.0",
   #                            "url":"…signed.zip","sha256hash":"…","timestamp":0,"release_notes_url":"…"}}}
   def latest_release(target, quality)
     return nil if target.blank? || quality.blank?
 
     entry = parsed_feed.dig(target.to_s, quality.to_s)
-    entry.is_a?(Hash) ? entry.symbolize_keys : nil
+    return entry.symbolize_keys if entry.is_a?(Hash)
+
+    Levelcode::EditorReleaseFeed.latest(target: target, quality: quality)
   end
 
   def parsed_feed
