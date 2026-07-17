@@ -136,7 +136,11 @@ module Levelcode
       request["Content-Type"] = "application/json"
       request["Accept"] = "text/event-stream"
       # OpenRouter attribution headers (optional but recommended).
-      request["HTTP-Referer"] = ENV["SITE_ORIGIN"] if ENV["SITE_ORIGIN"].present?
+      # Attribution: OpenRouter groups spend by app using HTTP-Referer. This was conditional on
+      # SITE_ORIGIN being set — and it isn't in production — so every gateway generation logged as
+      # "Unknown" and our OpenRouter spend couldn't be broken out by app. Fall back to the same default
+      # the controller already uses (site_origin) so attribution works with or without the env var.
+      request["HTTP-Referer"] = ENV["SITE_ORIGIN"].presence || "https://levelcode.ai"
       request["X-Title"] = "LevelCode"
       request.body = JSON.generate(body)
       request
