@@ -116,8 +116,7 @@ module Api
             # [LevelCode] Settle BEFORE [DONE] so we know what this turn cost and what's left, and can
             # hand both to the editor (running $ spend instead of a guess). The `ensure` below still
             # settles on every disconnect/error path — `settled` just stops us metering twice.
-            cost_micros = finalize_stream!(wallet, request_id, reservation, model, estimate)
-            settled = true
+            settled, cost_micros = finalize_stream!(wallet, request_id, reservation, model, estimate)
             frame = credits_frame(wallet, cost_micros)
             write_sse(frame) if frame
             write_raw("data: [DONE]\n\n")
@@ -182,18 +181,19 @@ module Api
             charge = reservation.to_i.positive? ? reservation.to_i : estimate.to_i
             if charge.positive?
               charge_reservation!(wallet, request_id, reservation, charge, model)
-              charge
             else
               ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0)
-              0
+              [ true, 0 ]
             end
           else
             ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0) # release the reservation
-            0
+            [ true, 0 ]
           end
         rescue => e
+          # Report NOT-settled: the reservation is still outstanding, so stream_chat's ensure MUST retry
+          # rather than strand it (over-counted spend the customer never gets back).
           Rails.logger.error("[Api::Levelcode::V1::AiController] finalize failed: #{e.class}: #{e.message}")
-          nil
+          [ false, nil ]
         end
 
         # [LevelCode] The final SSE frame before [DONE]: what this turn cost and what's left, in RETAIL
@@ -227,12 +227,20 @@ module Api
         # `charge` (the standing reservation, or a fresh estimate if the reservation failed open) and
         # write a synthetic ledger row so durable spend matches the hot counter. `reservation` is what's
         # already on the hot counter, so settle! reconciles it to `charge` (delta = charge − reservation).
+        # Returns [settled, cost_micros] — see meter!. `settled` flips the instant settle! returns, so a
+        # later ledger-enqueue failure can't make the caller settle a second time.
         def charge_reservation!(wallet, request_id, reservation, charge, billing_model)
+          settled = false
           ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, charge)
+          settled = true
           RecordUsageJob.perform_async(
             current_levelcode_user.id, request_id, billing_model, PROVIDER,
             0, 0, 0, charge.to_i, wallet.period_end.to_i
           )
+          [ true, charge ]
+        rescue => e
+          Rails.logger.error("[Api::Levelcode::V1::AiController] charge_reservation failed: #{e.class}: #{e.message}")
+          [ settled, settled ? charge : nil ]
         end
 
         # -- non-streaming (JSON pass-through) path -------------------------
@@ -241,8 +249,9 @@ module Api
           request_id = current_request_id
           settled = false
           upstream = ::Levelcode::AiRouter.complete(body, model: model)
-          meter!(wallet, ::Levelcode::OpenRouterAdapter::Result.new(usage: upstream["usage"], model: upstream["model"]), request_id, reservation, model)
-          settled = true # meter! has reconciled/released the reservation; don't touch it again below
+          # Take `settled` from meter! itself — it rescues internally, so assuming true here would strand
+          # the reservation whenever settlement actually failed (same bug class as the streaming path).
+          settled, = meter!(wallet, ::Levelcode::OpenRouterAdapter::Result.new(usage: upstream["usage"], model: upstream["model"]), request_id, reservation, model)
           render json: upstream, status: :ok
         rescue ::Levelcode::OpenRouterAdapter::UpstreamError => e
           ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0) unless settled # no generation → release
@@ -264,12 +273,19 @@ module Api
         # the ROUTED catalog model (what we price/entitle), NOT result.model — the upstream string is
         # often a dated snapshot ("…-20260528") that's absent from the catalog and would fall back to
         # the cheapest rate, under-billing pricier models. The ledger still RECORDS the served id.
+        # Returns [settled, cost_micros]. `settled` means the RESERVATION was reconciled — it is NOT the
+        # same as "this method succeeded", and the difference is money in both directions: report it false
+        # after a real settle and the ensure settles twice (spend under-counted); report it true without
+        # one and the reservation is stranded (spend over-counted). So it flips the instant settle!
+        # returns, and the blank-usage branch — which DOES settle — reports true even though cost is 0.
         def meter!(wallet, result, request_id, reservation, billing_model)
+          settled = false
+          cost_micros = nil
           usage = result&.usage
           usage = nil unless usage.is_a?(Hash) # a non-Hash usage (malformed upstream) must not raise below
           if usage.blank?
             ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0) # nothing to bill → release
-            return
+            return [ true, 0 ]
           end
 
           input_tokens = (usage["prompt_tokens"] || usage[:prompt_tokens]).to_i
@@ -280,6 +296,7 @@ module Api
 
           # Reconcile the up-front reservation to the actual cost (M14) + keep the token counters.
           ::Levelcode::Metering.settle!(wallet, reservation, input_tokens, output_tokens, cost_micros)
+          settled = true # reservation reconciled from here on — a later failure must not re-settle
 
           RecordUsageJob.perform_async(
             current_levelcode_user.id,
@@ -293,10 +310,10 @@ module Api
             wallet.period_end.to_i # period at enqueue — scopes the durable counter to the right period
           )
 
-          cost_micros # [LevelCode] returned so stream_chat can tell the client what the turn cost
+          [ true, cost_micros ] # [LevelCode] cost flows to stream_chat's credits frame
         rescue => e
           Rails.logger.error("[Api::Levelcode::V1::AiController] metering tee failed: #{e.class}: #{e.message}")
-          nil
+          [ settled, settled ? cost_micros : nil ]
         end
 
         def cached_tokens(usage)

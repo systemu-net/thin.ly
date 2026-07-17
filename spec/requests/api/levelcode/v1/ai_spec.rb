@@ -127,6 +127,36 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
       expect(response).to have_http_status(:ok)
     end
 
+    # `settled` must mean "the reservation was reconciled", NOT "finalize_stream! returned". The two
+    # failure directions are both money, so pin each: report settled when we weren't → the reservation is
+    # STRANDED (spend over-counted, never returned); report unsettled when we were → the ensure settles a
+    # SECOND time (spend under-counted).
+    it "retries settlement in `ensure` when the pre-[DONE] finalize failed BEFORE settling (never strands)" do
+      calls = 0
+      allow(Levelcode::Metering).to receive(:settle!) do
+        calls += 1
+        raise StandardError, "redis blip" if calls == 1
+        true
+      end
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(calls).to eq(2) # first attempt blew up before settling → ensure retried instead of stranding
+    end
+
+    it "does NOT settle twice when settle! succeeded but the LEDGER enqueue failed (no double-bill)" do
+      allow(RecordUsageJob).to receive(:perform_async).and_raise(StandardError, "sidekiq down")
+      # settle! already reconciled the reservation; the later failure must not trigger the ensure path.
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, 0, 12, 8, 1_000)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response).to have_http_status(:ok)
+      # …and the cost still reaches the client, since settlement itself succeeded.
+      expect(response.body).to include('"levelcode"')
+    end
+
     it "never lets a credits-frame failure break the response (the turn is already metered by then)" do
       allow(Levelcode::Metering).to receive(:tranche_state).and_raise(StandardError, "redis down")
 
