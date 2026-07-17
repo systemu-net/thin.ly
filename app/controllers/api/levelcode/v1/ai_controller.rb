@@ -103,6 +103,7 @@ module Api
           @captured_usage = nil
           @captured_model = nil
           @streamed_content = false
+          settled = false
 
           begin
             result = ::Levelcode::AiRouter.call(
@@ -112,6 +113,13 @@ module Api
             )
             @captured_usage ||= result&.usage
             @captured_model ||= result&.model
+            # [LevelCode] Settle BEFORE [DONE] so we know what this turn cost and what's left, and can
+            # hand both to the editor (running $ spend instead of a guess). The `ensure` below still
+            # settles on every disconnect/error path — `settled` just stops us metering twice.
+            cost_micros = finalize_stream!(wallet, request_id, reservation, model, estimate)
+            settled = true
+            frame = credits_frame(wallet, cost_micros)
+            write_sse(frame) if frame
             write_raw("data: [DONE]\n\n")
           rescue ::Levelcode::OpenRouterAdapter::UpstreamError => e
             klass = classify_upstream(e)
@@ -130,8 +138,8 @@ module Api
           ensure
             # Settle the reservation + meter the turn exactly once, even on a mid-stream disconnect
             # (SPEC §5), so tokens already consumed upstream still count and the reservation is never
-            # stranded.
-            finalize_stream!(wallet, request_id, reservation, model, estimate)
+            # stranded. `settled` = the happy path already metered (before [DONE]) — don't double-count.
+            finalize_stream!(wallet, request_id, reservation, model, estimate) unless settled
             close_stream
           end
         end
@@ -174,14 +182,45 @@ module Api
             charge = reservation.to_i.positive? ? reservation.to_i : estimate.to_i
             if charge.positive?
               charge_reservation!(wallet, request_id, reservation, charge, model)
+              charge
             else
               ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0)
+              0
             end
           else
             ::Levelcode::Metering.settle!(wallet, reservation, 0, 0, 0) # release the reservation
+            0
           end
         rescue => e
           Rails.logger.error("[Api::Levelcode::V1::AiController] finalize failed: #{e.class}: #{e.message}")
+          nil
+        end
+
+        # [LevelCode] The final SSE frame before [DONE]: what this turn cost and what's left, in RETAIL
+        # micro-$ — the same basis as GET /account/models, i.e. what the customer actually paid (cost ÷
+        # margin), never the internal cost budget. Additive and namespaced: it carries no `choices`, so a
+        # plain OpenAI-shaped client ignores it. Returns nil (frame skipped) if anything is off — the
+        # turn is already metered by this point, so a display extra must never break the response.
+        def credits_frame(wallet, cost_micros)
+          return nil if wallet.blank? || cost_micros.nil?
+
+          state = ::Levelcode::Metering.tranche_state(wallet)
+          {
+            levelcode: {
+              cost_micros: retail_for(wallet, cost_micros),
+              credits_remaining_micros: retail_for(wallet, state[:remaining_micros]),
+              next_unlock_at: state[:next_unlock_at]
+            }
+          }.to_json
+        rescue => e
+          Rails.logger.warn("[Api::Levelcode::V1::AiController] credits frame skipped: #{e.class}")
+          nil
+        end
+
+        # Internal COST micro-$ → the RETAIL amount the customer paid. Mirrors AccountController#retail,
+        # but keyed off the wallet we already hold rather than re-deriving the plan.
+        def retail_for(wallet, cost_micros)
+          ::Levelcode.retail_micros(cost_micros.to_i, wallet.plan_key)
         end
 
         # Client disconnected mid-stream after tokens were produced but before the usage chunk: bill
@@ -253,8 +292,11 @@ module Api
             cost_micros,
             wallet.period_end.to_i # period at enqueue — scopes the durable counter to the right period
           )
+
+          cost_micros # [LevelCode] returned so stream_chat can tell the client what the turn cost
         rescue => e
           Rails.logger.error("[Api::Levelcode::V1::AiController] metering tee failed: #{e.class}: #{e.message}")
+          nil
         end
 
         def cached_tokens(usage)

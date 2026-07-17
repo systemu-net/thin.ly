@@ -60,6 +60,12 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
     allow(Levelcode::Metering).to receive(:reserve!)
       .and_return(Levelcode::Metering::Reservation.new(ok: true, amount: 0))
     allow(Levelcode::Metering).to receive(:settle!).and_return(true)
+    # The final `levelcode` credits frame reads the wallet's budget position (Redis + budget_micros),
+    # same reason as above — stub it so the request specs stay Redis-free.
+    allow(Levelcode::Metering).to receive(:tranche_state).and_return(
+      { full_micros: 10_000_000, ceiling_micros: 10_000_000, spent_micros: 1_000,
+        remaining_micros: 9_999_000, tranched: false, next_unlock_at: nil, resets_at: nil, kind: :ok }
+    )
   end
 
   def stub_streaming_adapter
@@ -91,6 +97,44 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
         expect(response.body).to include("data: #{chunk}\n\n")
       end
       expect(response.body).to include("data: [DONE]\n\n")
+    end
+
+    # --- the final `levelcode` credits frame (running $ spend in the editor) ---
+
+    it "emits a final `levelcode` credits frame in RETAIL $ before [DONE]" do
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      frame = response.body[/data: (\{"levelcode".*?\})\n\n/, 1]
+      expect(frame).to be_present, "expected a levelcode credits frame in the stream"
+      payload = JSON.parse(frame)["levelcode"]
+
+      # RETAIL micro-$ — what the customer PAID (cost ÷ margin), the same basis as GET /account/models,
+      # never the internal cost budget.
+      expect(payload["cost_micros"]).to eq(Levelcode.retail_micros(1_000, "orbits_pro"))
+      expect(payload["credits_remaining_micros"]).to eq(Levelcode.retail_micros(9_999_000, "orbits_pro"))
+
+      # Must precede the terminator — a client that stops reading at [DONE] would otherwise never see it.
+      expect(response.body.index(frame)).to be < response.body.index("data: [DONE]")
+    end
+
+    # Settlement moved BEFORE [DONE] so the cost is known in time; the `ensure` still settles on
+    # disconnect/error. This pins the guard that stops the two paths double-billing the customer.
+    it "meters EXACTLY ONCE even though settlement now runs before [DONE]" do
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, 0, 12, 8, 1_000)
+      expect(RecordUsageJob).to receive(:perform_async).once
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "never lets a credits-frame failure break the response (the turn is already metered by then)" do
+      allow(Levelcode::Metering).to receive(:tranche_state).and_raise(StandardError, "redis down")
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("data: [DONE]\n\n")   # stream still terminates cleanly
+      expect(response.body).not_to include('"levelcode"')    # frame simply skipped
     end
 
     it "settles the reservation to the final usage (tokens + $ spend) and writes the durable ledger" do
@@ -136,6 +180,9 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
       allow(Levelcode::Metering).to receive(:check!)
         .and_return(Levelcode::Metering::Decision.new(allowed: false, throttle: false, policy: "stop"))
       allow(Levelcode::Metering).to receive(:spent_micros).with(gated).and_return(full / 2) # past the $3.33 tranche, under $10
+      # This example asserts the REAL rolling-window computation, so undo the suite-wide tranche_state
+      # stub (added for the credits frame) — it would otherwise report :ok and mask the gate.
+      allow(Levelcode::Metering).to receive(:tranche_state).and_call_original
 
       post "/api/levelcode/v1/ai/chat", params: body, as: :json
 
