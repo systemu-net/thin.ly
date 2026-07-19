@@ -16,17 +16,27 @@ module Levelcode
 
     REPO = "levelcodeai/levelcode"
     RELEASES_PAGE = "https://github.com/#{REPO}/releases/latest"
+    # Feed target → the release asset that serves it. Squirrel installs a .zip of the signed .app, so
+    # that is the only INSTALLABLE artifact (the .dmg is the human download). Matching on an exact
+    # filename means an Intel app can never be handed the arm64 build.
     # Only macOS builds ship today — announcing on other targets would notify users of a build
     # that does not exist for them.
-    TARGETS = %w[darwin darwin-arm64].freeze
+    ASSET_FOR_TARGET = {
+      "darwin-arm64" => "LevelCode-arm64.app.zip",
+      "darwin" => "LevelCode-x64.app.zip"
+    }.freeze
+    TARGETS = ASSET_FOR_TARGET.keys.freeze
     CACHE_KEY = "levelcode:editor_release_feed:latest"
     CACHE_TTL = 5.minutes
 
     def latest(target:, quality:)
       return nil unless quality.to_s == "stable" && TARGETS.include?(target.to_s)
 
+      # One GitHub lookup serves every target; the arch-specific asset is resolved per call.
       cached = Rails.cache.fetch(CACHE_KEY, expires_in: CACHE_TTL) { fetch_release || :none }
-      cached == :none ? nil : cached
+      return nil if cached == :none
+
+      entry_for(cached, target.to_s)
     rescue StandardError => e
       Rails.logger.warn("[Levelcode::EditorReleaseFeed] #{e.class}: #{e.message} — serving nil (→ 204)")
       nil
@@ -47,14 +57,51 @@ module Levelcode
       {
         commit: sha,
         product_version: tag.delete_prefix("v"),
-        # The release PAGE, not a build asset: pre-signing, the only client served a 200 is the
-        # notify-only updater, which merely OPENS this url. Signed .zip feed assets, when they ship,
-        # get pinned via LEVELCODE_UPDATE_FEED (the env override wins over this fallback).
-        url: rel["html_url"].presence || RELEASES_PAGE,
-        sha256hash: nil,
-        timestamp: rel["published_at"].present? ? Time.zone.parse(rel["published_at"]).to_i : 0,
-        release_notes_url: rel["html_url"].presence || RELEASES_PAGE
+        page_url: rel["html_url"].presence || RELEASES_PAGE,
+        # arch => { url:, sha256: } for each signed .app.zip on this release. Empty for releases cut
+        # before signed assets shipped — those stay notify-only (see entry_for).
+        assets: build_assets(rel["assets"]),
+        timestamp: rel["published_at"].present? ? Time.zone.parse(rel["published_at"]).to_i : 0
       }
+    end
+
+    # Resolve the cached release to ONE target's feed entry.
+    #
+    # `installable` is the load-bearing bit: true only when this arch has a signed .app.zip, i.e. when
+    # the built-in Squirrel updater could actually install it. Releases without one still serve the
+    # release PAGE so the notify-only updater keeps working — but the controller must never hand a page
+    # to Squirrel, which would auto-download a web page and fail.
+    def entry_for(rel, target)
+      asset = rel[:assets][target]
+      {
+        commit: rel[:commit],
+        product_version: rel[:product_version],
+        url: asset ? asset[:url] : rel[:page_url],
+        sha256hash: asset && asset[:sha256],
+        timestamp: rel[:timestamp],
+        release_notes_url: rel[:page_url],
+        installable: asset.present?
+      }
+    end
+
+    # Pick the signed .app.zip per arch by EXACT filename — an unknown or renamed asset is ignored
+    # rather than guessed at, so a cross-arch zip can never be served.
+    def build_assets(list)
+      Array(list).each_with_object({}) do |a, out|
+        target = ASSET_FOR_TARGET.key(a["name"].to_s)
+        next if target.nil?
+
+        url = a["browser_download_url"].to_s
+        next if url.blank?
+
+        out[target] = { url: url, sha256: sha256_from(a["digest"]) }
+      end
+    end
+
+    # GitHub reports asset digests as "sha256:<hex>" (and may omit them entirely); the feed wants bare hex.
+    def sha256_from(digest)
+      d = digest.to_s
+      d.start_with?("sha256:") ? d.delete_prefix("sha256:").presence : nil
     end
 
     def github_json(url)

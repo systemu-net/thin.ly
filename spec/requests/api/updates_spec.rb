@@ -99,6 +99,29 @@ RSpec.describe "Api::Updates", type: :request do
         get UPDATE_URL, headers: { "User-Agent" => "LevelCode/0.5.0 Squirrel/1.0" }
         expect(response).to have_http_status(:ok)
       end
+
+      context "when the entry is NOT installable (no signed .app.zip for this arch)" do
+        before do
+          # A release cut before signed assets shipped: `url` is a release PAGE. Auto-downloading a web
+          # page would fail, so Squirrel must stay on 204 even if the SIGNED flag is flipped early.
+          set_feed("darwin-arm64" => { "stable" => {
+            "commit" => "def456newsha", "product_version" => "0.5.0",
+            "url" => "https://github.com/levelcodeai/levelcode/releases/tag/v0.5.0",
+            "installable" => false
+          } })
+        end
+
+        it "serves 204 to Squirrel even with LEVELCODE_UPDATE_FEED_SIGNED=1" do
+          ENV["LEVELCODE_UPDATE_FEED_SIGNED"] = "1"
+          get UPDATE_URL, headers: { "User-Agent" => "LevelCode/0.5.0 Squirrel/1.0" }
+          expect(response).to have_http_status(:no_content)
+        end
+
+        it "still serves the notify-only extension (it only opens the page)" do
+          get UPDATE_URL, headers: NOTIFY_UA
+          expect(response).to have_http_status(:ok)
+        end
+      end
     end
 
     context "GitHub-Releases fallback — no env feed configured" do
