@@ -6,9 +6,21 @@ RSpec.describe "Api::Updates", type: :request do
   # The notify-only levelcode-updater extension's UA — pre-signing, the only client served a 200.
   NOTIFY_UA = { "User-Agent" => "LevelCode Updater" }.freeze
 
-  after do
-    ENV.delete("LEVELCODE_UPDATE_FEED")
-    ENV.delete("LEVELCODE_UPDATE_FEED_SIGNED")
+  FEED_VARS = %w[LEVELCODE_UPDATE_FEED LEVELCODE_UPDATE_FEED_SIGNED].freeze
+
+  # Both vars are snapshotted, cleared for the example, and restored afterwards, so these specs neither
+  # leak into each other NOR read the developer's shell. The `after`-only cleanup this replaces already
+  # stopped the leak — but not the read: the FIRST example to run still saw the ambient value, and
+  # `config.order = :random` picks which one that is. Measured: with LEVELCODE_UPDATE_FEED_SIGNED=1
+  # exported, "serves 204 to the built-in Squirrel updater" gets a 200 and fails — on the seeds where it
+  # happens to run first. A seed-dependent flake, not a clean red. `ensure` covers the failure path too.
+  around do |example|
+    saved = ENV.slice(*FEED_VARS)
+    FEED_VARS.each { |k| ENV.delete(k) }
+    example.run
+  ensure
+    FEED_VARS.each { |k| ENV.delete(k) }
+    saved.each { |k, v| ENV[k] = v }
   end
 
   # No spec below may hit GitHub — the fallback is stubbed quiet unless a context opts in.
@@ -118,6 +130,31 @@ RSpec.describe "Api::Updates", type: :request do
         end
 
         it "still serves the notify-only extension (it only opens the page)" do
+          get UPDATE_URL, headers: NOTIFY_UA
+          expect(response).to have_http_status(:ok)
+        end
+      end
+
+      # Completes the pinned-`installable` tri-state: ABSENT defaults to installable (covered by "serves
+      # EVERY client once signed feed assets ship" above), FALSE is the context above, and an explicit
+      # JSON `null` is below. Null resolving to notify-only is a decision, not an accident — see the
+      # comment on Api::UpdatesController#latest_release — so it gets a test that a refactor of the
+      # `{ installable: true }.merge(...)` default would have to consciously delete.
+      context "when the pinned entry sets installable to an explicit JSON null" do
+        before do
+          set_feed("darwin-arm64" => { "stable" => {
+            "commit" => "def456newsha", "product_version" => "0.5.0",
+            "url" => "https://x/z.zip", "installable" => nil
+          } })
+          ENV["LEVELCODE_UPDATE_FEED_SIGNED"] = "1"
+        end
+
+        it "reads null as NOT installable — 204 to Squirrel, never the installable default" do
+          get UPDATE_URL, headers: { "User-Agent" => "LevelCode/0.5.0 Squirrel/1.0" }
+          expect(response).to have_http_status(:no_content)
+        end
+
+        it "still announces to the notify-only extension" do
           get UPDATE_URL, headers: NOTIFY_UA
           expect(response).to have_http_status(:ok)
         end

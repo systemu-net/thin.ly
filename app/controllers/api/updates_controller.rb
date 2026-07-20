@@ -79,6 +79,11 @@ class Api::UpdatesController < ApplicationController
     entry = parsed_feed.dig(target.to_s, quality.to_s)
     # An operator-pinned entry is assumed INSTALLABLE — pinning a signed asset is the whole point of the
     # override. Set "installable": false in the JSON to pin a notify-only announcement instead.
+    #
+    # An explicit `"installable": null` counts as FALSE, not as "key absent": merge lets the pinned nil
+    # win and the guard reads nil as falsy. Deliberate — the two directions aren't symmetric. Treating an
+    # ambiguous null as installable would hand Squirrel a url to auto-download and fail on; treating it as
+    # notify-only merely withholds an update. Omit the key entirely to get the default. Specs pin all three.
     return { installable: true }.merge(entry.symbolize_keys) if entry.is_a?(Hash)
 
     Levelcode::EditorReleaseFeed.latest(target: target, quality: quality)

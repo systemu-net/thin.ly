@@ -26,7 +26,15 @@ module Levelcode
       "darwin" => "LevelCode-x64.app.zip"
     }.freeze
     TARGETS = ASSET_FOR_TARGET.keys.freeze
-    CACHE_KEY = "levelcode:editor_release_feed:latest"
+    # The reverse direction, precomputed: `build_assets` asks "which target does this asset name serve?"
+    # once per asset, so store the mapping in the direction it's queried instead of reverse-scanning.
+    TARGET_FOR_ASSET = ASSET_FOR_TARGET.invert.freeze
+    # NOTE the `:v2:` — the cached payload is a RELEASE object ({page_url:, assets:, …}); v1 cached a
+    # single per-target ENTRY. The version lives in the key so a deploy can never hand new code an
+    # old-shape hash: `entry_for` would call `rel[:assets][target]` on one and blow up on nil. That's
+    # rescued into a 204, so it would not 500 — it would silently withhold updates for the whole TTL,
+    # which is worse to diagnose. Bump this suffix whenever the cached shape changes.
+    CACHE_KEY = "levelcode:editor_release_feed:v2:latest"
     CACHE_TTL = 5.minutes
 
     def latest(target:, quality:)
@@ -88,7 +96,7 @@ module Levelcode
     # rather than guessed at, so a cross-arch zip can never be served.
     def build_assets(list)
       Array(list).each_with_object({}) do |a, out|
-        target = ASSET_FOR_TARGET.key(a["name"].to_s)
+        target = TARGET_FOR_ASSET[a["name"].to_s]
         next if target.nil?
 
         url = a["browser_download_url"].to_s
