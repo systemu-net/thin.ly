@@ -57,7 +57,7 @@ RSpec.describe Levelcode::EditorReleaseFeed do
     end
 
     it "NEVER serves a cross-arch zip: an arch with no asset falls back to the page, not installable" do
-      stub_github(release: RELEASE.merge("assets" => [zip_asset("LevelCode-arm64.app.zip")]))
+      stub_github(release: RELEASE.merge("assets" => [ zip_asset("LevelCode-arm64.app.zip") ]))
 
       intel = described_class.latest(target: "darwin", quality: "stable")
       expect(intel[:url]).to eq("https://github.com/levelcodeai/levelcode/releases/tag/v0.6.0")
@@ -66,7 +66,7 @@ RSpec.describe Levelcode::EditorReleaseFeed do
     end
 
     it "tolerates a missing digest (GitHub may omit it) — installable, hash nil" do
-      stub_github(release: RELEASE.merge("assets" => [zip_asset("LevelCode-arm64.app.zip", digest: nil)]))
+      stub_github(release: RELEASE.merge("assets" => [ zip_asset("LevelCode-arm64.app.zip", digest: nil) ]))
       entry = described_class.latest(target: "darwin-arm64", quality: "stable")
       expect(entry).to include(sha256hash: nil, installable: true)
     end
