@@ -18,6 +18,11 @@ RSpec.describe Levelcode::EditorReleaseFeed do
       .with("https://api.github.com/repos/levelcodeai/levelcode/commits/v0.6.0").and_return(sha && { "sha" => sha })
   end
 
+  # A release carrying the signed Squirrel assets.
+  def zip_asset(name, digest: "sha256:abc123")
+    { "name" => name, "browser_download_url" => "https://github.com/dl/#{name}", "digest" => digest }
+  end
+
   describe ".latest" do
     it "maps the latest release + tag commit to the feed-entry shape (v-prefix stripped, epoch timestamp)" do
       stub_github
@@ -25,11 +30,45 @@ RSpec.describe Levelcode::EditorReleaseFeed do
       expect(entry).to eq(
         commit: "fd81887a",
         product_version: "0.6.0",
+        # No signed .app.zip on this release → the release PAGE, and NOT installable: the notify-only
+        # updater still announces it, but Squirrel must never be handed a web page to auto-install.
         url: "https://github.com/levelcodeai/levelcode/releases/tag/v0.6.0",
         sha256hash: nil,
         timestamp: Time.zone.parse("2026-07-16T20:38:23Z").to_i,
-        release_notes_url: "https://github.com/levelcodeai/levelcode/releases/tag/v0.6.0"
+        release_notes_url: "https://github.com/levelcodeai/levelcode/releases/tag/v0.6.0",
+        installable: false
       )
+    end
+
+    it "serves the arch-matched signed .app.zip (+ bare sha256) and marks it installable" do
+      stub_github(release: RELEASE.merge("assets" => [
+        zip_asset("LevelCode-arm64.app.zip"),
+        zip_asset("LevelCode-x64.app.zip", digest: "sha256:def456"),
+        { "name" => "LevelCode-arm64.dmg", "browser_download_url" => "https://github.com/dl/dmg" }
+      ]))
+
+      arm = described_class.latest(target: "darwin-arm64", quality: "stable")
+      expect(arm).to include(url: "https://github.com/dl/LevelCode-arm64.app.zip",
+                             sha256hash: "abc123", installable: true)
+
+      intel = described_class.latest(target: "darwin", quality: "stable")
+      expect(intel).to include(url: "https://github.com/dl/LevelCode-x64.app.zip",
+                               sha256hash: "def456", installable: true)
+    end
+
+    it "NEVER serves a cross-arch zip: an arch with no asset falls back to the page, not installable" do
+      stub_github(release: RELEASE.merge("assets" => [ zip_asset("LevelCode-arm64.app.zip") ]))
+
+      intel = described_class.latest(target: "darwin", quality: "stable")
+      expect(intel[:url]).to eq("https://github.com/levelcodeai/levelcode/releases/tag/v0.6.0")
+      expect(intel[:installable]).to be(false)
+      expect(intel[:url]).not_to include("arm64")
+    end
+
+    it "tolerates a missing digest (GitHub may omit it) — installable, hash nil" do
+      stub_github(release: RELEASE.merge("assets" => [ zip_asset("LevelCode-arm64.app.zip", digest: nil) ]))
+      entry = described_class.latest(target: "darwin-arm64", quality: "stable")
+      expect(entry).to include(sha256hash: nil, installable: true)
     end
 
     it "serves both shipped macOS targets, and nothing else (no phantom announcements)" do

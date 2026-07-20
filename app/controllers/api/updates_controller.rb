@@ -11,10 +11,13 @@
 #   2. GitHub Releases (Levelcode::EditorReleaseFeed, cached 5 min) — the zero-maintenance default:
 #      publishing a release on levelcodeai/levelcode IS the announcement.
 #
-# UNSIGNED-BUILD GUARD: the built-in Squirrel updater AUTO-DOWNLOADS a 200's url and fails on
-# ad-hoc-signed builds (and the GitHub-backed url is a web page, not a signed .zip). Until signed
-# builds ship (flip LEVELCODE_UPDATE_FEED_SIGNED=1), only the notify-only levelcode-updater
-# extension — which merely OPENS the url — is served a release; everything else gets 204.
+# UNSIGNED-BUILD GUARD: the built-in Squirrel updater AUTO-DOWNLOADS a 200's url and installs it, so it
+# is served a release only when BOTH hold: (a) signed feed assets are declared live
+# (LEVELCODE_UPDATE_FEED_SIGNED=1), and (b) the resolved entry is INSTALLABLE — i.e. a signed
+# `LevelCode-<arch>.app.zip` exists for that arch, not just a release page. Releases cut before signed
+# assets shipped therefore stay notify-only even with the flag on. Everything else gets 204; the
+# notify-only levelcode-updater extension — which merely OPENS the url — is always safe to serve.
+# Producer side + rollout order: docs/AUTO-UPDATE.md in the editor repo.
 #
 # FAIL-SAFE: this endpoint must NEVER return 5xx or HTML — the native updater and the extension both treat
 # anything that isn't 204/valid-JSON as an error. Any exception or unknown release resolves to 204.
@@ -34,8 +37,10 @@ class Api::UpdatesController < ApplicationController
                                 rel[:commit] == params[:commit]
 
     # Unsigned-build guard (see class comment): a newer build exists, but only the notify-only
-    # extension may hear about it until signed feed assets ship.
-    return head(:no_content) unless notify_only_client? || signed_feed?
+    # extension may hear about it until signed feed assets ship. The built-in Squirrel updater
+    # additionally requires an INSTALLABLE entry — a signed .app.zip for this arch — so that flipping
+    # LEVELCODE_UPDATE_FEED_SIGNED early can't hand it a release page to auto-download and choke on.
+    return head(:no_content) unless notify_only_client? || (signed_feed? && rel[:installable])
 
     render json: {
       version: rel[:commit], # the latest build's commit — the editor compares this to the running commit
@@ -72,7 +77,14 @@ class Api::UpdatesController < ApplicationController
     return nil if target.blank? || quality.blank?
 
     entry = parsed_feed.dig(target.to_s, quality.to_s)
-    return entry.symbolize_keys if entry.is_a?(Hash)
+    # An operator-pinned entry is assumed INSTALLABLE — pinning a signed asset is the whole point of the
+    # override. Set "installable": false in the JSON to pin a notify-only announcement instead.
+    #
+    # An explicit `"installable": null` counts as FALSE, not as "key absent": merge lets the pinned nil
+    # win and the guard reads nil as falsy. Deliberate — the two directions aren't symmetric. Treating an
+    # ambiguous null as installable would hand Squirrel a url to auto-download and fail on; treating it as
+    # notify-only merely withholds an update. Omit the key entirely to get the default. Specs pin all three.
+    return { installable: true }.merge(entry.symbolize_keys) if entry.is_a?(Hash)
 
     Levelcode::EditorReleaseFeed.latest(target: target, quality: quality)
   end
