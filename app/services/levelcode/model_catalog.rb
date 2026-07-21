@@ -48,6 +48,18 @@ module Levelcode
         input: 3.00, cached_input: 0.30, output: 15.00,
         context: 200_000, min_tier: :pro, status: :assumption
       },
+      # Ordered by cost, NOT by family: K3 sits by its ~4.00× multiplier (== Sonnet 5's, same rates),
+      # not next to Kimi K2.7 — the monotonic-multiplier invariant (spec) is what keeps the picker honest.
+      "moonshotai/kimi-k3" => {
+        label: "Kimi K3", provider: "openrouter",
+        # Confirmed vs OpenRouter (2026-07-20): $3/M in · $15/M out · $0.30/M cached read. Reached via
+        # OpenRouter like every moonshotai/* slug (the native MoonshotAdapter is a disabled stub). K3 is
+        # always-on reasoning with no non-thinking mode, and the reasoning trace bills at the output rate;
+        # the ledger meters real usage, so that is covered. OpenRouter flags upstream capacity as limited
+        # (429s) this early — fine for an opt-in Pro pick, a reason NOT to make it the default yet.
+        input: 3.00, cached_input: 0.30, output: 15.00,
+        context: 1_048_576, min_tier: :pro, status: :confirmed
+      },
       "anthropic/claude-opus-4-8" => {
         label: "Opus 4.8", provider: "openrouter",
         # Confirmed vs OpenRouter (2026-07-07): output $25/M; input list ~$5/M (effective ~$1.56

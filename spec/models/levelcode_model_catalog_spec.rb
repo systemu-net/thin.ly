@@ -8,6 +8,7 @@ RSpec.describe Levelcode::ModelCatalog do
       expect(described_class.find("openai/gpt-oss-120b")[:status]).to eq(:confirmed)
       expect(described_class.find("moonshotai/kimi-k2.7-code")[:status]).to eq(:confirmed)
       expect(described_class.find("anthropic/claude-opus-4-8")[:status]).to eq(:confirmed) # price confirmed 2026-07-07
+      expect(described_class.find("moonshotai/kimi-k3")[:status]).to eq(:confirmed)       # OpenRouter list, 2026-07-20
       assumed = described_class.all.select { |_id, m| m[:status] == :assumption }.keys
       expect(assumed).to include("anthropic/claude-fable-5", "openai/gpt-5.5")
       expect(assumed).not_to include("anthropic/claude-opus-4-8")
@@ -15,6 +16,7 @@ RSpec.describe Levelcode::ModelCatalog do
 
     it "rate_table exposes every roster model's per-token rates (feeds Levelcode.cost_micros)" do
       expect(described_class.rate_table["moonshotai/kimi-k2.7-code"]).to eq(input: 0.74, cached_input: 0.15, output: 3.50)
+      expect(described_class.rate_table["moonshotai/kimi-k3"]).to eq(input: 3.00, cached_input: 0.30, output: 15.00)
       expect(described_class.rate_table.keys).to match_array(described_class.ids)
     end
   end
@@ -30,8 +32,8 @@ RSpec.describe Levelcode::ModelCatalog do
     it "reproduces the analysis multipliers (within rounding)" do
       {
         "openai/gpt-oss-120b" => 0.05, "moonshotai/kimi-k2.7-code" => 1.00, "openai/codex-5.3" => 2.22,
-        "openai/gpt-5.5" => 2.66, "anthropic/claude-sonnet-5" => 4.00, "anthropic/claude-opus-4-8" => 6.67,
-        "anthropic/claude-fable-5" => 13.35
+        "openai/gpt-5.5" => 2.66, "anthropic/claude-sonnet-5" => 4.00, "moonshotai/kimi-k3" => 4.00,
+        "anthropic/claude-opus-4-8" => 6.67, "anthropic/claude-fable-5" => 13.35
       }.each { |id, mult| expect(described_class.multiplier(id)).to be_within(0.02).of(mult) }
     end
 

@@ -70,11 +70,14 @@ RSpec.describe "Api::Levelcode::V1::Account", type: :request do
       body = response.parsed_body
       expect(body["plan"]).to eq("Pro")
       ids = body["models"].map { |m| m["id"] }
-      expect(ids).to include("openai/gpt-oss-120b", "moonshotai/kimi-k2.7-code", "anthropic/claude-opus-4-8")
+      expect(ids).to include("openai/gpt-oss-120b", "moonshotai/kimi-k2.7-code", "moonshotai/kimi-k3", "anthropic/claude-opus-4-8")
       kimi = body["models"].find { |m| m["id"] == "moonshotai/kimi-k2.7-code" }
       expect(kimi["live"]).to be(true)
       expect(kimi["multiplier"]).to eq(1.0)
       expect(kimi["turns_left"]).to be_within(2).of(260)  # $10 budget (50% of $20) ÷ Kimi ref-turn
+      k3 = body["models"].find { |m| m["id"] == "moonshotai/kimi-k3" }
+      expect(k3["live"]).to be(true)                   # confirmed OpenRouter price → selectable + billable
+      expect(k3["multiplier"]).to be_within(0.05).of(4.00)   # ~4× the Kimi K2.7 flagship baseline
       opus = body["models"].find { |m| m["id"] == "anthropic/claude-opus-4-8" }
       expect(opus["live"]).to be(true)                # price confirmed → live + billable
       expect(opus["multiplier"]).to be_within(0.05).of(6.67)
