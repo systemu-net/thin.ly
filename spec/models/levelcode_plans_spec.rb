@@ -45,7 +45,8 @@ RSpec.describe Levelcode do
     end
 
     it 'a paid plan may use the flagship AND the open-weights engine (confirmed-price roster)' do
-      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8' ])
+      # Kimi K3 joined the confirmed-price roster (a selectable Pro pick — see the gateway K3 change).
+      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8', 'moonshotai/kimi-k3' ])
       # A tier-entitled but ASSUMPTION-priced frontier model stays staged — never billed on a guess.
       expect(Levelcode.allowed_models('orbits_pro')).not_to include('openai/gpt-5.5')
     end
