@@ -14,12 +14,14 @@
 #  reset_password_sent_at :datetime
 #  reset_password_token   :string
 #  role                   :string           default("member"), not null
+#  signup_attribution     :jsonb
 #  terms_accepted         :boolean          default(FALSE), not null
 #  terms_accepted_at      :datetime
 #  terms_accepted_version :string
 #  uid                    :string
 #  created_at             :datetime         not null
 #  updated_at             :datetime         not null
+#  levelcode_stripe_id    :string
 #  stripe_id              :string
 #
 # Indexes
@@ -27,6 +29,7 @@
 #  index_users_on_email                 (email) UNIQUE
 #  index_users_on_jti                   (jti) UNIQUE
 #  index_users_on_last_seen_at          (last_seen_at)
+#  index_users_on_levelcode_stripe_id   (levelcode_stripe_id) UNIQUE WHERE (levelcode_stripe_id IS NOT NULL)
 #  index_users_on_provider_and_uid      (provider,uid) UNIQUE
 #  index_users_on_reset_password_token  (reset_password_token) UNIQUE
 #
