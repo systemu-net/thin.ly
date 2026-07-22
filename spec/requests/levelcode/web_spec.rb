@@ -81,6 +81,53 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       expect(response).to have_http_status(:ok)
     end
 
+    context 'signup attribution (first-touch, stamped on the NEW user only)' do
+      before { allow(Levelcode::EmailCode).to receive(:verify).and_return(true) }
+
+      let(:attribution) do
+        { source: 'linkedin', params: { linkedin: 'saienkoanastasia' },
+          landing: '/ai?linkedin=saienkoanastasia', referrer: 'https://lnkd.in/x',
+          ts: '2026-07-22T19:35:41.166Z' }
+      end
+
+      it 'stamps a sanitized attribution on a newly created account' do
+        post '/ai/auth/verify', params: { email: 'lead@example.com', code: '123456', attribution: attribution }, as: :json
+        expect(response).to have_http_status(:ok)
+
+        attr = User.find_by(email: 'lead@example.com').signup_attribution
+        expect(attr['source']).to eq('linkedin')
+        expect(attr['params']).to eq('linkedin' => 'saienkoanastasia')
+        expect(attr['landing']).to eq('/ai?linkedin=saienkoanastasia')
+        expect(attr['recorded_at']).to be_present # server timestamp, not client-controlled
+      end
+
+      it 'does NOT overwrite an existing account (acquisition attribution, not last-touch)' do
+        existing = User.create!(email: 'known@example.com', password: 'password123', terms_accepted: true)
+        expect(existing.signup_attribution).to be_nil
+
+        post '/ai/auth/verify', params: { email: 'known@example.com', code: '123456', attribution: attribution }, as: :json
+        expect(response).to have_http_status(:ok)
+        expect(existing.reload.signup_attribution).to be_nil
+      end
+
+      it 'stays null on an organic sign-in (no campaign params)' do
+        post '/ai/auth/verify', params: { email: 'organic@example.com', code: '123456' }, as: :json
+        expect(User.find_by(email: 'organic@example.com').signup_attribution).to be_nil
+      end
+
+      it 'whitelists keys and bounds sizes — never trusts the client blob' do
+        hostile = { source: 'x' * 200,
+                    params: { linkedin: 'a' * 500, evil: 'ignored', utm_source: 'newsletter' },
+                    landing: 'y' * 1000 }
+        post '/ai/auth/verify', params: { email: 'hostile@example.com', code: '123456', attribution: hostile }, as: :json
+
+        attr = User.find_by(email: 'hostile@example.com').signup_attribution
+        expect(attr['source'].length).to eq(40) # truncated
+        expect(attr['params']).to eq('linkedin' => 'a' * 120, 'utm_source' => 'newsletter') # unknown 'evil' dropped
+        expect(attr['landing'].length).to eq(300)
+      end
+    end
+
     it 'editor mode: returns { redirect: deep-link?code= } bound to the PKCE challenge' do
       allow(Levelcode::EmailCode).to receive(:verify).and_return(true)
       allow(Levelcode::OneTimeCode).to receive(:issue).and_return('one-time-code')
