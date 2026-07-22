@@ -115,6 +115,20 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
         expect(User.find_by(email: 'organic@example.com').signup_attribution).to be_nil
       end
 
+      it 'survives a concurrent-signup race (unique-violation → re-find, never a 500)' do
+        # A parallel request already created this email; our find_by missed it, so our INSERT loses to the
+        # DB unique index. The rescue must re-find the winner and sign them in cleanly.
+        winner = User.create!(email: 'race@example.com', password: 'password123', terms_accepted: true)
+        allow(User).to receive(:find_by).and_call_original
+        allow(User).to receive(:find_by).with(email: 'race@example.com').and_return(nil, winner)
+        allow(User).to receive(:create).and_raise(ActiveRecord::RecordNotUnique)
+
+        post '/ai/auth/verify', params: { email: 'race@example.com', code: '123456' }, as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(json).to eq('redirect' => '/ai/account')
+      end
+
       it 'whitelists keys and bounds sizes — never trusts the client blob' do
         hostile = { source: 'x' * 200,
                     params: { linkedin: 'a' * 500, evil: 'ignored', utm_source: 'newsletter' },

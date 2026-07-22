@@ -345,6 +345,11 @@ module Levelcode
         terms_accepted: true,
         signup_attribution: sanitize_signup_attribution(attribution)
       )
+    rescue ActiveRecord::RecordNotUnique
+      # Two sign-ins for the same NEW email raced between the find_by and the INSERT, and the unique index
+      # on users.email rejected the loser. Re-find the winner so a valid sign-in never 500s. (Attribution
+      # was stamped by whichever request won the create; the loser just returns the existing account.)
+      User.find_by(email: email)
     end
 
     # Campaign params we recognize (mirror of the SPA's attribution util). Anything else is dropped.
