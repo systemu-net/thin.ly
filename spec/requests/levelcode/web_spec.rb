@@ -176,6 +176,31 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
 
       expect(response).to redirect_to('/ai/account')
     end
+
+    # Google rides the SAME oauth_start/oauth_callback path as GitHub (the callback dispatches on the
+    # STASHED provider, so it calls google_user). This locks in the Google branch the new "Continue with
+    # Google" login button depends on.
+    it 'GET /ai/auth/oauth/google 302s to the provider authorize URL' do
+      allow(Levelcode::ProviderOAuth).to receive(:authorize_url).and_return('https://google.test/authorize?state=x')
+      get '/ai/auth/oauth/google'
+      expect(response).to redirect_to('https://google.test/authorize?state=x')
+    end
+
+    it 'GET /ai/auth/callback (valid state, google, web) signs in and 302s to /ai/account' do
+      allow(SecureRandom).to receive(:urlsafe_base64).and_return('teststate')
+      allow(Levelcode::ProviderOAuth).to receive(:authorize_url).and_return('https://google.test/authorize')
+      allow(Levelcode::ProviderOAuth).to receive(:google_user).and_return(User.create!(email: 'g@example.com', password: 'x' * 20, terms_accepted: true))
+
+      get '/ai/auth/oauth/google' # stashes session state = teststate + provider = google
+      get '/ai/auth/callback', params: { code: 'ggl', state: 'teststate' }
+
+      expect(response).to redirect_to('/ai/account')
+    end
+
+    it 'GET /ai/auth/oauth/unknown is rejected (only github/google are allowed)' do
+      get '/ai/auth/oauth/twitter'
+      expect(response).to redirect_to('/ai/login')
+    end
   end
 
   describe 'POST /ai/signout' do
