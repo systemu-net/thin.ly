@@ -90,7 +90,7 @@ module Levelcode
         })
       when "google"
         build_url(GOOGLE_AUTHORIZE_URL, {
-          client_id: ENV["GOOGLE_OAUTH_ID"],
+          client_id: google_client_id,
           redirect_uri: redirect_uri,
           response_type: "code",
           scope: "openid email profile",
@@ -148,12 +148,25 @@ module Levelcode
 
     # --- Google internals ----------------------------------------------------
 
+    # The Google "Web application" OAuth client for the LevelCode auth-code flow. Falls back to the
+    # already-configured GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (the same client thin.ly's GIS login
+    # uses) when a dedicated GOOGLE_OAUTH_ID / GOOGLE_OAUTH_SECRET isn't set — so bringing Google to
+    # levelcode.ai needs only the client SECRET added to the env, not a duplicate client id. The id_token
+    # `aud` is validated against google_client_ids, which already includes GOOGLE_CLIENT_ID.
+    def google_client_id
+      ENV["GOOGLE_OAUTH_ID"].presence || ENV["GOOGLE_CLIENT_ID"]
+    end
+
+    def google_client_secret
+      ENV["GOOGLE_OAUTH_SECRET"].presence || ENV["GOOGLE_CLIENT_SECRET"]
+    end
+
     def google_exchange_code(code, redirect_uri, verifier)
       res = post_form(
         GOOGLE_TOKEN_URL,
         {
-          client_id: ENV["GOOGLE_OAUTH_ID"],
-          client_secret: ENV["GOOGLE_OAUTH_SECRET"],
+          client_id: google_client_id,
+          client_secret: google_client_secret,
           code: code,
           redirect_uri: redirect_uri,
           grant_type: "authorization_code",
@@ -231,6 +244,7 @@ module Levelcode
 
     private_class_method :github_exchange_code, :github_primary_email, :github_get,
                          :google_exchange_code, :verify_google_id_token, :google_client_ids,
+                         :google_client_id, :google_client_secret,
                          :find_or_create_oauth_user, :build_url, :post_form, :perform_http
   end
 end
