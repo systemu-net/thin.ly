@@ -197,7 +197,7 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       expect(response).to redirect_to('/ai/account')
     end
 
-    it 'GET /ai/auth/oauth/unknown is rejected (only github/google are allowed)' do
+    it 'GET /ai/auth/oauth/twitter is rejected (only github/google are allowed)' do
       get '/ai/auth/oauth/twitter'
       expect(response).to redirect_to('/ai/login')
     end
