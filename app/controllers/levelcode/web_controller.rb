@@ -77,7 +77,7 @@ module Levelcode
         return render_error("invalid_code", "That code is invalid or has expired.", :unauthorized)
       end
 
-      user = find_or_create_email_user(email)
+      user = find_or_create_email_user(email, params[:attribution])
       unless user&.persisted?
         log_auth(kind: "email", outcome: "failure", email: email, reason: "account_error")
         return render_error("account_error", "Could not sign you in. Please try again.", :unprocessable_content)
@@ -335,13 +335,52 @@ module Levelcode
     # --- Helpers --------------------------------------------------------------
 
     # Passwordless find-or-create; a random password satisfies Devise validatable
-    # and is never used (sign-in is OTP/OAuth only).
-    def find_or_create_email_user(email)
+    # and is never used (sign-in is OTP/OAuth only). On the CREATE path only, stamp the first-touch
+    # marketing attribution the SPA sent — an existing user keeps whatever acquired them (acquisition
+    # attribution, not last-touch).
+    def find_or_create_email_user(email, attribution = nil)
       User.find_by(email: email) || User.create(
         email: email,
         password: Devise.friendly_token[0, 32],
-        terms_accepted: true
+        terms_accepted: true,
+        signup_attribution: sanitize_signup_attribution(attribution)
       )
+    rescue ActiveRecord::RecordNotUnique
+      # Two sign-ins for the same NEW email raced between the find_by and the INSERT, and the unique index
+      # on users.email rejected the loser. Re-find the winner so a valid sign-in never 500s. (Attribution
+      # was stamped by whichever request won the create; the loser just returns the existing account.)
+      User.find_by(email: email)
+    end
+
+    # Campaign params we recognize (mirror of the SPA's attribution util). Anything else is dropped.
+    ATTRIBUTION_PARAM_KEYS = %w[linkedin youtube ref utm_source utm_medium utm_campaign utm_content].freeze
+
+    # Coerce the CLIENT-CONTROLLED attribution blob (query params → localStorage → request body) into a
+    # small, bounded, whitelisted hash before it touches the DB — never store the raw params object. Returns
+    # nil for organic/absent/garbage input so the column stays null.
+    def sanitize_signup_attribution(raw)
+      h = raw.respond_to?(:to_unsafe_h) ? raw.to_unsafe_h : raw
+      return nil unless h.is_a?(Hash)
+
+      src = h["params"] || h[:params]
+      params = {}
+      if src.is_a?(Hash)
+        ATTRIBUTION_PARAM_KEYS.each do |k|
+          v = src[k] || src[k.to_sym]
+          params[k] = v.to_s[0, 120] if v.present?
+        end
+      end
+      source = h["source"].to_s[0, 40]
+      return nil if params.empty? && source.blank?
+
+      {
+        "source" => source.presence || "other",
+        "params" => params,
+        "landing" => h["landing"].to_s[0, 300].presence,
+        "referrer" => h["referrer"].to_s[0, 300].presence,
+        "ts" => h["ts"].to_s[0, 40].presence,
+        "recorded_at" => Time.current.utc.iso8601
+      }.compact
     end
 
     def valid_email?(email)
