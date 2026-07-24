@@ -16,6 +16,37 @@ RSpec.describe RecordUsageJob, type: :job do
     )
   end
 
+  describe "dating the ledger row" do
+    # The whole point: a job that runs LATE must still land on the day the request happened. During the
+    # 2026-07-22 worker outage 141 jobs backed up for ~27 hours; without this, draining them would have
+    # stamped every one with the recovery moment — a false spike on the recovery day and a permanent
+    # hole on the days the work was actually done.
+    it "dates the row from when the request happened, not when the job ran" do
+      happened = 2.days.ago.change(hour: 14, min: 30)
+
+      # No time-travel needed: the job runs NOW, the request happened two days ago. If the row is dated
+      # from insert time, created_at lands today and this fails.
+      described_class.new.perform(user.id, "req-late", "moonshotai/kimi-k2.7-code", "openrouter",
+                                  100, 50, 0, 1_000, nil, happened.to_i)
+
+      event = UsageEvent.find_by(request_id: "req-late")
+      expect(event.created_at).to be_within(1.second).of(happened)
+      expect(event.created_at.to_date).to eq(happened.to_date),
+                                          "a late job must not move the usage onto the day it was processed"
+      expect(event.created_at.to_date).not_to eq(Date.current)
+    end
+
+    it "falls back to now when no timestamp is given — jobs enqueued by the OLD code still work" do
+      # 141 jobs were already queued with the previous arity when this shipped. They must not fail, and
+      # the argument is optional and last precisely so they do not.
+      expect {
+        described_class.new.perform(user.id, "req-legacy", "openai/gpt-oss-120b", "openrouter",
+                                    10, 5, 0, 100)
+      }.not_to raise_error
+      expect(UsageEvent.find_by(request_id: "req-legacy").created_at).to be_within(30.seconds).of(Time.current)
+    end
+  end
+
   it "bumps the durable per-period counters on the first (unique) ledger insert" do
     pe = Time.zone.local(2026, 8, 7, 6, 32, 37)
     wallet = wallet_with(period_end: pe)

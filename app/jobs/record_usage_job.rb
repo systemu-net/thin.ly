@@ -11,13 +11,20 @@ require "sidekiq"
 #     time (`period_end_epoch`), so a late job for an already-rolled period no-ops
 #     instead of corrupting the new period's totals.
 #
+#   - The row is DATED from `occurred_at_epoch` (when the request ran), not from when
+#     this job happens to execute — so a backed-up queue cannot rewrite usage history.
+#
 # Enqueued as: RecordUsageJob.perform_async(user_id, request_id, model, provider,
-#   input_tokens, output_tokens, cached_input_tokens, cost_micros, period_end_epoch).
+#   input_tokens, output_tokens, cached_input_tokens, cost_micros, period_end_epoch,
+#   occurred_at_epoch).
+# The last two are optional and trailing so jobs serialized by an older deploy still run.
 class RecordUsageJob
   include Sidekiq::Job
   queue_as :default
 
-  def perform(user_id, request_id, model, provider, input_tokens, output_tokens, cached_input_tokens, cost_micros, period_end_epoch = nil)
+  # occurred_at_epoch is LAST and optional on purpose: jobs already sitting in the queue were
+  # serialized with the old arity, so a deploy of this change must not make them fail.
+  def perform(user_id, request_id, model, provider, input_tokens, output_tokens, cached_input_tokens, cost_micros, period_end_epoch = nil, occurred_at_epoch = nil)
     request_id = SecureRandom.uuid if request_id.blank? # never collapse blanks onto one row
 
     event = UsageEvent.create_or_find_by!(request_id: request_id) do |e|
@@ -28,7 +35,12 @@ class RecordUsageJob
         input_tokens: input_tokens.to_i,
         output_tokens: output_tokens.to_i,
         cached_input_tokens: cached_input_tokens.to_i,
-        cost_micros: cost_micros.to_i
+        cost_micros: cost_micros.to_i,
+        # Date the row from WHEN THE REQUEST HAPPENED, not when this job finally ran. Without this, any
+        # queue lag silently rewrites history: during the 2026-07-22 worker outage 141 jobs backed up,
+        # and draining them would have stamped every one with the recovery moment — a false spike on the
+        # recovery day and a permanent hole on the days the work was actually done.
+        created_at: occurred_at_epoch.present? ? Time.zone.at(occurred_at_epoch.to_i) : Time.current
       )
     end
 

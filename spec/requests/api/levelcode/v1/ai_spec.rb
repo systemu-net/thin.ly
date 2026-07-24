@@ -170,8 +170,13 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
     it "settles the reservation to the final usage (tokens + $ spend) and writes the durable ledger" do
       # reservation amount 0 (stubbed) → settle! reconciles to the actual cost_micros (1_000).
       expect(Levelcode::Metering).to receive(:settle!).with(wallet, 0, 12, 8, 1_000)
+      # The trailing arg is the occurred-at epoch: the ledger row is dated from WHEN THE REQUEST RAN,
+      # not from whenever Sidekiq gets to it, so a backed-up queue can't rewrite usage history. Asserted
+      # as a plausible "now" rather than kind_of(Integer) — passing the wrong integer (a duration, a
+      # period_end) would satisfy a type check while silently misdating every row.
       expect(RecordUsageJob).to receive(:perform_async)
-        .with(user.id, anything, kind_of(String), "openrouter", 12, 8, 4, 1_000, kind_of(Integer))
+        .with(user.id, anything, kind_of(String), "openrouter", 12, 8, 4, 1_000, kind_of(Integer),
+              be_within(60).of(Time.current.to_i))
 
       post "/api/levelcode/v1/ai/chat", params: body, as: :json
     end
