@@ -37,6 +37,41 @@ RSpec.describe "Api::Levelcode::V1::Account", type: :request do
       expect(body["years"]).to include(2026, 2025)
     end
 
+    it "reports the user's spend at RETAIL, matching the balance shown on the same page" do
+      # The ledger stores what a request cost us at the wire. Reporting that raw understated what the
+      # customer actually spent (by the margin) and put two units on one page — a retail balance above,
+      # cost-denominated per-model rows below. Both must now be the same unit, or the per-model figures
+      # cannot be reconciled against the credits the dashboard says were spent.
+      CreditWallet.create!(user: user, product: "levelcode", plan_key: "orbits_pro",
+                           input_cap: 15_000_000, output_cap: 2_000_000,
+                           budget_micros: Levelcode.budget_micros("orbits_pro"), spent_micros: 0,
+                           period_start: Time.current, period_end: 1.month.from_now, overage_policy: "throttle")
+      UsageEvent.create!(user: user, model: "moonshotai/kimi-k2.7-code", provider: "openrouter",
+                         input_tokens: 100, output_tokens: 50, cost_micros: 1_000,
+                         created_at: Time.zone.local(2026, 5, 2, 10))
+
+      get "/api/levelcode/v1/account/activity", params: { year: 2026 }
+
+      expect(response).to have_http_status(:ok)
+      expected = Levelcode.retail_micros(1_000, "orbits_pro")
+      expect(expected).to be > 1_000, "precondition: retail must exceed cost, or this proves nothing"
+      kimi = response.parsed_body["models"].find { |m| m["model"] == "moonshotai/kimi-k2.7-code" }
+      expect(kimi["cost_micros"]).to eq(expected)
+      expect(response.parsed_body.dig("days", "2026-05-02", "cost_micros")).to eq(expected)
+      day_model = response.parsed_body.dig("days", "2026-05-02", "models").first
+      expect(day_model["cost_micros"]).to eq(expected), "the per-day model rows must convert too"
+    end
+
+    it "leaves costs at raw COST when no plan_key is given (the operator's view)" do
+      # Levelcode::Activity is a shared service. An operator-side caller wants real COGS, not what the
+      # customer was charged — so the conversion is opt-in rather than baked into the aggregation.
+      UsageEvent.create!(user: user, model: "openai/gpt-oss-120b", provider: "openrouter",
+                         input_tokens: 10, output_tokens: 5, cost_micros: 777,
+                         created_at: Time.zone.local(2026, 6, 1, 10))
+      raw = Levelcode::Activity.for_user(user, year: 2026)
+      expect(raw[:models].find { |m| m[:model] == "openai/gpt-oss-120b" }[:cost_micros]).to eq(777)
+    end
+
     it "merges a dated model snapshot with feedback recorded against the base model id" do
       # Metering records the upstream-resolved snapshot; the editor records feedback against the
       # requested base id. They must aggregate to ONE per-model row (the reported bug).

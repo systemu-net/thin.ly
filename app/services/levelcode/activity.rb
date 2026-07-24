@@ -10,7 +10,7 @@ module Levelcode
 
     # @return [Hash] { year:, total:, days: { "YYYY-MM-DD" => {count,input,output,cost_micros,models:[…]} },
     #                  models: [{model,count,input,output,cost_micros,up,down}, …], years: [Int,…] }
-    def for_user(user, year:)
+    def for_user(user, year:, plan_key: nil)
       year = year.to_i
       range = Time.zone.local(year, 1, 1).all_year
 
@@ -42,6 +42,22 @@ module Levelcode
       end
       # Fold each day's per-model map into a count-sorted array.
       days.each_value { |d| d[:models] = d[:models].map { |mm, v| v.merge(model: mm) }.sort_by { |x| -x[:count] } }
+
+      # Present the customer's OWN spend at RETAIL — the unit their balance is shown in. The ledger
+      # stores what a request cost us at the wire; leaving that raw here made the dashboard understate
+      # what the user actually spent (roughly by the margin), and put two different units on one page:
+      # a retail-converted balance above, cost-denominated per-model rows below. Converted on the
+      # AGGREGATES, so each figure rounds once rather than once per ledger row.
+      #
+      # plan_key nil leaves the raw COST figures alone, deliberately: an operator-side caller wants the
+      # real COGS, not what the customer was charged. (The admin panel does not use this service today.)
+      if plan_key
+        days.each_value do |d|
+          d[:cost_micros] = ::Levelcode.retail_micros(d[:cost_micros], plan_key)
+          d[:models].each { |dm| dm[:cost_micros] = ::Levelcode.retail_micros(dm[:cost_micros], plan_key) }
+        end
+        model_totals.each_value { |v| v[:cost_micros] = ::Levelcode.retail_micros(v[:cost_micros], plan_key) }
+      end
 
       fb = feedback_by_model(user, range)
       models = model_totals.map { |m, v| v.merge(model: m, up: fb.dig(m, "up").to_i, down: fb.dig(m, "down").to_i) }
