@@ -25,16 +25,32 @@ dump_diagnostics() {
 
 echo "=== Verifying Sidekiq (up to ${READY_TIMEOUT}s) ==="
 
-# Poll rather than sampling once: the unit legitimately takes a few seconds to come up, and — more
-# importantly — a crash-looping unit under Restart=always flickers through "active", so a single
-# is-active check can catch it mid-bounce and pass. Require the unit active AND a live worker process.
+# Ask SYSTEMD for the worker pid rather than pattern-matching the process table.
+#
+# `pgrep -f sidekiq` cannot be used here: THIS SCRIPT is called 99_verify_sidekiq.sh, so its own command
+# line contains "sidekiq" and it matches itself. The check would then pass whenever the unit merely
+# reported active — including mid-bounce of a crash loop — which is the exact false negative this file
+# exists to eliminate. Demonstrated: pgrep -f sidekiq matches `bash .../99_verify_sidekiq.sh`.
+#
+# MainPID is systemd's own view of the process it started, so there is nothing to mis-match.
+worker_alive() {
+  local pid
+  pid="$(systemctl show sidekiq --property=MainPID --value 2>/dev/null || echo 0)"
+  [[ "${pid:-0}" =~ ^[0-9]+$ ]] || return 1
+  (( pid > 0 )) || return 1
+  kill -0 "$pid" 2>/dev/null
+}
+
+# Poll rather than sampling once: the unit legitimately takes a few seconds to come up, and a
+# crash-looping unit under Restart=always flickers through "active", so a single check can catch it
+# mid-bounce and pass.
 deadline=$(( SECONDS + READY_TIMEOUT ))
 while (( SECONDS < deadline )); do
-  if systemctl is-active --quiet sidekiq && pgrep -f "sidekiq" >/dev/null 2>&1; then
-    # Confirm it stays up, rather than being one bounce of a restart loop.
+  if systemctl is-active --quiet sidekiq && worker_alive; then
+    # Confirm it STAYS up, rather than being one bounce of a restart loop.
     sleep 5
-    if systemctl is-active --quiet sidekiq && pgrep -f "sidekiq" >/dev/null 2>&1; then
-      echo "OK: sidekiq is active with a live worker process."
+    if systemctl is-active --quiet sidekiq && worker_alive; then
+      echo "OK: sidekiq is active, MainPID $(systemctl show sidekiq --property=MainPID --value) alive."
       exit 0
     fi
   fi

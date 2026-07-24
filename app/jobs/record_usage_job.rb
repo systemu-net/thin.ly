@@ -11,8 +11,13 @@ require "sidekiq"
 #     time (`period_end_epoch`), so a late job for an already-rolled period no-ops
 #     instead of corrupting the new period's totals.
 #
+#   - The row is DATED from `occurred_at_epoch` (when the request ran), not from when
+#     this job happens to execute — so a backed-up queue cannot rewrite usage history.
+#
 # Enqueued as: RecordUsageJob.perform_async(user_id, request_id, model, provider,
-#   input_tokens, output_tokens, cached_input_tokens, cost_micros, period_end_epoch).
+#   input_tokens, output_tokens, cached_input_tokens, cost_micros, period_end_epoch,
+#   occurred_at_epoch).
+# The last two are optional and trailing so jobs serialized by an older deploy still run.
 class RecordUsageJob
   include Sidekiq::Job
   queue_as :default

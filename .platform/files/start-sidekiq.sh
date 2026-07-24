@@ -32,14 +32,24 @@ for ruby_env in /opt/elasticbeanstalk/bin/use-app-ruby.sh /opt/elasticbeanstalk/
   fi
 done
 
-# Resolve the vendored bundle for WHATEVER Ruby ABI is present, instead of a version baked in here.
+# Resolve the vendored bundle for the ABI of the Ruby WE ARE ABOUT TO RUN, not merely the first one on
+# disk. A glob alone is not enough: a leftover 3.4.0 directory sitting beside a new 4.0.0 sorts first,
+# so we would hand the new interpreter the old gemset and walk straight back into the boot failure this
+# script exists to prevent. Ask Ruby for its own ABI, and only fall back to "any present" if that exact
+# path is missing (a fallback is still better than the hardcoded version this replaced).
+ruby_abi="$(ruby -e 'print RbConfig::CONFIG["ruby_version"]' 2>/dev/null || true)"
 bundle_bin=""
-for candidate in /var/app/current/vendor/bundle/ruby/*/bin; do
-  if [ -d "$candidate" ]; then
-    bundle_bin="$candidate"
-    break
-  fi
-done
+if [ -n "$ruby_abi" ] && [ -d "/var/app/current/vendor/bundle/ruby/${ruby_abi}/bin" ]; then
+  bundle_bin="/var/app/current/vendor/bundle/ruby/${ruby_abi}/bin"
+else
+  for candidate in /var/app/current/vendor/bundle/ruby/*/bin; do
+    if [ -d "$candidate" ]; then
+      bundle_bin="$candidate"
+      echo "start-sidekiq: WARNING no bundle for Ruby ABI '${ruby_abi:-unknown}'; falling back to $candidate"
+      break
+    fi
+  done
+fi
 export PATH="/var/app/current/bin${bundle_bin:+:$bundle_bin}:$PATH"
 
 # The bundler recorded in Gemfile.lock ("BUNDLED WITH") is what `bundle` activates. A platform upgrade
