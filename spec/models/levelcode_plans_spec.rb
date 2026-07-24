@@ -64,15 +64,35 @@ RSpec.describe Levelcode do
       expect(Levelcode.micros_to_credits(row[:per_turn_micros])).to be_within(0.5).of(7.7)
     end
 
-    it 'keeps per_turn_micros and turns_left derived from the SAME per-turn cost' do
-      # The load-bearing invariant. The dashboard shows "N credits/turn" next to "≈ turns left"; if the
-      # two were computed from different costs the columns would quietly disagree and neither would be
-      # checkable by eye. Balance ÷ per-turn must reproduce turns_left for every model on the plan.
-      remaining_cost = 5_000_000
-      Levelcode.roster_for('orbits_pro_plus', remaining_cost).each do |m|
-        retail_balance = Levelcode.retail_micros(remaining_cost, 'orbits_pro_plus')
-        expect(retail_balance / m[:per_turn_micros]).to eq(m[:turns_left]),
-                                                       "#{m[:id]}: per-turn and turns_left disagree"
+    it 'keeps per_turn_micros and turns_left in exact agreement across MANY balances' do
+      # The load-bearing invariant: the dashboard prints "N credits/turn" beside "≈ turns left" and the
+      # user divides one into the other by eye, so they must agree for EVERY balance, not on average.
+      #
+      # This test used to assert a single balance and passed while the invariant was broken — turns came
+      # from COST micro-$ while the per-turn figure was ROUNDED RETAIL, so the two rounded independently
+      # and disagreed for ~12% of balances (PR #380 review; measured 3,440 of 28,000 sampled). One value
+      # proves nothing about a rounding boundary, so sweep a range that crosses many of them.
+      plan = 'orbits_pro_plus'
+      (1..400).each do |k|
+        balance = k * 12_345
+        retail_balance = Levelcode.retail_micros(balance, plan)
+        Levelcode.roster_for(plan, balance).each do |m|
+          expect(retail_balance / m[:per_turn_micros]).to eq(m[:turns_left]),
+                                                         "#{m[:id]} @ #{balance}: balance ÷ per-turn " \
+                                                         "(#{retail_balance / m[:per_turn_micros]}) != " \
+                                                         "turns_left (#{m[:turns_left]})"
+        end
+      end
+    end
+
+    it 'reports whole micro-dollars for a turn, not a float' do
+      # per_turn_cost_micros multiplies an integer cost by the float routing fee; leaving it a Float let
+      # the imprecision leak into the turn counts. The name says micro-$ — it should BE micro-$.
+      expect(Levelcode.per_turn_cost_micros('moonshotai/kimi-k2.7-code')).to be_a(Integer)
+      expect(Levelcode.retail_per_turn_micros('orbits_pro_plus', 'moonshotai/kimi-k2.7-code')).to be_a(Integer)
+      Levelcode.roster_for('orbits_pro_plus', 1_000_000).each do |m|
+        expect(m[:per_turn_micros]).to be_a(Integer), "#{m[:id]} per_turn_micros must be an Integer"
+        expect(m[:turns_left]).to be_a(Integer)
       end
     end
   end

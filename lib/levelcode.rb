@@ -351,23 +351,38 @@ module Levelcode
       Levelcode::ModelCatalog.multiplier(model)
     end
 
-    # How many reference turns a plan's budget buys on a model (budget ÷ per-turn cost incl. routing).
+    # How many reference turns a plan's FULL monthly allowance buys on a model.
     def turns_for(plan_key, model)
-      turns_in_budget(budget_micros(plan_key), model)
-    end
-
-    # How many reference turns a given DOLLAR balance buys on a model (used for "≈ N turns left").
-    def turns_in_budget(budget, model)
-      per_turn = per_turn_cost_micros(model)
-      return 0 if per_turn <= 0
-
-      (budget.to_i / per_turn).floor
+      turns_in_retail_budget(retail_micros(budget_micros(plan_key), plan_key),
+                             retail_per_turn_micros(plan_key, model))
     end
 
     # What ONE reference turn costs on a model, in COST micro-$ (real wire cost incl. the routing fee).
-    # Extracted so turns-left and the per-turn figure the dashboard shows can never diverge.
+    # Rounded to a whole micro-dollar like cost_micros: the name says micro-$, and keeping it an Integer
+    # stops a float from propagating into the turn counts below (PR #380 review).
     def per_turn_cost_micros(model)
-      Levelcode::ModelCatalog.reference_cost_micros(model) * ROUTING_FEE
+      (Levelcode::ModelCatalog.reference_cost_micros(model) * ROUTING_FEE).round
+    end
+
+    # What one turn costs at RETAIL — the unit the customer's balance is shown in. THE single definition
+    # of the per-turn figure: the dashboard prints it, and both turn counts below divide by it.
+    def retail_per_turn_micros(plan_key, model)
+      retail_micros(per_turn_cost_micros(model), plan_key).round
+    end
+
+    # How many reference turns a RETAIL balance buys at a RETAIL per-turn price.
+    #
+    # Both arguments must already be retail integers. That is the whole point (PR #380 review): the
+    # dashboard shows "N credits/turn" beside "≈ turns left", and a user divides one into the other by
+    # eye. Previously turns came from COST micro-$ while the per-turn figure was ROUNDED RETAIL, so the
+    # two rounded independently and disagreed for ~12% of balances (measured: 3,440 of 28,000 sampled).
+    # Deriving both from the same rounded retail figure makes them agree by construction rather than by
+    # coincidence. The margin ratio cancels in the division, so the counts themselves are unchanged.
+    def turns_in_retail_budget(retail_budget, retail_per_turn)
+      per_turn = retail_per_turn.to_i
+      return 0 if per_turn <= 0
+
+      retail_budget.to_i / per_turn
     end
 
     # RETAIL micro-$ → credits (the unit the customer sees). Display only — see CREDITS_PER_DOLLAR.
@@ -387,8 +402,12 @@ module Levelcode
     # not selectable/billable. This is the ONE surface the editor + dashboard render.
     def roster_for(plan_key, remaining_micros = nil)
       live = allowed_models(plan_key)
+      # Convert the balances ONCE, up front, so every row divides the same retail figures.
+      retail_budget = retail_micros(budget_micros(plan_key), plan_key)
+      retail_remaining = remaining_micros.nil? ? nil : retail_micros(remaining_micros, plan_key)
       entitled_models(plan_key).map do |id|
         m = Levelcode::ModelCatalog.find(id)
+        per_turn = retail_per_turn_micros(plan_key, id)
         {
           id: id,
           label: m[:label],
@@ -398,9 +417,9 @@ module Levelcode
           # What one turn costs at RETAIL, in micro-$ — the same unit as the balance fields, so the
           # dashboard converts both with one helper and "N credits/turn" divides into the balance
           # exactly. Derived from the SAME per-turn cost as turns_left, so the two always agree.
-          per_turn_micros: retail_micros(per_turn_cost_micros(id), plan_key).round,
-          turns_budget: turns_for(plan_key, id),
-          turns_left: remaining_micros.nil? ? nil : turns_in_budget(remaining_micros, id)
+          per_turn_micros: per_turn,
+          turns_budget: turns_in_retail_budget(retail_budget, per_turn),
+          turns_left: remaining_micros.nil? ? nil : turns_in_retail_budget(retail_remaining, per_turn)
         }
       end
     end
