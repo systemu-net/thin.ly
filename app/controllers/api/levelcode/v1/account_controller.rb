@@ -81,7 +81,9 @@ module Api
         # from the durable usage_events ledger. `year` defaults to the current year.
         def activity
           year = (params[:year].presence || Time.current.year).to_i
-          render json: ::Levelcode::Activity.for_user(current_user, year: year), status: :ok
+          # plan_key makes the per-model/day costs RETAIL — the same unit as the balance on this page.
+          render json: ::Levelcode::Activity.for_user(current_user, year: year, plan_key: current_plan_key),
+                 status: :ok
         end
 
         private
