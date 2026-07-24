@@ -235,7 +235,8 @@ module Api
           settled = true
           RecordUsageJob.perform_async(
             current_levelcode_user.id, request_id, billing_model, PROVIDER,
-            0, 0, 0, charge.to_i, wallet.period_end.to_i
+            0, 0, 0, charge.to_i, wallet.period_end.to_i,
+            Time.current.to_i # when it HAPPENED — the ledger row is dated from this, not from insert time
           )
           [ true, charge ]
         rescue => e
@@ -307,7 +308,8 @@ module Api
             output_tokens,
             cached,
             cost_micros,
-            wallet.period_end.to_i # period at enqueue — scopes the durable counter to the right period
+            wallet.period_end.to_i, # period at enqueue — scopes the durable counter to the right period
+            Time.current.to_i # when it HAPPENED — the ledger row is dated from this, not from insert time
           )
 
           [ true, cost_micros ] # [LevelCode] cost flows to stream_chat's credits frame
