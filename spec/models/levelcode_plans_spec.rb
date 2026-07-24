@@ -97,6 +97,52 @@ RSpec.describe Levelcode do
     end
   end
 
+  describe 'gross margin (the economic invariant credits must not disturb)' do
+    # The business promise: model COGS stay at or below CREDIT_COGS_RATIO of subscription revenue, so
+    # gross margin is (1 - ratio) — 50% today — NO MATTER which models a customer picks. That holds
+    # because the budget is enforced in COST micro-$ while metering charges each model its real wire
+    # price: an expensive model burns the same dollar allowance faster, it does not overspend it.
+    #
+    # Denominating the customer's balance in CREDITS is presentation only and must never move this. This
+    # spec is the standing proof of that — if a future change to pricing, the roster, the routing fee or
+    # the credit conversion ever eats the margin, it fails here rather than in a monthly P&L.
+    it 'caps COGS at the target share of revenue for every plan' do
+      Levelcode::PLANS.each do |plan|
+        revenue = plan[:price_cents] / 100.0
+        max_cogs = Levelcode.budget_micros(plan[:key]) / 1_000_000.0
+        expect(max_cogs).to be <= (revenue * Levelcode::CREDIT_COGS_RATIO) + 0.005,
+                            "#{plan[:name]}: enforced budget $#{max_cogs.round(2)} exceeds its COGS share"
+        margin = (revenue - max_cogs) / revenue
+        expect(margin).to be >= (1 - Levelcode::CREDIT_COGS_RATIO) - 0.001,
+                          "#{plan[:name]}: margin #{(margin * 100).round(1)}% is under target"
+      end
+    end
+
+    it 'holds for ANY model mix — the worst case is still at target' do
+      # Spending the entire allowance on the single priciest model is the adversarial case: if margin
+      # survives that, it survives every blend. Checked per model rather than on an average.
+      Levelcode::PLANS.each do |plan|
+        revenue = plan[:price_cents] / 100.0
+        Levelcode.roster_for(plan[:key], Levelcode.budget_micros(plan[:key])).each do |m|
+          cogs = m[:turns_left] * Levelcode.per_turn_cost_micros(m[:id]) / 1_000_000.0
+          margin = (revenue - cogs) / revenue
+          expect(margin).to be >= (1 - Levelcode::CREDIT_COGS_RATIO) - 0.001,
+                            "#{plan[:name]} spent entirely on #{m[:id]}: margin #{(margin * 100).round(1)}%"
+        end
+      end
+    end
+
+    it 'keeps the credit allowance and the COGS ceiling two sides of one number' do
+      # credits are retail (= price), the enforced budget is cost (= price x ratio). If those ever drift
+      # apart, customers are either given credits we do not fund or funded for credits they cannot spend.
+      Levelcode::PLANS.each do |plan|
+        credits_in_dollars = Levelcode.plan_credits(plan[:key]) / Levelcode::CREDITS_PER_DOLLAR.to_f
+        cost_budget = Levelcode.budget_micros(plan[:key]) / 1_000_000.0
+        expect(cost_budget).to be_within(0.01).of(credits_in_dollars * Levelcode::CREDIT_COGS_RATIO)
+      end
+    end
+  end
+
   describe '.plan' do
     it 'looks up a plan by key' do
       expect(Levelcode.plan('orbits_max')[:name]).to eq('Max')
