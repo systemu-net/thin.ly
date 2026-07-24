@@ -81,6 +81,13 @@ RSpec.describe "Api::Levelcode::V1::Account", type: :request do
       opus = body["models"].find { |m| m["id"] == "anthropic/claude-opus-4-8" }
       expect(opus["live"]).to be(true)                # price confirmed → live + billable
       expect(opus["multiplier"]).to be_within(0.05).of(6.67)
+
+      # Per-turn cost rides along in the SAME retail unit as the balance fields, so the dashboard can
+      # render "N credits/turn" beside "≈ turns left" using one conversion. ~7.7 credits on the 1×
+      # flagship; Opus is ~6.67× that.
+      expect(kimi["per_turn_micros"]).to be > 0
+      expect(Levelcode.micros_to_credits(kimi["per_turn_micros"])).to be_within(0.5).of(7.7)
+      expect(opus["per_turn_micros"]).to be > kimi["per_turn_micros"]
     end
   end
 

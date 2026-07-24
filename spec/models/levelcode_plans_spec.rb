@@ -28,6 +28,55 @@ RSpec.describe Levelcode do
     end
   end
 
+  describe 'credits (the in-product spending unit)' do
+    it 'converts retail micro-$ at $1 = 100 credits' do
+      expect(Levelcode::CREDITS_PER_DOLLAR).to eq(100)
+      expect(Levelcode::MICROS_PER_CREDIT).to eq(10_000)
+      expect(Levelcode.micros_to_credits(12_790_000)).to eq(1_279.0)  # the dashboard's "$12.79 left"
+      expect(Levelcode.micros_to_credits(0)).to eq(0.0)
+    end
+
+    it "gives each plan an allowance equal to its price in CENTS" do
+      # Not a coincidence to be re-derived by hand anywhere: budget_micros == price × CREDIT_COGS_RATIO
+      # and retail divides that ratio back out, so the credit allowance lands exactly on price_cents.
+      # $100 Ultra → 10_000 credits. Pinned because the marketing copy states these numbers.
+      {
+        'orbits_pro' => 2_000, 'orbits_pro_plus' => 4_000,
+        'orbits_max' => 6_000, 'orbits_ultra' => 10_000
+      }.each do |key, credits|
+        expect(Levelcode.plan_credits(key)).to eq(credits)
+        expect(Levelcode.plan_credits(key)).to eq(Levelcode.plan(key)[:price_cents])
+      end
+    end
+
+    it 'survives a change to the COGS ratio — the allowance still tracks the price' do
+      # The allowance is revenue-derived, so moving the margin must NOT move what the customer is told
+      # they get. This is the property that makes "Ultra = 10,000 credits" safe to print.
+      stub_const('Levelcode::CREDIT_COGS_RATIO', 0.30)
+      expect(Levelcode.plan_credits('orbits_ultra')).to eq(10_000)
+    end
+  end
+
+  describe '.roster_for per-turn economics' do
+    it 'reports per_turn_micros in the same RETAIL unit as the balance' do
+      row = Levelcode.roster_for('orbits_pro_plus', 0).find { |m| m[:id] == 'moonshotai/kimi-k2.7-code' }
+      # ~7.7 credits/turn on the 1× flagship — the figure the dashboard prints beside "≈ turns left".
+      expect(Levelcode.micros_to_credits(row[:per_turn_micros])).to be_within(0.5).of(7.7)
+    end
+
+    it 'keeps per_turn_micros and turns_left derived from the SAME per-turn cost' do
+      # The load-bearing invariant. The dashboard shows "N credits/turn" next to "≈ turns left"; if the
+      # two were computed from different costs the columns would quietly disagree and neither would be
+      # checkable by eye. Balance ÷ per-turn must reproduce turns_left for every model on the plan.
+      remaining_cost = 5_000_000
+      Levelcode.roster_for('orbits_pro_plus', remaining_cost).each do |m|
+        retail_balance = Levelcode.retail_micros(remaining_cost, 'orbits_pro_plus')
+        expect(retail_balance / m[:per_turn_micros]).to eq(m[:turns_left]),
+                                                       "#{m[:id]}: per-turn and turns_left disagree"
+      end
+    end
+  end
+
   describe '.plan' do
     it 'looks up a plan by key' do
       expect(Levelcode.plan('orbits_max')[:name]).to eq('Max')

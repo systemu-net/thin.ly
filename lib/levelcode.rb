@@ -28,7 +28,7 @@ module Levelcode
       turns: 260,
       stripe_lookup_key: "orbits_pro",
       features: [
-        "~260 Kimi turns/mo · ~39 on Opus 4.8",
+        "2,000 credits/mo · ~260 Kimi turns, or ~39 on Opus 4.8",
         "Usage that refreshes through your billing cycle",
         "Kimi K2.7 Code + Opus 4.8",
         "Bring-your-own-key always free"
@@ -44,7 +44,7 @@ module Levelcode
       turns: 520,
       stripe_lookup_key: "orbits_pro_plus",
       features: [
-        "~520 Kimi turns/mo · ~78 on Opus 4.8",
+        "4,000 credits/mo · ~520 Kimi turns, or ~78 on Opus 4.8",
         "Usage that refreshes through your billing cycle",
         "Kimi K2.7 Code + Opus 4.8",
         "Priority routing"
@@ -60,7 +60,7 @@ module Levelcode
       turns: 780,
       stripe_lookup_key: "orbits_max",
       features: [
-        "~780 Kimi turns/mo · ~117 on Opus 4.8",
+        "6,000 credits/mo · ~780 Kimi turns, or ~117 on Opus 4.8",
         "Usage that refreshes through your billing cycle",
         "Kimi K2.7 Code + Opus 4.8",
         "Priority routing"
@@ -76,7 +76,7 @@ module Levelcode
       turns: 1_300,
       stripe_lookup_key: "orbits_ultra",
       features: [
-        "~1,300 Kimi turns/mo · ~195 on Opus 4.8",
+        "10,000 credits/mo · ~1,300 Kimi turns, or ~195 on Opus 4.8",
         "Usage that refreshes through your billing cycle",
         "Kimi K2.7 Code + Opus 4.8",
         "Highest priority routing"
@@ -125,6 +125,21 @@ module Levelcode
   # charges each model its REAL per-token cost, this margin holds for ANY model mix — pricey models
   # (Opus ≈ 7× Kimi) just burn the budget faster. ENV-tunable so pricing can move without a deploy.
   CREDIT_COGS_RATIO = ENV.fetch("LEVELCODE_CREDIT_COGS_RATIO", 0.50).to_f
+
+  # The in-product spending unit. Balances are SHOWN in credits, never dollars: $1 = 100 credits, so
+  # 1 credit = $0.01 = 10_000 micro-$.
+  #
+  # This is PRESENTATION ONLY. The ledger, metering, Stripe prices, and invoices all stay in
+  # micro-dollars, because dollars are what providers charge us and what we actually bill — and
+  # re-denominating stored balances would put Stripe reconciliation at risk for no gain. Credits exist
+  # for a behavioural reason: a shrinking DOLLAR balance reads as money being lost, while credits read
+  # as an allowance meant to be spent.
+  #
+  # Because a plan's retail budget equals its price (budget_micros == price × CREDIT_COGS_RATIO, and
+  # retail divides that ratio back out), a plan's credit allowance is exactly its price in CENTS:
+  # $20 Pro → 2_000 credits, $100 Ultra → 10_000 credits. See #plan_credits.
+  CREDITS_PER_DOLLAR = 100
+  MICROS_PER_CREDIT = 1_000_000 / CREDITS_PER_DOLLAR   # 10_000 micro-$ == 1 credit
 
   # Time-released budget tranches (rolling usage windows). When > 1, the enforced ceiling rises in N
   # equal steps from budget/N up to the full budget across the billing period (window = period / N), so
@@ -343,10 +358,27 @@ module Levelcode
 
     # How many reference turns a given DOLLAR balance buys on a model (used for "≈ N turns left").
     def turns_in_budget(budget, model)
-      per_turn = Levelcode::ModelCatalog.reference_cost_micros(model) * ROUTING_FEE
+      per_turn = per_turn_cost_micros(model)
       return 0 if per_turn <= 0
 
       (budget.to_i / per_turn).floor
+    end
+
+    # What ONE reference turn costs on a model, in COST micro-$ (real wire cost incl. the routing fee).
+    # Extracted so turns-left and the per-turn figure the dashboard shows can never diverge.
+    def per_turn_cost_micros(model)
+      Levelcode::ModelCatalog.reference_cost_micros(model) * ROUTING_FEE
+    end
+
+    # RETAIL micro-$ → credits (the unit the customer sees). Display only — see CREDITS_PER_DOLLAR.
+    def micros_to_credits(retail_micros)
+      retail_micros.to_f / MICROS_PER_CREDIT
+    end
+
+    # A plan's monthly credit allowance. Derived, not hard-coded: the retail budget IS the plan price,
+    # so this comes out to the price in cents ($100 Ultra → 10_000 credits).
+    def plan_credits(plan_key)
+      micros_to_credits(retail_micros(budget_micros(plan_key), plan_key)).round
     end
 
     # The plan's model roster for the picker/dashboard: every ENTITLED model with its display
@@ -363,6 +395,10 @@ module Levelcode
           context: m[:context],
           multiplier: model_multiplier(id),
           live: live.include?(id),
+          # What one turn costs at RETAIL, in micro-$ — the same unit as the balance fields, so the
+          # dashboard converts both with one helper and "N credits/turn" divides into the balance
+          # exactly. Derived from the SAME per-turn cost as turns_left, so the two always agree.
+          per_turn_micros: retail_micros(per_turn_cost_micros(id), plan_key).round,
           turns_budget: turns_for(plan_key, id),
           turns_left: remaining_micros.nil? ? nil : turns_in_budget(remaining_micros, id)
         }
