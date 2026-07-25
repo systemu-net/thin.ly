@@ -9,9 +9,22 @@ RSpec.describe Levelcode::ModelCatalog do
       expect(described_class.find("moonshotai/kimi-k2.7-code")[:status]).to eq(:confirmed)
       expect(described_class.find("anthropic/claude-opus-4-8")[:status]).to eq(:confirmed) # price confirmed 2026-07-07
       expect(described_class.find("moonshotai/kimi-k3")[:status]).to eq(:confirmed)       # OpenRouter list, 2026-07-20
+      expect(described_class.find("anthropic/claude-opus-5")[:status]).to eq(:confirmed)  # OpenRouter list, 2026-07-24
       assumed = described_class.all.select { |_id, m| m[:status] == :assumption }.keys
       expect(assumed).to include("anthropic/claude-fable-5", "openai/gpt-5.5")
       expect(assumed).not_to include("anthropic/claude-opus-4-8")
+    end
+
+    # `context` is not decoration — estimate_cost_micros clamps its input estimate DOWN to it, so a
+    # stale (too small) window makes the admission guard under-reserve. Both Opus rows are 1M: every
+    # OpenRouter endpoint for them (Anthropic first-party, Bedrock, Azure, Google) advertises 1M/128K.
+    it "carries each model's real context window" do
+      expect(described_class.find("anthropic/claude-opus-4-8")[:context]).to eq(1_000_000)
+      expect(described_class.find("anthropic/claude-opus-5")[:context]).to eq(1_000_000)
+      expect(described_class.find("moonshotai/kimi-k3")[:context]).to eq(1_048_576)
+      expect(described_class.find("openai/gpt-oss-120b")[:context]).to eq(131_072)
+      # No row may go without one: a nil/0 window disables the clamp entirely.
+      expect(described_class.all.values.map { |m| m[:context] }).to all(be_positive)
     end
 
     it "rate_table exposes every roster model's per-token rates (feeds Levelcode.cost_micros)" do
@@ -33,7 +46,10 @@ RSpec.describe Levelcode::ModelCatalog do
       {
         "openai/gpt-oss-120b" => 0.05, "moonshotai/kimi-k2.7-code" => 1.00, "openai/codex-5.3" => 2.22,
         "openai/gpt-5.5" => 2.66, "anthropic/claude-sonnet-5" => 4.00, "moonshotai/kimi-k3" => 4.00,
-        "anthropic/claude-opus-4-8" => 6.67, "anthropic/claude-fable-5" => 13.35
+        # Opus 5 TIES Opus 4.8 — identical rates ⇒ identical multiplier. That tie is exactly what lets
+        # it sit beside 4.8 without disturbing the monotonic ordering asserted below.
+        "anthropic/claude-opus-4-8" => 6.67, "anthropic/claude-opus-5" => 6.67,
+        "anthropic/claude-fable-5" => 13.35
       }.each { |id, mult| expect(described_class.multiplier(id)).to be_within(0.02).of(mult) }
     end
 
@@ -51,7 +67,7 @@ RSpec.describe Levelcode::ModelCatalog do
 
     it "pro reaches the roster EXCEPT Fable (gated to Max/Ultra by UX, rec #3)" do
       pro = described_class.entitled(:pro)
-      expect(pro).to include("moonshotai/kimi-k2.7-code", "anthropic/claude-opus-4-8", "openai/gpt-5.5")
+      expect(pro).to include("moonshotai/kimi-k2.7-code", "anthropic/claude-opus-4-8", "anthropic/claude-opus-5", "openai/gpt-5.5")
       expect(pro).not_to include("anthropic/claude-fable-5")
     end
 

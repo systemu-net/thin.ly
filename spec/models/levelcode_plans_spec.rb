@@ -114,8 +114,8 @@ RSpec.describe Levelcode do
     end
 
     it 'a paid plan may use the flagship AND the open-weights engine (confirmed-price roster)' do
-      # Kimi K3 joined the confirmed-price roster (a selectable Pro pick — see the gateway K3 change).
-      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8', 'moonshotai/kimi-k3' ])
+      # Kimi K3, then Opus 5, joined the confirmed-price roster as selectable Pro picks.
+      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8', 'anthropic/claude-opus-5', 'moonshotai/kimi-k3' ])
       # A tier-entitled but ASSUMPTION-priced frontier model stays staged — never billed on a guess.
       expect(Levelcode.allowed_models('orbits_pro')).not_to include('openai/gpt-5.5')
     end
@@ -212,6 +212,27 @@ RSpec.describe Levelcode do
       expect(free[:input]).to eq(0.03)
       expect(free[:output]).to eq(0.15)
       expect(free[:input]).to be < Levelcode.rate_table[Levelcode::DEFAULT_MODEL][:input]
+    end
+  end
+
+  describe '.estimate_cost_micros (admission-time reservation)' do
+    # The input estimate is clamped DOWN to the model's context window, so the window is a ceiling on
+    # what the guard will reserve. A STALE (too small) window therefore under-reserves — it waves
+    # through a long-context turn that can cost several times the amount set aside for it. This is why
+    # Opus 4.8's window was corrected 200K → 1M; the assertion below fails against the old value.
+    it 'reserves against the real context window, so a long request cannot under-reserve' do
+      long = { 'messages' => [ { 'role' => 'user', 'content' => 'x' * 2_400_000 } ] }  # ~600k tokens
+      reserved = Levelcode.estimate_cost_micros('anthropic/claude-opus-4-8', long)
+
+      # 600k input is well inside a 1M window, so the estimate must reflect all of it — not the 200k
+      # the old row would have clamped it to.
+      clamped_at_200k = Levelcode.cost_micros('anthropic/claude-opus-4-8', 200_000, Levelcode::PAID_MAX_TOKENS, 0)
+      expect(reserved).to be > clamped_at_200k
+
+      # And it is still bounded: a body far beyond the window clamps to the window, never past it.
+      absurd = { 'messages' => [ { 'role' => 'user', 'content' => 'x' * 40_000_000 } ] }  # ~10M tokens
+      ceiling = Levelcode.cost_micros('anthropic/claude-opus-4-8', 1_000_000, Levelcode::PAID_MAX_TOKENS, 0)
+      expect(Levelcode.estimate_cost_micros('anthropic/claude-opus-4-8', absurd)).to eq(ceiling)
     end
   end
 

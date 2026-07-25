@@ -105,7 +105,7 @@ RSpec.describe "Api::Levelcode::V1::Account", type: :request do
       body = response.parsed_body
       expect(body["plan"]).to eq("Pro")
       ids = body["models"].map { |m| m["id"] }
-      expect(ids).to include("openai/gpt-oss-120b", "moonshotai/kimi-k2.7-code", "moonshotai/kimi-k3", "anthropic/claude-opus-4-8")
+      expect(ids).to include("openai/gpt-oss-120b", "moonshotai/kimi-k2.7-code", "moonshotai/kimi-k3", "anthropic/claude-opus-4-8", "anthropic/claude-opus-5")
       kimi = body["models"].find { |m| m["id"] == "moonshotai/kimi-k2.7-code" }
       expect(kimi["live"]).to be(true)
       expect(kimi["multiplier"]).to eq(1.0)
@@ -116,6 +116,12 @@ RSpec.describe "Api::Levelcode::V1::Account", type: :request do
       opus = body["models"].find { |m| m["id"] == "anthropic/claude-opus-4-8" }
       expect(opus["live"]).to be(true)                # price confirmed → live + billable
       expect(opus["multiplier"]).to be_within(0.05).of(6.67)
+      # Opus 5 rides the same price sheet, so Pro sees it at the SAME multiplier as 4.8 — the newer
+      # model costs a Pro user no more per turn. `live` is the bit that matters: an :assumption-priced
+      # row would render in the picker but silently fall back to the plan default when selected.
+      opus5 = body["models"].find { |m| m["id"] == "anthropic/claude-opus-5" }
+      expect(opus5["live"]).to be(true)
+      expect(opus5["multiplier"]).to be_within(0.05).of(6.67)
 
       # Per-turn cost rides along in the SAME retail unit as the balance fields, so the dashboard can
       # render "N credits/turn" beside "≈ turns left" using one conversion. ~7.7 credits on the 1×

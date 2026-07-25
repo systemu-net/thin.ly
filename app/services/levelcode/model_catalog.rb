@@ -64,8 +64,24 @@ module Levelcode
         label: "Opus 4.8", provider: "openrouter",
         # Confirmed vs OpenRouter (2026-07-07): output $25/M; input list ~$5/M (effective ~$1.56
         # after ~75% prompt-cache), cached read $0.50/M. Metering splits cached/uncached, so bills right.
+        # Context corrected 200K → 1M (2026-07-24): every OpenRouter endpoint for this model — Anthropic
+        # first-party, Bedrock, Azure, Google — advertises 1M/128K. The old 200K was the pre-1M default.
         input: 5.00, cached_input: 0.50, output: 25.00,
-        context: 200_000, min_tier: :pro, status: :confirmed
+        context: 1_000_000, min_tier: :pro, status: :confirmed
+      },
+      # Sits immediately after Opus 4.8 because the rates are IDENTICAL ($5/$0.50/$25) — the two share
+      # a multiplier, and equal neighbours keep the monotonic-multiplier invariant (spec) intact. That
+      # invariant orders by COST, not recency, so the newer model does not jump the queue.
+      "anthropic/claude-opus-5" => {
+        label: "Opus 5", provider: "openrouter",
+        # Confirmed vs the OpenRouter models API (2026-07-24): $5/M in · $25/M out · $0.50/M cached
+        # read — the same sheet as Opus 4.8, so Pro's per-turn economics are unchanged; what the plan
+        # gains is the newer model and a 1M window. Reached via OpenRouter like every other slug here.
+        # `context` is load-bearing, and in the UNDER-reserving direction: estimate_cost_micros clamps
+        # its input estimate DOWN to this number, so a too-small value makes the admission guard
+        # reserve less than the request can cost and wave through turns that overrun the budget.
+        input: 5.00, cached_input: 0.50, output: 25.00,
+        context: 1_000_000, min_tier: :pro, status: :confirmed
       },
       "anthropic/claude-fable-5" => {
         label: "Fable 5", provider: "openrouter",
