@@ -1,0 +1,38 @@
+# LevelCode
+
+> LevelCode is an AI-native, hackable code editor for macOS, built on Code-OSS (MIT). It reads your codebase, edits across files, runs commands behind approval gates, and verifies its own work — using your own provider API key, a local model via Ollama, or a metered LevelCode Cloud plan.
+
+- macOS only. Apple Silicon and Intel.
+- Four AI systems share one provider configuration: Chat, Agent, Edit, and Autocomplete.
+- Agent edits apply immediately and are reversible per file (Keep/Undo) and per turn (checkpoints). Shell commands require approval unless Autopilot is on.
+- Supported providers: Anthropic, OpenAI, OpenRouter, Groq, Together, Fireworks, DeepSeek, xAI, Mistral, any OpenAI-compatible endpoint, and local Ollama. Agent mode requires tool-calling and does not run on Ollama.
+- Extensions come from Open VSX, not the Microsoft marketplace.
+- Settings Sync is NOT currently available, despite older README text saying otherwise.
+
+## Get started
+
+- [Overview](https://levelcode.ai/docs): What LevelCode is, how the AI layer is wired, and where to go next.
+- [Quickstart](https://levelcode.ai/docs/quickstart): Install the editor, connect a model provider, and run your first agent task end to end.
+- [Install and setup](https://levelcode.ai/docs/setup): Download and verify a build, run from source, and handle macOS first-launch prompts.
+
+## AI
+
+- [Chat](https://levelcode.ai/docs/chat): Ask questions about your codebase, with context pulled in automatically or pinned by hand.
+- [Agent](https://levelcode.ai/docs/agent): The autonomous loop: planning, multi-file edits, approval-gated commands, self-verification, and checkpoints.
+- [Edit](https://levelcode.ai/docs/edit): Select code, describe the change, and review it as a diff before anything lands.
+- [Autocomplete](https://levelcode.ai/docs/autocomplete): Inline ghost-text completion as you type, and how to tune it.
+- [Providers and models](https://levelcode.ai/docs/providers): Bring your own key for any supported provider, run models locally with Ollama, or use the metered gateway.
+
+## The editor
+
+- [Power editing](https://levelcode.ai/docs/power-editing): The Notepad++ pack: macros, column mode, line operations, encoding and line-ending control, big-file mode.
+- [Hackability](https://levelcode.ai/docs/hackability): The init script, package authoring with hot reload, keymap presets, and themes.
+- [Import and updates](https://levelcode.ai/docs/import-and-updates): Bring your settings over from VS Code, VSCodium, or Cursor, install extensions from Open VSX, and stay on the latest build.
+
+## Account
+
+- [Cloud and billing](https://levelcode.ai/docs/cloud): Sign in, understand credits and usage, and decide between your own key and the metered gateway.
+
+## Help
+
+- [Troubleshooting](https://levelcode.ai/docs/troubleshooting): Fixes for first-launch blocks, provider and key errors, agent and terminal problems, and update failures.
