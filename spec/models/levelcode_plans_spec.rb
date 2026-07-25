@@ -215,6 +215,27 @@ RSpec.describe Levelcode do
     end
   end
 
+  describe '.estimate_cost_micros (admission-time reservation)' do
+    # The input estimate is clamped DOWN to the model's context window, so the window is a ceiling on
+    # what the guard will reserve. A STALE (too small) window therefore under-reserves — it waves
+    # through a long-context turn that can cost several times the amount set aside for it. This is why
+    # Opus 4.8's window was corrected 200K → 1M; the assertion below fails against the old value.
+    it 'reserves against the real context window, so a long request cannot under-reserve' do
+      long = { 'messages' => [ { 'role' => 'user', 'content' => 'x' * 2_400_000 } ] }  # ~600k tokens
+      reserved = Levelcode.estimate_cost_micros('anthropic/claude-opus-4-8', long)
+
+      # 600k input is well inside a 1M window, so the estimate must reflect all of it — not the 200k
+      # the old row would have clamped it to.
+      clamped_at_200k = Levelcode.cost_micros('anthropic/claude-opus-4-8', 200_000, Levelcode::PAID_MAX_TOKENS, 0)
+      expect(reserved).to be > clamped_at_200k
+
+      # And it is still bounded: a body far beyond the window clamps to the window, never past it.
+      absurd = { 'messages' => [ { 'role' => 'user', 'content' => 'x' * 40_000_000 } ] }  # ~10M tokens
+      ceiling = Levelcode.cost_micros('anthropic/claude-opus-4-8', 1_000_000, Levelcode::PAID_MAX_TOKENS, 0)
+      expect(Levelcode.estimate_cost_micros('anthropic/claude-opus-4-8', absurd)).to eq(ceiling)
+    end
+  end
+
   describe '.cost_micros' do
     # Every charge includes the OpenRouter routing fee (× ROUTING_FEE) so the ledger meters the true
     # wire cost and the target margin holds. Base list-price figures below, then × 1.055.

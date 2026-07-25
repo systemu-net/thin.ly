@@ -15,6 +15,18 @@ RSpec.describe Levelcode::ModelCatalog do
       expect(assumed).not_to include("anthropic/claude-opus-4-8")
     end
 
+    # `context` is not decoration — estimate_cost_micros clamps its input estimate DOWN to it, so a
+    # stale (too small) window makes the admission guard under-reserve. Both Opus rows are 1M: every
+    # OpenRouter endpoint for them (Anthropic first-party, Bedrock, Azure, Google) advertises 1M/128K.
+    it "carries each model's real context window" do
+      expect(described_class.find("anthropic/claude-opus-4-8")[:context]).to eq(1_000_000)
+      expect(described_class.find("anthropic/claude-opus-5")[:context]).to eq(1_000_000)
+      expect(described_class.find("moonshotai/kimi-k3")[:context]).to eq(1_048_576)
+      expect(described_class.find("openai/gpt-oss-120b")[:context]).to eq(131_072)
+      # No row may go without one: a nil/0 window disables the clamp entirely.
+      expect(described_class.all.values.map { |m| m[:context] }).to all(be_positive)
+    end
+
     it "rate_table exposes every roster model's per-token rates (feeds Levelcode.cost_micros)" do
       expect(described_class.rate_table["moonshotai/kimi-k2.7-code"]).to eq(input: 0.74, cached_input: 0.15, output: 3.50)
       expect(described_class.rate_table["moonshotai/kimi-k3"]).to eq(input: 3.00, cached_input: 0.30, output: 15.00)
