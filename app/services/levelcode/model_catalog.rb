@@ -67,6 +67,20 @@ module Levelcode
         input: 5.00, cached_input: 0.50, output: 25.00,
         context: 200_000, min_tier: :pro, status: :confirmed
       },
+      # Sits immediately after Opus 4.8 because the rates are IDENTICAL ($5/$0.50/$25) — the two share
+      # a multiplier, and equal neighbours keep the monotonic-multiplier invariant (spec) intact. That
+      # invariant orders by COST, not recency, so the newer model does not jump the queue.
+      "anthropic/claude-opus-5" => {
+        label: "Opus 5", provider: "openrouter",
+        # Confirmed vs the OpenRouter models API (2026-07-24): $5/M in · $25/M out · $0.50/M cached
+        # read — the same sheet as Opus 4.8, so Pro's per-turn economics are unchanged; what the plan
+        # gains is the newer model and a 1M window. Reached via OpenRouter like every other slug here.
+        # The 1M context is real and load-bearing: estimate_cost_micros clamps the admission
+        # reservation against this number, so understating it would refuse long-context turns the
+        # budget can actually afford.
+        input: 5.00, cached_input: 0.50, output: 25.00,
+        context: 1_000_000, min_tier: :pro, status: :confirmed
+      },
       "anthropic/claude-fable-5" => {
         label: "Fable 5", provider: "openrouter",
         input: 10.00, cached_input: 1.00, output: 50.00,

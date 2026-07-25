@@ -28,9 +28,9 @@ module Levelcode
       turns: 260,
       stripe_lookup_key: "orbits_pro",
       features: [
-        "2,000 credits/mo · ~260 Kimi turns, or ~39 on Opus 4.8",
+        "2,000 credits/mo · ~260 Kimi turns, or ~39 on Opus 5",
         "Usage that refreshes through your billing cycle",
-        "Kimi K2.7 Code + Opus 4.8",
+        "Kimi K2.7 Code + Opus 5",
         "Bring-your-own-key always free"
       ]
     },
@@ -44,9 +44,9 @@ module Levelcode
       turns: 520,
       stripe_lookup_key: "orbits_pro_plus",
       features: [
-        "4,000 credits/mo · ~520 Kimi turns, or ~78 on Opus 4.8",
+        "4,000 credits/mo · ~520 Kimi turns, or ~78 on Opus 5",
         "Usage that refreshes through your billing cycle",
-        "Kimi K2.7 Code + Opus 4.8",
+        "Kimi K2.7 Code + Opus 5",
         "Priority routing"
       ]
     },
@@ -60,9 +60,9 @@ module Levelcode
       turns: 780,
       stripe_lookup_key: "orbits_max",
       features: [
-        "6,000 credits/mo · ~780 Kimi turns, or ~117 on Opus 4.8",
+        "6,000 credits/mo · ~780 Kimi turns, or ~117 on Opus 5",
         "Usage that refreshes through your billing cycle",
-        "Kimi K2.7 Code + Opus 4.8",
+        "Kimi K2.7 Code + Opus 5",
         "Priority routing"
       ]
     },
@@ -76,9 +76,9 @@ module Levelcode
       turns: 1_300,
       stripe_lookup_key: "orbits_ultra",
       features: [
-        "10,000 credits/mo · ~1,300 Kimi turns, or ~195 on Opus 4.8",
+        "10,000 credits/mo · ~1,300 Kimi turns, or ~195 on Opus 5",
         "Usage that refreshes through your billing cycle",
-        "Kimi K2.7 Code + Opus 4.8",
+        "Kimi K2.7 Code + Opus 5",
         "Highest priority routing"
       ]
     }
