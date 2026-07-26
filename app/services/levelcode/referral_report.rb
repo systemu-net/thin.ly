@@ -155,8 +155,13 @@ module Levelcode
       SQL
     end
 
-    # Inclusive day range, defaulting to the last 30 days. Guards a reversed pair so a mis-typed
-    # filter returns an empty range rather than a Postgres error.
+    # Inclusive day range, defaulting to the last 30 days.
+    #
+    # A REVERSED pair (from > to) collapses to the single `to` day rather than raising — a mis-typed
+    # filter should not 500. That is not silent: `funnel` echoes the range it actually used back as
+    # `from`/`to`, and the dashboard prints it under the totals, so a collapsed range is visible
+    # rather than being mistaken for "no activity in my range". The UI also blocks a reversed range
+    # before it ever reaches here.
     def date_range(from, to)
       finish = (to.presence && to.to_date) || Date.current
       start  = (from.presence && from.to_date) || (finish - 29)

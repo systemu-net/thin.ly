@@ -138,6 +138,19 @@ RSpec.describe "Api::Levelcode::V1::Admin referrals", type: :request do
       expect(row_for(response.parsed_body, "linkedin")).to include("signups" => 1, "clicks" => 1)
     end
 
+    # A reversed range collapses to the single `to` day rather than raising, and the
+    # response echoes what it actually used so the collapse is visible instead of
+    # looking like "no activity in my range".
+    it "collapses a reversed range to one day and says so in the response" do
+      get "/api/levelcode/v1/admin/referrals",
+          params: { from: Date.current.iso8601, to: 30.days.ago.to_date.iso8601 }
+
+      expect(response).to have_http_status(:ok)
+      body = response.parsed_body
+      expect(body["from"]).to eq(30.days.ago.to_date.iso8601)
+      expect(body["to"]).to eq(30.days.ago.to_date.iso8601)
+    end
+
     it "states the basis for the paid column so it is not read as a conversion event" do
       get "/api/levelcode/v1/admin/referrals"
       expect(response.parsed_body["paid_basis"]).to eq("signed_up_in_range_and_paying_now")

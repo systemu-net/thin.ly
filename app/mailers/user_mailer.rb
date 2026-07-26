@@ -32,11 +32,26 @@ class UserMailer < ApplicationMailer
 
   # Channel in the subject line, so a run of these is scannable from the inbox
   # list without opening anything.
+  #
+  # Every interpolated value is scrubbed of control characters first. The
+  # sanitizer now strips them before storing, but rows written BEFORE that fix
+  # are still in the table, and a CR/LF in a mail header is injection — which the
+  # Mail gem answers by raising, taking the notification job down with it. A
+  # header builder should not trust its inputs regardless of who cleaned them
+  # upstream.
   def subject_for(email, channel, handle)
+    email = header_safe(email)
+    channel = header_safe(channel)
+    handle = header_safe(handle)
+
     return "New LevelCode signup: #{email}" if channel.blank?
 
     via = handle.present? ? "#{channel} / #{handle}" : channel
     "New LevelCode signup via #{via}: #{email}"
+  end
+
+  def header_safe(value)
+    value.to_s.gsub(/[[:cntrl:]]/, " ").squeeze(" ").strip
   end
 
   # How they got in. `provider` is set only on the OAuth paths.

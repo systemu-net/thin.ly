@@ -129,6 +129,23 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
         expect(json).to eq('redirect' => '/ai/account')
       end
 
+      # Length clamping alone let CR/LF through, and these values are later
+      # interpolated into the signup notification's Subject header.
+      it 'strips control characters so nothing header-unsafe is ever stored' do
+        nasty = { source: "linkedin\r\nBcc: attacker@example.com",
+                  params: { linkedin: "anastasia\nX-Injected: yes" },
+                  landing: "/ai\r\n" }
+        post '/ai/auth/verify', params: { email: 'nasty@example.com', code: '123456', attribution: nasty }, as: :json
+
+        attr = User.find_by(email: 'nasty@example.com').signup_attribution
+        [ attr['source'], attr['params']['linkedin'], attr['landing'] ].each do |v|
+          expect(v).not_to include("\r")
+          expect(v).not_to include("\n")
+        end
+        expect(attr['source']).to start_with('linkedin')
+        expect(attr['params']['linkedin']).to start_with('anastasia')
+      end
+
       it 'whitelists keys and bounds sizes — never trusts the client blob' do
         hostile = { source: 'x' * 200,
                     params: { linkedin: 'a' * 500, evil: 'ignored', utm_source: 'newsletter' },

@@ -435,20 +435,37 @@ module Levelcode
       if src.is_a?(Hash)
         ATTRIBUTION_PARAM_KEYS.each do |k|
           v = src[k] || src[k.to_sym]
-          params[k] = v.to_s[0, 120] if v.present?
+          cleaned = attribution_string(v, 120)
+          params[k] = cleaned if cleaned.present?
         end
       end
-      source = h["source"].to_s[0, 40]
+      source = attribution_string(h["source"], 40)
       return nil if params.empty? && source.blank?
 
       {
         "source" => source.presence || "other",
         "params" => params,
-        "landing" => h["landing"].to_s[0, 300].presence,
-        "referrer" => h["referrer"].to_s[0, 300].presence,
-        "ts" => h["ts"].to_s[0, 40].presence,
+        "landing" => attribution_string(h["landing"], 300).presence,
+        "referrer" => attribution_string(h["referrer"], 300).presence,
+        "ts" => attribution_string(h["ts"], 40).presence,
         "recorded_at" => Time.current.utc.iso8601
       }.compact
+    end
+
+    # Clean one attribution string: strip CONTROL CHARACTERS, then clamp.
+    #
+    # Length clamping alone was not enough. `source` and the param values are
+    # client-controlled and end up interpolated into the notification email's
+    # Subject header, so a value containing CR/LF is header injection — and at
+    # minimum makes the Mail gem raise, killing the signup notification job.
+    # Stripping here means nothing dangerous is ever STORED, which also protects
+    # every later consumer (the referral report, the dashboard) rather than just
+    # the one that happens to build a header today.
+    #
+    # Control chars are removed before the clamp so the limit applies to what is
+    # actually kept.
+    def attribution_string(value, limit)
+      value.to_s.gsub(/[[:cntrl:]]/, " ").squeeze(" ").strip[0, limit].to_s
     end
 
     def valid_email?(email)
