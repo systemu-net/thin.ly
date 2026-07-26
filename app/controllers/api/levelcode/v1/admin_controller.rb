@@ -24,6 +24,17 @@ module Api
           ), status: :ok
         end
 
+        # GET /api/levelcode/v1/admin/referrals?from=YYYY-MM-DD&to=YYYY-MM-DD
+        # Referral funnel per marketing channel: clicks -> signups -> paid.
+        def referrals
+          render json: ::Levelcode::ReferralReport.funnel(
+            from: params[:from].presence,
+            to: params[:to].presence
+          ), status: :ok
+        rescue Date::Error
+          render_levelcode_error("bad_request", "from/to must be YYYY-MM-DD dates", :bad_request)
+        end
+
         private
 
         def require_admin!

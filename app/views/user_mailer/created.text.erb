@@ -1,0 +1,14 @@
+LevelCode — new signup
+
+<%= @email %>
+
+Referral:      <% if @channel.present? %><%= @channel %><% if @handle.present? %> / <%= @handle %><% end %><% else %>Organic — no campaign link<% end %>
+Signed up with: <%= @signup_method %>
+When:           <%= @created_at&.utc&.strftime("%d %b %Y, %H:%M UTC") %>
+<% if @landing.present? -%>
+Landed on:      <%= @landing %>
+<% end -%>
+User ID:        <%= @user.id %>
+
+--
+Sent by LevelCode · https://levelcode.ai

@@ -103,6 +103,13 @@ module Levelcode
       state = SecureRandom.urlsafe_base64(24)
       session[:levelcode_oauth_state] = state
       session[:levelcode_oauth_provider] = provider
+      # Carry the SPA's first-touch marketing attribution across the provider
+      # round-trip. It rides the session (like `state`) rather than the provider
+      # redirect, so it can't be tampered with at the provider and comes back to
+      # the same browser. Clamped because the session lives in a 4 KB cookie and
+      # this value is client-supplied; it is sanitized again before it reaches
+      # the DB (see stamp_oauth_attribution!).
+      session[:levelcode_oauth_attribution] = params[:attribution].to_s[0, 2_000].presence
 
       url = Levelcode::ProviderOAuth.authorize_url(provider: provider, redirect_uri: oauth_callback_uri, state: state)
       redirect_to url, allow_other_host: true
@@ -114,6 +121,7 @@ module Levelcode
     def oauth_callback
       provider = session.delete(:levelcode_oauth_provider).to_s
       expected_state = session.delete(:levelcode_oauth_state).to_s
+      raw_attribution = session.delete(:levelcode_oauth_attribution)
 
       if expected_state.blank? || params[:state].to_s != expected_state
         log_auth(kind: "oauth", outcome: "failure", provider: provider, reason: "session_expired")
@@ -130,6 +138,8 @@ module Levelcode
         log_auth(kind: "oauth", outcome: "failure", provider: provider, reason: "oauth_failed")
         return redirect_to("/ai/login?error=oauth_failed")
       end
+
+      stamp_oauth_attribution!(user, raw_attribution)
 
       log_auth(kind: "oauth", outcome: "success", user: user, provider: provider)
       touch_access!(user)
@@ -350,6 +360,46 @@ module Levelcode
       # on users.email rejected the loser. Re-find the winner so a valid sign-in never 500s. (Attribution
       # was stamped by whichever request won the create; the loser just returns the existing account.)
       User.find_by(email: email)
+    end
+
+    # Stamp first-touch attribution on a user who just signed up via OAuth.
+    #
+    # The email path can pass attribution straight into User.create; OAuth cannot,
+    # because GitHub and Google create the user through two different services
+    # (ProviderOAuth.find_or_create_oauth_user and User.from_google). Doing it here
+    # keeps one rule in one place for both providers.
+    #
+    # Two guards, and both matter for whether a partner's numbers mean anything:
+    #   * previously_new_record? — stamp ONLY on the create. Someone who signed up
+    #     months ago and today happens to arrive via a referral link was not
+    #     acquired by that channel; crediting them would be last-touch and would
+    #     inflate the partner's conversions.
+    #   * signup_attribution.nil? — never overwrite an existing value.
+    def stamp_oauth_attribution!(user, raw)
+      return unless user&.persisted? && user.previously_new_record?
+      return unless user.signup_attribution.nil?
+
+      attribution = sanitize_signup_attribution(parse_attribution_json(raw))
+      return if attribution.nil?
+
+      # update_column: skip validations/callbacks — this is analytics metadata and
+      # must never be able to fail a sign-in that already succeeded.
+      user.update_column(:signup_attribution, attribution)
+    rescue StandardError => e
+      # Attribution is best-effort. A signed-in user must not be bounced to an
+      # error page because a marketing field could not be written.
+      Rails.logger.warn("[levelcode] oauth attribution stamp failed: #{e.class}: #{e.message}")
+    end
+
+    # The session carries the SPA's attribution as the JSON string it put in the
+    # URL. Anything unparseable is simply organic — never an error.
+    def parse_attribution_json(raw)
+      return nil if raw.blank?
+
+      parsed = JSON.parse(raw.to_s)
+      parsed.is_a?(Hash) ? parsed : nil
+    rescue JSON::ParserError
+      nil
     end
 
     # Campaign params we recognize (mirror of the SPA's attribution util). Anything else is dropped.

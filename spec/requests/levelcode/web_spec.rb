@@ -262,6 +262,74 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       get '/ai/auth/oauth/twitter'
       expect(response).to redirect_to('/ai/login')
     end
+
+    # Marketing attribution across the OAuth round-trip. Before this, ONLY the email
+    # flow recorded a channel, so every GitHub/Google signup was attributed to
+    # nothing — which silently undercounts whichever channel sends developers.
+    describe 'marketing attribution' do
+      let(:attribution) do
+        { source: 'linkedin', params: { linkedin: 'anastasia' }, landing: '/ai' }.to_json
+      end
+
+      def start_oauth_with_attribution(blob = attribution)
+        allow(SecureRandom).to receive(:urlsafe_base64).and_return('teststate')
+        allow(Levelcode::ProviderOAuth).to receive(:authorize_url).and_return('https://github.test/authorize')
+        get '/ai/auth/oauth/github', params: { attribution: blob }
+      end
+
+      it 'stamps the channel on a user CREATED through OAuth' do
+        new_user = User.new(email: 'fresh@example.com', password: 'x' * 20, terms_accepted: true)
+        new_user.save!
+        allow(Levelcode::ProviderOAuth).to receive(:github_user).and_return(new_user)
+
+        start_oauth_with_attribution
+        get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
+
+        stored = new_user.reload.signup_attribution
+        expect(stored['source']).to eq('linkedin')
+        expect(stored.dig('params', 'linkedin')).to eq('anastasia')
+        expect(stored['recorded_at']).to be_present
+      end
+
+      # Acquisition attribution, not last-touch: someone who signed up long ago and
+      # today arrives through a referral link was not acquired by that channel, and
+      # crediting them would inflate the partner's conversions.
+      it 'does NOT stamp an existing user who merely signs in through a referral link' do
+        existing = User.create!(email: 'old@example.com', password: 'x' * 20, terms_accepted: true)
+        existing.reload # clears previously_new_record?
+        allow(Levelcode::ProviderOAuth).to receive(:github_user).and_return(existing)
+
+        start_oauth_with_attribution
+        get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
+
+        expect(existing.reload.signup_attribution).to be_nil
+      end
+
+      it 'ignores an unparseable attribution blob instead of failing the sign-in' do
+        new_user = User.new(email: 'junk@example.com', password: 'x' * 20, terms_accepted: true)
+        new_user.save!
+        allow(Levelcode::ProviderOAuth).to receive(:github_user).and_return(new_user)
+
+        start_oauth_with_attribution('not json{{{')
+        get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
+
+        expect(response).to redirect_to('/ai/account')
+        expect(new_user.reload.signup_attribution).to be_nil
+      end
+
+      it 'drops params outside the whitelist' do
+        new_user = User.new(email: 'evil@example.com', password: 'x' * 20, terms_accepted: true)
+        new_user.save!
+        allow(Levelcode::ProviderOAuth).to receive(:github_user).and_return(new_user)
+
+        start_oauth_with_attribution(
+          { source: 'linkedin', params: { linkedin: 'anastasia', evil: 'x' } }.to_json
+        )
+        get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
+
+        expect(new_user.reload.signup_attribution['params'].keys).to eq([ 'linkedin' ])
+      end
+    end
   end
 
   describe 'POST /ai/signout' do

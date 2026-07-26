@@ -164,6 +164,7 @@ Rails.application.routes.draw do
         # Admin dashboard (role: admin only)
         get   "admin/summary",    to: "admin#summary"
         get   "admin/users",      to: "admin#users"
+        get   "admin/referrals",  to: "admin#referrals"  # clicks -> signups -> paid, per channel
 
         # AI gateway (SPEC §4). The editor routes gateway traffic through its
         # OpenAI-compatible adapter, which POSTs to `<base>/chat/completions`
