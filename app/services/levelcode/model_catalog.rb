@@ -17,13 +17,14 @@ module Levelcode
     # Plan tiers, ranked. A model with `min_tier: T` is reachable by any plan of rank >= rank(T).
     TIERS = { free: 0, pro: 1, pro_plus: 2, max: 3, ultra: 4 }.freeze
 
-    # The roster. Prices are micro-dollars per token (== $/M tokens). `status`:
-    #   :confirmed  — a verified/adopted list price. As of 2026-07-25 EVERY row is confirmed: the frontier
-    #                 engines (Codex 5.3, GPT-5.5, Sonnet 5, Fable 5) went live, their lineage-estimated
-    #                 prices adopted as official. Fable 5 stays Max-tier by entitlement, not by price.
-    #   :assumption — a lineage estimate: shown as "coming soon", never billable. None remain today; the
-    #                 tier stays so a future model can be staged before its price lands. (The ledger meters
-    #                 ACTUAL response cost, so an estimate only skews the DISPLAYED multiplier, not the charge.)
+    # The roster. Prices are micro-dollars per token (== $/M tokens). `status` records HOW a row's price
+    # was established — a per-row property, deliberately not a point-in-time statement about the roster:
+    #   :confirmed  — a verified provider list price (each row cites its source + date inline). Only
+    #                 confirmed rows are selectable/billable; entitlement then gates access by min_tier.
+    #   :assumption — a lineage estimate: shown as "coming soon", never billable. Staged so a model can
+    #                 land before its price is quoted; flip to :confirmed once a live quote is in hand.
+    #                 (The ledger meters ACTUAL response cost, so an estimate only skews the DISPLAYED
+    #                 multiplier, never the charge — but keep them honest and short-lived.)
     MODELS = {
       "openai/gpt-oss-120b" => {
         label: "gpt-oss-120b", provider: "openrouter",
