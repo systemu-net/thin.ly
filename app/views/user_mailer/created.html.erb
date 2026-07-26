@@ -1,5 +1,54 @@
-<h1>New user was created</h1>
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;padding:8px 4px;color:#1b1a17;">
+  <p style="font-size:18px;font-weight:700;margin:0 0 24px;">LevelCode</p>
 
-<p>
-  Welcome new user: <%= @created_user_email %>
-</p>
+  <h1 style="font-size:22px;font-weight:700;margin:0 0 8px;">New signup</h1>
+  <p style="font-size:15px;color:#3a3833;margin:0 0 24px;"><%= @email %></p>
+
+  <%# The referral block is why this email was rewritten: the channel should be readable
+      at a glance, not reconstructed later from a console query. %>
+  <% if @channel.present? %>
+    <div style="border:1px solid #d9d3f5;background:#f4f1fe;border-radius:6px;padding:14px 16px;margin:0 0 24px;">
+      <p style="font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#5b3fd6;margin:0 0 6px;">
+        Referral
+      </p>
+      <p style="font-size:16px;font-weight:600;margin:0;color:#1b1a17;">
+        <%= @channel %><% if @handle.present? %> &middot; <%= @handle %><% end %>
+      </p>
+    </div>
+  <% else %>
+    <div style="border:1px solid #e7e3da;border-radius:6px;padding:14px 16px;margin:0 0 24px;">
+      <p style="font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#6b675e;margin:0 0 6px;">
+        Referral
+      </p>
+      <p style="font-size:15px;margin:0;color:#3a3833;">Organic &mdash; no campaign link</p>
+    </div>
+  <% end %>
+
+  <table style="width:100%;border-collapse:collapse;font-size:14px;margin:0 0 24px;">
+    <tr>
+      <td style="padding:8px 0;color:#6b675e;border-bottom:1px solid #efece4;width:40%;">Signed up with</td>
+      <td style="padding:8px 0;color:#1b1a17;border-bottom:1px solid #efece4;"><%= @signup_method %></td>
+    </tr>
+    <tr>
+      <td style="padding:8px 0;color:#6b675e;border-bottom:1px solid #efece4;">When</td>
+      <td style="padding:8px 0;color:#1b1a17;border-bottom:1px solid #efece4;">
+        <%= @created_at&.utc&.strftime("%d %b %Y, %H:%M UTC") %>
+      </td>
+    </tr>
+    <% if @landing.present? %>
+      <tr>
+        <td style="padding:8px 0;color:#6b675e;border-bottom:1px solid #efece4;">Landed on</td>
+        <td style="padding:8px 0;color:#1b1a17;border-bottom:1px solid #efece4;"><%= @landing %></td>
+      </tr>
+    <% end %>
+    <tr>
+      <td style="padding:8px 0;color:#6b675e;">User ID</td>
+      <td style="padding:8px 0;color:#1b1a17;"><%= @user.id %></td>
+    </tr>
+  </table>
+
+  <hr style="border:none;border-top:1px solid #e7e3da;margin:0 0 16px;">
+  <p style="font-size:13px;color:#6b675e;margin:0;">
+    Sent by LevelCode &middot; <a href="https://levelcode.ai" style="color:#5b3fd6;text-decoration:none;">levelcode.ai</a>
+  </p>
+</div>

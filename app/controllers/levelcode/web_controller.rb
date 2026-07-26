@@ -103,6 +103,12 @@ module Levelcode
       state = SecureRandom.urlsafe_base64(24)
       session[:levelcode_oauth_state] = state
       session[:levelcode_oauth_provider] = provider
+      # Carry the SPA's first-touch marketing attribution across the provider
+      # round-trip. It rides the session (like `state`) rather than the provider
+      # redirect, so it can't be tampered with at the provider and comes back to
+      # the same browser. Sanitized again before it reaches the DB (see
+      # stamp_oauth_attribution!).
+      session[:levelcode_oauth_attribution] = clamp_session_bytes(params[:attribution])
 
       url = Levelcode::ProviderOAuth.authorize_url(provider: provider, redirect_uri: oauth_callback_uri, state: state)
       redirect_to url, allow_other_host: true
@@ -114,6 +120,7 @@ module Levelcode
     def oauth_callback
       provider = session.delete(:levelcode_oauth_provider).to_s
       expected_state = session.delete(:levelcode_oauth_state).to_s
+      raw_attribution = session.delete(:levelcode_oauth_attribution)
 
       if expected_state.blank? || params[:state].to_s != expected_state
         log_auth(kind: "oauth", outcome: "failure", provider: provider, reason: "session_expired")
@@ -130,6 +137,8 @@ module Levelcode
         log_auth(kind: "oauth", outcome: "failure", provider: provider, reason: "oauth_failed")
         return redirect_to("/ai/login?error=oauth_failed")
       end
+
+      stamp_oauth_attribution!(user, raw_attribution)
 
       log_auth(kind: "oauth", outcome: "success", user: user, provider: provider)
       touch_access!(user)
@@ -352,6 +361,65 @@ module Levelcode
       User.find_by(email: email)
     end
 
+    # Stamp first-touch attribution on a user who just signed up via OAuth.
+    #
+    # The email path can pass attribution straight into User.create; OAuth cannot,
+    # because GitHub and Google create the user through two different services
+    # (ProviderOAuth.find_or_create_oauth_user and User.from_google). Doing it here
+    # keeps one rule in one place for both providers.
+    #
+    # Two guards, and both matter for whether a partner's numbers mean anything:
+    #   * previously_new_record? — stamp ONLY on the create. Someone who signed up
+    #     months ago and today happens to arrive via a referral link was not
+    #     acquired by that channel; crediting them would be last-touch and would
+    #     inflate the partner's conversions.
+    #   * signup_attribution.nil? — never overwrite an existing value.
+    def stamp_oauth_attribution!(user, raw)
+      return unless user&.persisted? && user.previously_new_record?
+      return unless user.signup_attribution.nil?
+
+      attribution = sanitize_signup_attribution(parse_attribution_json(raw))
+      return if attribution.nil?
+
+      # update_column: skip validations/callbacks — this is analytics metadata and
+      # must never be able to fail a sign-in that already succeeded.
+      user.update_column(:signup_attribution, attribution)
+    rescue StandardError => e
+      # Attribution is best-effort. A signed-in user must not be bounced to an
+      # error page because a marketing field could not be written.
+      Rails.logger.warn("[levelcode] oauth attribution stamp failed: #{e.class}: #{e.message}")
+    end
+
+    # Session budget for the attribution blob, in BYTES.
+    #
+    # Bytes, not characters: the Rails session is a ~4 KB cookie, and this value is
+    # client-supplied. A 2,000-CHARACTER clamp permits up to 8,000 bytes of
+    # multi-byte UTF-8, which can overflow the cookie — and an overflowing cookie
+    # takes the OAuth `state` down with it, turning a sign-in into
+    # "?error=session_expired".
+    ATTRIBUTION_SESSION_MAX_BYTES = 2_000
+
+    def clamp_session_bytes(raw)
+      s = raw.to_s
+      return nil if s.empty?
+
+      # byteslice can cut mid-character; scrub drops the resulting invalid tail so
+      # what lands in the session is always valid UTF-8 (JSON.parse would reject it
+      # otherwise, silently losing the attribution).
+      s.byteslice(0, ATTRIBUTION_SESSION_MAX_BYTES).to_s.scrub("").presence
+    end
+
+    # The session carries the SPA's attribution as the JSON string it put in the
+    # URL. Anything unparseable is simply organic — never an error.
+    def parse_attribution_json(raw)
+      return nil if raw.blank?
+
+      parsed = JSON.parse(raw.to_s)
+      parsed.is_a?(Hash) ? parsed : nil
+    rescue JSON::ParserError
+      nil
+    end
+
     # Campaign params we recognize (mirror of the SPA's attribution util). Anything else is dropped.
     ATTRIBUTION_PARAM_KEYS = %w[linkedin youtube ref utm_source utm_medium utm_campaign utm_content].freeze
 
@@ -367,20 +435,37 @@ module Levelcode
       if src.is_a?(Hash)
         ATTRIBUTION_PARAM_KEYS.each do |k|
           v = src[k] || src[k.to_sym]
-          params[k] = v.to_s[0, 120] if v.present?
+          cleaned = attribution_string(v, 120)
+          params[k] = cleaned if cleaned.present?
         end
       end
-      source = h["source"].to_s[0, 40]
+      source = attribution_string(h["source"], 40)
       return nil if params.empty? && source.blank?
 
       {
         "source" => source.presence || "other",
         "params" => params,
-        "landing" => h["landing"].to_s[0, 300].presence,
-        "referrer" => h["referrer"].to_s[0, 300].presence,
-        "ts" => h["ts"].to_s[0, 40].presence,
+        "landing" => attribution_string(h["landing"], 300).presence,
+        "referrer" => attribution_string(h["referrer"], 300).presence,
+        "ts" => attribution_string(h["ts"], 40).presence,
         "recorded_at" => Time.current.utc.iso8601
       }.compact
+    end
+
+    # Clean one attribution string: strip CONTROL CHARACTERS, then clamp.
+    #
+    # Length clamping alone was not enough. `source` and the param values are
+    # client-controlled and end up interpolated into the notification email's
+    # Subject header, so a value containing CR/LF is header injection — and at
+    # minimum makes the Mail gem raise, killing the signup notification job.
+    # Stripping here means nothing dangerous is ever STORED, which also protects
+    # every later consumer (the referral report, the dashboard) rather than just
+    # the one that happens to build a header today.
+    #
+    # Control chars are removed before the clamp so the limit applies to what is
+    # actually kept.
+    def attribution_string(value, limit)
+      value.to_s.gsub(/[[:cntrl:]]/, " ").squeeze(" ").strip[0, limit].to_s
     end
 
     def valid_email?(email)
