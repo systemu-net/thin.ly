@@ -114,10 +114,10 @@ RSpec.describe Levelcode do
     end
 
     it 'a paid plan may use the flagship AND the open-weights engine (confirmed-price roster)' do
-      # Kimi K3, then Opus 5, joined the confirmed-price roster as selectable Pro picks.
-      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8', 'anthropic/claude-opus-5', 'moonshotai/kimi-k3' ])
-      # A tier-entitled but ASSUMPTION-priced frontier model stays staged — never billed on a guess.
-      expect(Levelcode.allowed_models('orbits_pro')).not_to include('openai/gpt-5.5')
+      # Every Pro-tier engine is confirmed now — the frontier rows (Codex 5.3, GPT-5.5, Sonnet 5) went live.
+      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8', 'anthropic/claude-opus-5', 'moonshotai/kimi-k3', 'openai/gpt-5.3-codex', 'openai/gpt-5.5', 'anthropic/claude-sonnet-5' ])
+      # Fable 5 is confirmed too, but Max-tier — a Pro plan still can't reach it (entitlement, not price).
+      expect(Levelcode.allowed_models('orbits_pro')).not_to include('anthropic/claude-fable-5')
     end
 
     it 'free CANNOT reach the flagship no matter what is requested' do
@@ -259,8 +259,9 @@ RSpec.describe Levelcode do
 
     it 'falls back to the MOST EXPENSIVE confirmed rate for unknown/off-catalog models (never under-bills)' do
       # An off-catalog id (e.g. a dated snapshot or upstream substitution) must not bill at the cheapest
-      # rate. Conservative fallback = the max confirmed rate (Opus input 5.0): 1M * 5.0 * 1.055 = 5_275_000
-      expect(Levelcode.cost_micros('some/unknown-model', 1_000_000, 0, 0)).to eq(5_275_000)
+      # rate. Conservative fallback = the max confirmed rate. Now that Fable 5 is confirmed, the max input
+      # rate is 10.0 (Fable, up from Opus's 5.0): 1M * 10.0 * 1.055 = 10_550_000.
+      expect(Levelcode.cost_micros('some/unknown-model', 1_000_000, 0, 0)).to eq(10_550_000)
     end
 
     it 'bills the free-tier engine at its own (much cheaper) rate (incl. routing fee)' do
