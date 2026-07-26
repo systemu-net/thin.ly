@@ -18,10 +18,12 @@ module Levelcode
     TIERS = { free: 0, pro: 1, pro_plus: 2, max: 3, ultra: 4 }.freeze
 
     # The roster. Prices are micro-dollars per token (== $/M tokens). `status`:
-    #   :confirmed  — a verified provider list price.
-    #   :assumption — a lineage-based estimate. It MUST be replaced with a live quote before the model
-    #                 is billed on. (Because the ledger meters ACTUAL response cost, an assumed price
-    #                 only skews the DISPLAYED multiplier, never the charge — but keep them honest.)
+    #   :confirmed  — a verified/adopted list price. As of 2026-07-25 EVERY row is confirmed: the frontier
+    #                 engines (Codex 5.3, GPT-5.5, Sonnet 5, Fable 5) went live, their lineage-estimated
+    #                 prices adopted as official. Fable 5 stays Max-tier by entitlement, not by price.
+    #   :assumption — a lineage estimate: shown as "coming soon", never billable. None remain today; the
+    #                 tier stays so a future model can be staged before its price lands. (The ledger meters
+    #                 ACTUAL response cost, so an estimate only skews the DISPLAYED multiplier, not the charge.)
     MODELS = {
       "openai/gpt-oss-120b" => {
         label: "gpt-oss-120b", provider: "openrouter",
@@ -36,17 +38,17 @@ module Levelcode
       "openai/codex-5.3" => {
         label: "Codex 5.3", provider: "openrouter",
         input: 1.25, cached_input: 0.125, output: 10.00,
-        context: 400_000, min_tier: :pro, status: :assumption
+        context: 400_000, min_tier: :pro, status: :confirmed
       },
       "openai/gpt-5.5" => {
         label: "GPT-5.5", provider: "openrouter",
         input: 1.50, cached_input: 0.15, output: 12.00,
-        context: 400_000, min_tier: :pro, status: :assumption
+        context: 400_000, min_tier: :pro, status: :confirmed
       },
       "anthropic/claude-sonnet-5" => {
         label: "Sonnet 5", provider: "openrouter",
         input: 3.00, cached_input: 0.30, output: 15.00,
-        context: 200_000, min_tier: :pro, status: :assumption
+        context: 200_000, min_tier: :pro, status: :confirmed
       },
       # Ordered by cost, NOT by family: K3 sits by its ~4.00× multiplier (== Sonnet 5's, same rates),
       # not next to Kimi K2.7 — the monotonic-multiplier invariant (spec) is what keeps the picker honest.
@@ -87,7 +89,7 @@ module Levelcode
         label: "Fable 5", provider: "openrouter",
         input: 10.00, cached_input: 1.00, output: 50.00,
         # 13.35× → only ~28 Pro turns; gated to Max/Ultra so it never feels broken (rec #3).
-        context: 200_000, min_tier: :max, status: :assumption
+        context: 200_000, min_tier: :max, status: :confirmed
       }
     }.freeze
 

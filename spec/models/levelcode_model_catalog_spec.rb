@@ -4,15 +4,15 @@ require "rails_helper"
 # design invariants hold (entitlement tiers, monotonic multipliers, dollar-denominated budgets).
 RSpec.describe Levelcode::ModelCatalog do
   describe "roster integrity" do
-    it "marks only the verified engines as confirmed; frontier rows are assumptions" do
-      expect(described_class.find("openai/gpt-oss-120b")[:status]).to eq(:confirmed)
-      expect(described_class.find("moonshotai/kimi-k2.7-code")[:status]).to eq(:confirmed)
-      expect(described_class.find("anthropic/claude-opus-4-8")[:status]).to eq(:confirmed) # price confirmed 2026-07-07
-      expect(described_class.find("moonshotai/kimi-k3")[:status]).to eq(:confirmed)       # OpenRouter list, 2026-07-20
-      expect(described_class.find("anthropic/claude-opus-5")[:status]).to eq(:confirmed)  # OpenRouter list, 2026-07-24
+    it "carries a confirmed price on every roster engine — the frontier rows are enabled now" do
+      %w[openai/gpt-oss-120b moonshotai/kimi-k2.7-code anthropic/claude-opus-4-8 moonshotai/kimi-k3
+         anthropic/claude-opus-5 openai/codex-5.3 openai/gpt-5.5 anthropic/claude-sonnet-5
+         anthropic/claude-fable-5].each do |id|
+        expect(described_class.find(id)[:status]).to eq(:confirmed), id
+      end
+      # Nothing left staged — the "coming soon" set is empty.
       assumed = described_class.all.select { |_id, m| m[:status] == :assumption }.keys
-      expect(assumed).to include("anthropic/claude-fable-5", "openai/gpt-5.5")
-      expect(assumed).not_to include("anthropic/claude-opus-4-8")
+      expect(assumed).to be_empty
     end
 
     # `context` is not decoration — estimate_cost_micros clamps its input estimate DOWN to it, so a
