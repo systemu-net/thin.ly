@@ -52,6 +52,23 @@ class User < ApplicationRecord
   has_many :usage_events, dependent: :destroy
   has_one :profile, dependent: :destroy
 
+  # These three have a foreign key to users but had no association here, so
+  # `user.destroy` died on a PG::ForeignKeyViolation instead of cleaning up —
+  # one table at a time, since the first violation aborts the transaction.
+  #
+  # The `dependent:` choice follows each column's own nullability, which is the
+  # schema stating whether the row is meant to outlive the user:
+  #   auth_events.user_id          nullable  -> nullify, keep the security trail
+  #   link_governance_logs.user_id nullable  -> nullify, keep the audit trail
+  #   usage_feedbacks.user_id      NOT NULL  -> destroy, it cannot be orphaned
+  #
+  # Nullifying rather than deleting also means a GDPR-style erasure keeps the
+  # "someone authenticated / someone changed this link" record while dropping the
+  # link to the person.
+  has_many :auth_events, dependent: :nullify
+  has_many :link_governance_logs, dependent: :nullify
+  has_many :usage_feedbacks, dependent: :destroy
+
   mount_uploader :avatar, AvatarUploader
 
   before_validation :create_stripe_customer, on: :create

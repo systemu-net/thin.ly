@@ -54,6 +54,18 @@ class Link < ApplicationRecord
   has_many :brand_pages, through: :resources, source: :page
   has_many :threat_detections, as: :detectable, dependent: :destroy
 
+  # Same gap as on User: these four have a foreign key to links with no
+  # association here, so destroying a link — including via `user.destroy`, which
+  # cascades through has_many :links — hit a PG::ForeignKeyViolation.
+  #
+  # All four are `link_id NOT NULL`, so :destroy is the only option; none of them
+  # means anything without its link. (link_governance_logs is :nullify from User
+  # but :destroy from here — the log survives losing its actor, not its link.)
+  has_many :link_destination_histories, dependent: :destroy
+  has_many :link_routing_rules, dependent: :destroy
+  has_many :link_governance_logs, dependent: :destroy
+  has_many :profile_links, dependent: :destroy
+
 
   validates_presence_of :original_url, :lookup_code
   validates_uniqueness_of :lookup_code
