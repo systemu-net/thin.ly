@@ -28,8 +28,14 @@ module Levelcode
     PARAM_KEYS = %w[linkedin youtube ref utm_source utm_medium utm_campaign utm_content].freeze
 
     # Only links that actually point at the product count as marketing links. There is no flag on
-    # `links` marking one, so the destination host is the only available selector.
-    MARKETING_URL_MATCH = "%levelcode.ai%"
+    # `links` marking one, so the destination HOST is the only available selector.
+    #
+    # Anchored on scheme + host rather than a substring: `ILIKE '%levelcode.ai%'` also matches
+    # `https://notlevelcode.ai/?linkedin=x` and `https://evil.test/?next=levelcode.ai`, and since
+    # anyone can shorten any URL, that is an open door to inflating a partner's click count.
+    # Subdomains are allowed (www. and friends); the host must END there, so a lookalike like
+    # `levelcode.ai.evil.test` does not match.
+    MARKETING_URL_REGEX = '^https?://([a-z0-9_-]+\.)*levelcode\.ai(:[0-9]+)?([/?#]|$)'
 
     # Derive the channel from a link's destination, in the SPA's precedence order: a named network
     # wins, then utm_source, then ref. Anything else is "other".
@@ -101,7 +107,7 @@ module Levelcode
       Click.human_traffic
            .joins(:link)
            .where(created_at: range)
-           .where("links.original_url ILIKE ?", MARKETING_URL_MATCH)
+           .where("links.original_url ~* ?", MARKETING_URL_REGEX)
            .group(CHANNEL_SQL, HANDLE_SQL)
            .count
     end

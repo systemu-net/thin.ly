@@ -317,6 +317,23 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
         expect(new_user.reload.signup_attribution).to be_nil
       end
 
+      # The session is a ~4 KB cookie. A character-based clamp lets multi-byte UTF-8
+      # through at up to 4x the intended size, and an overflowing cookie takes the
+      # OAuth `state` with it — turning a sign-in into ?error=session_expired.
+      it 'survives an oversized multi-byte attribution blob without breaking sign-in' do
+        new_user = User.new(email: 'big@example.com', password: 'x' * 20, terms_accepted: true)
+        new_user.save!
+        allow(Levelcode::ProviderOAuth).to receive(:github_user).and_return(new_user)
+
+        huge = { source: 'linkedin', params: { linkedin: 'ф' * 3_000 } }.to_json
+        start_oauth_with_attribution(huge)
+        get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
+
+        # The sign-in still completes; the truncated blob is simply unparseable and
+        # treated as organic rather than corrupting the session.
+        expect(response).to redirect_to('/ai/account')
+      end
+
       it 'drops params outside the whitelist' do
         new_user = User.new(email: 'evil@example.com', password: 'x' * 20, terms_accepted: true)
         new_user.save!

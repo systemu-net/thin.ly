@@ -40,10 +40,14 @@ class UserMailer < ApplicationMailer
   end
 
   # How they got in. `provider` is set only on the OAuth paths.
+  #
+  # Compared against the constants, not literals: Google's stored value is
+  # "google_oauth2" (User::GOOGLE_PROVIDER), so a hardcoded "google" silently
+  # falls through and reports every Google signup as Email.
   def signup_method_for(user)
     case user.provider.to_s
-    when "github" then "GitHub"
-    when "google" then "Google"
+    when ::Levelcode::ProviderOAuth::GITHUB_PROVIDER then "GitHub"
+    when User::GOOGLE_PROVIDER then "Google"
     else "Email"
     end
   end

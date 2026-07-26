@@ -59,9 +59,19 @@ RSpec.describe UserMailer, type: :mailer do
     end
 
     context "sign-up method" do
-      it "reports the OAuth provider when there is one" do
-        user = create(:user, provider: "github", uid: "12345")
+      it "reports GitHub" do
+        user = create(:user, provider: Levelcode::ProviderOAuth::GITHUB_PROVIDER, uid: "12345")
         expect(UserMailer.created(user).body.encoded).to match("GitHub")
+      end
+
+      # Google's stored provider is "google_oauth2", not "google" — a literal
+      # comparison falls through and reports Google signups as Email.
+      it "reports Google for the real stored provider value" do
+        expect(User::GOOGLE_PROVIDER).to eq("google_oauth2")
+        user = create(:user, provider: User::GOOGLE_PROVIDER, uid: "67890")
+        body = UserMailer.created(user).body.encoded
+        expect(body).to match("Google")
+        expect(body).not_to match(/Signed up with[^<]*<\/td>\s*<td[^>]*>\s*Email/)
       end
 
       it "reports Email otherwise" do

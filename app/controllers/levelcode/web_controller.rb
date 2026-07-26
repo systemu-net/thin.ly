@@ -106,10 +106,9 @@ module Levelcode
       # Carry the SPA's first-touch marketing attribution across the provider
       # round-trip. It rides the session (like `state`) rather than the provider
       # redirect, so it can't be tampered with at the provider and comes back to
-      # the same browser. Clamped because the session lives in a 4 KB cookie and
-      # this value is client-supplied; it is sanitized again before it reaches
-      # the DB (see stamp_oauth_attribution!).
-      session[:levelcode_oauth_attribution] = params[:attribution].to_s[0, 2_000].presence
+      # the same browser. Sanitized again before it reaches the DB (see
+      # stamp_oauth_attribution!).
+      session[:levelcode_oauth_attribution] = clamp_session_bytes(params[:attribution])
 
       url = Levelcode::ProviderOAuth.authorize_url(provider: provider, redirect_uri: oauth_callback_uri, state: state)
       redirect_to url, allow_other_host: true
@@ -389,6 +388,25 @@ module Levelcode
       # Attribution is best-effort. A signed-in user must not be bounced to an
       # error page because a marketing field could not be written.
       Rails.logger.warn("[levelcode] oauth attribution stamp failed: #{e.class}: #{e.message}")
+    end
+
+    # Session budget for the attribution blob, in BYTES.
+    #
+    # Bytes, not characters: the Rails session is a ~4 KB cookie, and this value is
+    # client-supplied. A 2,000-CHARACTER clamp permits up to 8,000 bytes of
+    # multi-byte UTF-8, which can overflow the cookie — and an overflowing cookie
+    # takes the OAuth `state` down with it, turning a sign-in into
+    # "?error=session_expired".
+    ATTRIBUTION_SESSION_MAX_BYTES = 2_000
+
+    def clamp_session_bytes(raw)
+      s = raw.to_s
+      return nil if s.empty?
+
+      # byteslice can cut mid-character; scrub drops the resulting invalid tail so
+      # what lands in the session is always valid UTF-8 (JSON.parse would reject it
+      # otherwise, silently losing the attribution).
+      s.byteslice(0, ATTRIBUTION_SESSION_MAX_BYTES).to_s.scrub("").presence
     end
 
     # The session carries the SPA's attribution as the JSON string it put in the

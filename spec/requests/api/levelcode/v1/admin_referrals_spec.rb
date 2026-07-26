@@ -80,6 +80,32 @@ RSpec.describe "Api::Levelcode::V1::Admin referrals", type: :request do
       expect(response.parsed_body.dig("totals", "clicks")).to eq(0)
     end
 
+    # A substring match on "levelcode.ai" would count all of these. Anyone can shorten
+    # any URL, so that would be an open door to inflating a partner's clicks.
+    it "does not count lookalike hosts that merely contain the domain" do
+      owner = create(:user, email: "owner4@example.com")
+      [
+        "https://notlevelcode.ai/ai?linkedin=anastasia",
+        "https://levelcode.ai.evil.test/?linkedin=anastasia",
+        "https://evil.test/?next=https://levelcode.ai/ai%3Flinkedin%3Danastasia"
+      ].each_with_index do |url, i|
+        link = create(:link, user: owner, original_url: url, lookup_code: "look#{i}00")
+        Click.create!(link: link, is_bot: false, created_at: 1.day.ago)
+      end
+
+      get "/api/levelcode/v1/admin/referrals"
+      expect(response.parsed_body.dig("totals", "clicks")).to eq(0)
+    end
+
+    it "counts the real host, including a subdomain" do
+      owner = create(:user, email: "owner5@example.com")
+      link = create(:link, user: owner, original_url: "https://www.levelcode.ai/ai?youtube=koderrsha")
+      Click.create!(link: link, is_bot: false, created_at: 1.day.ago)
+
+      get "/api/levelcode/v1/admin/referrals"
+      expect(row_for(response.parsed_body, "youtube")).to include("clicks" => 1)
+    end
+
     it "counts a signup as paid only on a non-free levelcode wallet with budget" do
       paid = create(:user, email: "paid@example.com", signup_attribution: attribution("linkedin", "anastasia"))
       free = create(:user, email: "free@example.com", signup_attribution: attribution("linkedin", "anastasia"))
