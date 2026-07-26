@@ -35,23 +35,23 @@ module Levelcode
         input: 0.74, cached_input: 0.15, output: 3.50,
         context: 262_144, min_tier: :pro, status: :confirmed
       },
-      "openai/codex-5.3" => {
-        label: "Codex 5.3", provider: "openrouter",
-        input: 1.25, cached_input: 0.125, output: 10.00,
-        context: 400_000, min_tier: :pro, status: :confirmed
-      },
-      "openai/gpt-5.5" => {
-        label: "GPT-5.5", provider: "openrouter",
-        input: 1.50, cached_input: 0.15, output: 12.00,
-        context: 400_000, min_tier: :pro, status: :confirmed
-      },
+      # Frontier rows re-verified against the OpenRouter models API on 2026-07-26 -- the earlier lineage
+      # estimates were wrong (Codex even carried a non-existent slug). Ordered by COST (ascending multiplier),
+      # the monotonic-multiplier invariant (spec) the picker relies on.
       "anthropic/claude-sonnet-5" => {
         label: "Sonnet 5", provider: "openrouter",
-        input: 3.00, cached_input: 0.30, output: 15.00,
-        context: 200_000, min_tier: :pro, status: :confirmed
+        # OpenRouter 2026-07-26: $2/M in, $10/M out, $0.20/M cached, 1M ctx.
+        input: 2.00, cached_input: 0.20, output: 10.00,
+        context: 1_000_000, min_tier: :pro, status: :confirmed
       },
-      # Ordered by cost, NOT by family: K3 sits by its ~4.00× multiplier (== Sonnet 5's, same rates),
-      # not next to Kimi K2.7 — the monotonic-multiplier invariant (spec) is what keeps the picker honest.
+      "openai/gpt-5.3-codex" => {
+        label: "Codex 5.3", provider: "openrouter",
+        # OpenRouter 2026-07-26 (openai/gpt-5.3-codex): $1.75/M in, $14/M out, $0.175/M cached, 400K ctx.
+        # The old `openai/codex-5.3` slug does NOT exist on OpenRouter -- it would 404 / fall back to max rate.
+        input: 1.75, cached_input: 0.175, output: 14.00,
+        context: 400_000, min_tier: :pro, status: :confirmed
+      },
+      # K3 sits by its ~4.00x multiplier, not next to Kimi K2.7 -- the monotonic-multiplier invariant (spec).
       "moonshotai/kimi-k3" => {
         label: "Kimi K3", provider: "openrouter",
         # Confirmed vs OpenRouter (2026-07-20): $3/M in · $15/M out · $0.30/M cached read. Reached via
@@ -85,11 +85,18 @@ module Levelcode
         input: 5.00, cached_input: 0.50, output: 25.00,
         context: 1_000_000, min_tier: :pro, status: :confirmed
       },
+      "openai/gpt-5.5" => {
+        label: "GPT-5.5", provider: "openrouter",
+        # OpenRouter 2026-07-26: $5/M in, $30/M out, $0.50/M cached, 1.05M ctx (922K in / 128K out).
+        input: 5.00, cached_input: 0.50, output: 30.00,
+        context: 1_050_000, min_tier: :pro, status: :confirmed
+      },
       "anthropic/claude-fable-5" => {
         label: "Fable 5", provider: "openrouter",
+        # OpenRouter 2026-07-26: $10/M in, $50/M out, $1/M cached, 1M ctx. ~13.3x -> ~28 Pro turns;
+        # gated to Max/Ultra so it never feels broken (rec #3).
         input: 10.00, cached_input: 1.00, output: 50.00,
-        # 13.35× → only ~28 Pro turns; gated to Max/Ultra so it never feels broken (rec #3).
-        context: 200_000, min_tier: :max, status: :confirmed
+        context: 1_000_000, min_tier: :max, status: :confirmed
       }
     }.freeze
 

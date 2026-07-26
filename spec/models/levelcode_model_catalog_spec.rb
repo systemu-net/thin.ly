@@ -6,7 +6,7 @@ RSpec.describe Levelcode::ModelCatalog do
   describe "roster integrity" do
     it "carries a confirmed price on every roster engine — the frontier rows are enabled now" do
       %w[openai/gpt-oss-120b moonshotai/kimi-k2.7-code anthropic/claude-opus-4-8 moonshotai/kimi-k3
-         anthropic/claude-opus-5 openai/codex-5.3 openai/gpt-5.5 anthropic/claude-sonnet-5
+         anthropic/claude-opus-5 openai/gpt-5.3-codex openai/gpt-5.5 anthropic/claude-sonnet-5
          anthropic/claude-fable-5].each do |id|
         expect(described_class.find(id)[:status]).to eq(:confirmed), id
       end
@@ -44,12 +44,12 @@ RSpec.describe Levelcode::ModelCatalog do
 
     it "reproduces the analysis multipliers (within rounding)" do
       {
-        "openai/gpt-oss-120b" => 0.05, "moonshotai/kimi-k2.7-code" => 1.00, "openai/codex-5.3" => 2.22,
-        "openai/gpt-5.5" => 2.66, "anthropic/claude-sonnet-5" => 4.00, "moonshotai/kimi-k3" => 4.00,
+        "openai/gpt-oss-120b" => 0.05, "moonshotai/kimi-k2.7-code" => 1.00,
+        "anthropic/claude-sonnet-5" => 2.67, "openai/gpt-5.3-codex" => 3.10, "moonshotai/kimi-k3" => 4.00,
         # Opus 5 TIES Opus 4.8 — identical rates ⇒ identical multiplier. That tie is exactly what lets
         # it sit beside 4.8 without disturbing the monotonic ordering asserted below.
         "anthropic/claude-opus-4-8" => 6.67, "anthropic/claude-opus-5" => 6.67,
-        "anthropic/claude-fable-5" => 13.35
+        "openai/gpt-5.5" => 7.40, "anthropic/claude-fable-5" => 13.35
       }.each { |id, mult| expect(described_class.multiplier(id)).to be_within(0.02).of(mult) }
     end
 

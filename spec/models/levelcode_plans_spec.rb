@@ -115,7 +115,7 @@ RSpec.describe Levelcode do
 
     it 'a paid plan may use the flagship AND the open-weights engine (confirmed-price roster)' do
       # Every Pro-tier engine is confirmed now — the frontier rows (Codex 5.3, GPT-5.5, Sonnet 5) went live.
-      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8', 'anthropic/claude-opus-5', 'moonshotai/kimi-k3', 'openai/codex-5.3', 'openai/gpt-5.5', 'anthropic/claude-sonnet-5' ])
+      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8', 'anthropic/claude-opus-5', 'moonshotai/kimi-k3', 'openai/gpt-5.3-codex', 'openai/gpt-5.5', 'anthropic/claude-sonnet-5' ])
       # Fable 5 is confirmed too, but Max-tier — a Pro plan still can't reach it (entitlement, not price).
       expect(Levelcode.allowed_models('orbits_pro')).not_to include('anthropic/claude-fable-5')
     end
