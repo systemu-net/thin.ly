@@ -44,4 +44,76 @@ RSpec.describe Levelcode::ProviderOAuth do
       expect(url).to include(CGI.escape("https://levelcode.ai/ai/auth/callback"))
     end
   end
+
+  # The outage this file previously could not have caught.
+  #
+  # Everything above tests the URL we send the browser TO. Nothing tested what happens when it
+  # comes BACK, so a Google sign-in that never produced a user still passed the whole suite.
+  # These start one step later — at a verified id_token payload — and assert the only outcome
+  # that matters: a person who has never signed in before ends up with an account.
+  describe "signing in a brand-new person" do
+    let(:payload) do
+      { "sub" => "google-uid-1", "email" => "brand-new@example.com", "email_verified" => true }
+    end
+
+    # Stub only the two steps that leave the process — the token exchange and Google's signature
+    # check — so the assertions run through the REAL google_user, including the terms flag and
+    # the logging seam. Stubbing User.from_google instead would test nothing: that is precisely
+    # the call whose arguments were wrong.
+    def sign_in_with_google
+      allow(described_class).to receive(:google_exchange_code).and_return("id.token.stub")
+      allow(described_class).to receive(:verify_google_id_token).and_return(payload)
+      described_class.google_user(code: "auth-code", redirect_uri: "https://levelcode.ai/ai/auth/callback")
+    end
+
+    before { allow(Stripe::Customer).to receive(:create).and_return(double(id: "cus_spec")) }
+
+    it "GOOGLE creates the account (regression: every new signup was rejected)" do
+      user = sign_in_with_google
+
+      expect(user.persisted?).to be(true),
+        "new Google signup rejected: #{user.errors.full_messages.inspect}"
+      expect(user.email).to eq("brand-new@example.com")
+      expect(user.provider).to eq(User::GOOGLE_PROVIDER)
+    end
+
+    it "records the acceptance shown on /ai/login, rather than merely passing validation" do
+      # `acceptance:` validators are satisfied by a virtual attribute, so "it saved" is not proof
+      # the acceptance was actually written down. The audit trail is the point.
+      user = sign_in_with_google
+
+      expect(user.terms_accepted).to be(true)
+      expect(user.terms_accepted_at).to be_present
+      expect(user.terms_accepted_version).to eq(User::TERMS_VERSION)
+    end
+
+    it "GITHUB creates the account too — the control that stayed green throughout" do
+      user = described_class.send(:find_or_create_oauth_user,
+                                  provider: "github", uid: "gh-1", email: "gh-new@example.com")
+
+      expect(user.persisted?).to be(true), user.errors.full_messages.inspect
+      expect(user.terms_accepted_at).to be_present
+    end
+
+    it "an EXISTING person signs in unchanged — the asymmetry that hid the outage" do
+      # Validation is `on: :create`, so returning users never hit it. Chrome, Firefox and mobile
+      # all "worked" for anyone with an account, which is why this looked like a browser bug.
+      existing = User.create!(provider: User::GOOGLE_PROVIDER, uid: "google-uid-1",
+                              email: "brand-new@example.com", password: "password123",
+                              terms_accepted: true)
+
+      expect(sign_in_with_google.id).to eq(existing.id)
+    end
+
+    it "names the failing attribute in the log instead of failing silently" do
+      # The outage was invisible because a validation rejection and a provider outage produced
+      # the identical `?error=oauth_failed`. Anything that stops a signup must say so.
+      allow(Rails.logger).to receive(:error)
+      allow(User).to receive(:from_google).and_return(User.new.tap(&:validate))
+
+      sign_in_with_google
+
+      expect(Rails.logger).to have_received(:error).with(/google sign-up rejected by validation/i)
+    end
+  end
 end

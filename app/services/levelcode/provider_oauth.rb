@@ -69,7 +69,19 @@ module Levelcode
       payload = verify_google_id_token(id_token)
       return nil unless payload
 
-      User.from_google(payload)
+      # `terms_accepted: true` is REQUIRED, not decorative. User has
+      # `validates :terms_accepted, acceptance: { accept: true }, on: :create`; `from_google`
+      # defaults the flag to FALSE, so omitting it made `create` return an UNSAVED record.
+      # The callers only ask `user&.persisted?`, so that surfaced as a bare
+      # `?error=oauth_failed` and broke EVERY new Google signup — web and editor — while
+      # existing users kept working, because they take the `find_by` branch and never validate
+      # on :create. That asymmetry is why it read as a browser or provider flake.
+      #
+      # `true` is the honest value, and the same one the GitHub sibling below has always passed:
+      # /ai/login states "By continuing you agree to the Terms of Service and Privacy Policy"
+      # directly above both provider buttons, and `stamp_terms_acceptance` records the version
+      # and timestamp so the acceptance is auditable.
+      persisted_or_logged(User.from_google(payload, terms_accepted: true), provider: "google")
     end
 
     # Build the provider `authorize` URL the browser is redirected to. `state` is
@@ -204,14 +216,36 @@ module Levelcode
         user.update(provider: provider, uid: uid) if user.uid.blank?
         user
       else
-        User.create(
-          provider: provider,
-          uid: uid,
-          email: email,
-          password: Devise.friendly_token[0, 20],
-          terms_accepted: true
+        persisted_or_logged(
+          User.create(
+            provider: provider,
+            uid: uid,
+            email: email,
+            password: Devise.friendly_token[0, 20],
+            terms_accepted: true
+          ),
+          provider: provider
         )
       end
+    end
+
+    # A rejected signup must never leave the logs silent again.
+    #
+    # `User.create` returns an UNSAVED record when validation fails, and every caller here
+    # collapses that to `user&.persisted?` — so a validation error and a network failure at the
+    # provider produced the byte-identical `?error=oauth_failed`, with nothing anywhere naming
+    # the attribute at fault. That is how a total signup outage stayed invisible: the requests
+    # were 302s, the error rate looked normal, and only the conversion rate moved.
+    #
+    # Returns the record unchanged; this is a logging seam, not a control-flow one.
+    def persisted_or_logged(user, provider:)
+      return user if user.nil? || user.persisted?
+
+      Rails.logger.error(
+        "[Levelcode OAuth] #{provider} sign-up rejected by validation: " \
+        "#{user.errors.full_messages.join('; ').presence || 'no error messages'}"
+      )
+      user
     end
 
     # --- HTTP helpers --------------------------------------------------------
