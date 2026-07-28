@@ -52,6 +52,23 @@ class User < ApplicationRecord
   has_many :usage_events, dependent: :destroy
   has_one :profile, dependent: :destroy
 
+  # These three have a foreign key to users but had no association here, so
+  # `user.destroy` died on a PG::ForeignKeyViolation instead of cleaning up —
+  # one table at a time, since the first violation aborts the transaction.
+  #
+  # The `dependent:` choice follows each column's own nullability, which is the
+  # schema stating whether the row is meant to outlive the user:
+  #   auth_events.user_id          nullable  -> nullify, keep the security trail
+  #   link_governance_logs.user_id nullable  -> nullify, keep the audit trail
+  #   usage_feedbacks.user_id      NOT NULL  -> destroy, it cannot be orphaned
+  #
+  # Nullifying rather than deleting also means a GDPR-style erasure keeps the
+  # "someone authenticated / someone changed this link" record while dropping the
+  # link to the person.
+  has_many :auth_events, dependent: :nullify
+  has_many :link_governance_logs, dependent: :nullify
+  has_many :usage_feedbacks, dependent: :destroy
+
   mount_uploader :avatar, AvatarUploader
 
   before_validation :create_stripe_customer, on: :create
@@ -60,7 +77,7 @@ class User < ApplicationRecord
   before_commit :create_default_subscription, on: :create
   after_commit :create_default_campaign, on: :create
   after_commit :create_default_profile, on: :create
-  after_destroy :delete_stripe_customer
+  after_commit :delete_stripe_customer, on: :destroy
 
   # Persisted column `terms_accepted` records explicit acceptance of terms.
   # Validate terms acceptance on signup — require boolean `true` on create.
@@ -140,9 +157,30 @@ class User < ApplicationRecord
     self.stripe_id = customer.id
   end
 
+  # Best-effort Stripe cleanup, run AFTER the database transaction commits.
+  #
+  # It used to be `after_destroy`, which runs INSIDE the transaction, and that had
+  # two failure modes now that deleting a user actually reaches this callback:
+  #
+  #   * `stripe_id` is nullable, so `Stripe::Customer.retrieve(nil)` raised and
+  #     rolled the whole deletion back — a user without a Stripe customer could
+  #     not be deleted at all. Any other Stripe error (network, revoked key, a
+  #     customer already removed in the dashboard) did the same.
+  #   * It deleted the customer BEFORE the transaction committed, so a later
+  #     rollback left a live row pointing at a customer that no longer existed.
+  #
+  # Now it is guarded, and errors are logged rather than raised: by this point the
+  # row is already gone, so raising would report a failure for a deletion that
+  # succeeded. An orphaned Stripe customer is the smaller problem, and the log
+  # names the one to clean up.
   def delete_stripe_customer
-    customer = retrieve_stripe_customer
-    customer.delete
+    return if stripe_id.blank?
+
+    retrieve_stripe_customer.delete
+  rescue Stripe::StripeError => e
+    Rails.logger.warn(
+      "[user #{id}] Stripe customer #{stripe_id} was not deleted: #{e.class}: #{e.message}"
+    )
   end
 
   def create_default_subscription
