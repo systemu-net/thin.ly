@@ -69,6 +69,7 @@ module Levelcode
       clicks   = clicks_by_channel(range)
       signups  = signups_by_channel(range)
       paid     = paid_by_channel(range)
+      links    = links_by_channel(range)
 
       rows = (clicks.keys | signups.keys | paid.keys).map do |key|
         channel, handle = key
@@ -77,7 +78,8 @@ module Levelcode
           handle: handle.presence,
           clicks: clicks[key].to_i,
           signups: signups[key].to_i,
-          paid: paid[key].to_i
+          paid: paid[key].to_i,
+          links: links[key] || []
         }
       end
       rows.sort_by! { |r| [ -r[:signups], -r[:clicks], r[:channel].to_s ] }
@@ -100,6 +102,23 @@ module Levelcode
     end
 
     # --- pieces ---------------------------------------------------------------
+
+    # Per-link breakdown of the clicks column: WHICH short links produced a channel's clicks,
+    # keyed by the same (channel, handle) as the funnel rows. Click-driven like clicks_by_channel,
+    # so a marketing link with zero clicks in range is absent and a signup-only row gets an empty
+    # list — the breakdown explains the clicks number, it does not inventory every link.
+    def links_by_channel(range)
+      counts = Click.human_traffic
+                    .joins(:link)
+                    .where(created_at: range)
+                    .where("links.original_url ~* ?", MARKETING_URL_REGEX)
+                    .group(CHANNEL_SQL, HANDLE_SQL, Arel.sql("links.lookup_code"), Arel.sql("links.original_url"))
+                    .count
+      grouped = counts.each_with_object(Hash.new { |h, k| h[k] = [] }) do |((channel, handle, code, dest), n), out|
+        out[[ channel, handle ]] << { lookup_code: code, destination: dest, clicks: n }
+      end
+      grouped.transform_values { |list| list.sort_by { |l| -l[:clicks] } }
+    end
 
     # Human clicks in range on links whose destination points at the product, grouped by the
     # channel + handle encoded in that destination.
@@ -169,7 +188,7 @@ module Levelcode
       start.beginning_of_day..finish.end_of_day
     end
 
-    private_class_method :clicks_by_channel, :signups_by_channel, :paid_by_channel,
+    private_class_method :clicks_by_channel, :signups_by_channel, :paid_by_channel, :links_by_channel,
                          :source_sql, :handle_sql, :date_range
   end
 end

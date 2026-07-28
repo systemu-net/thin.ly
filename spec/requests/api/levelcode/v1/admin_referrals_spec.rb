@@ -60,6 +60,30 @@ RSpec.describe "Api::Levelcode::V1::Admin referrals", type: :request do
       expect(body["rows"].map { |r| r["channel"] }).not_to include(nil, "")
     end
 
+    it "breaks a channel's clicks down per link, sorted by clicks, keyed like the row" do
+      owner = create(:user, email: "owner-links@example.com")
+      # lookup codes are model-generated on create — assert against the real ones
+      big   = create(:link, user: owner, original_url: "https://levelcode.ai/ai?linkedin=anastasia")
+      small = create(:link, user: owner, original_url: "https://levelcode.ai/pricing?linkedin=anastasia")
+      3.times { Click.create!(link: big, is_bot: false, created_at: 1.day.ago) }
+      Click.create!(link: small, is_bot: false, created_at: 1.day.ago)
+
+      get "/api/levelcode/v1/admin/referrals"
+      row = row_for(response.parsed_body, "linkedin")
+      expect(row["clicks"]).to eq(4)
+      expect(row["links"]).to eq([
+        { "lookup_code" => big.lookup_code, "destination" => "https://levelcode.ai/ai?linkedin=anastasia", "clicks" => 3 },
+        { "lookup_code" => small.lookup_code, "destination" => "https://levelcode.ai/pricing?linkedin=anastasia", "clicks" => 1 }
+      ])
+    end
+
+    it "gives a signup-only row an empty links list (the breakdown explains clicks, not signups)" do
+      create(:user, email: "s@example.com", signup_attribution: attribution("youtube", "koderrsha"))
+
+      get "/api/levelcode/v1/admin/referrals"
+      expect(row_for(response.parsed_body, "youtube")).to include("clicks" => 0, "links" => [])
+    end
+
     it "counts human clicks per channel from the link destination, excluding bots" do
       owner = create(:user, email: "owner@example.com")
       link = create(:link, user: owner, original_url: "https://levelcode.ai/ai?linkedin=anastasia")
