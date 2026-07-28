@@ -128,6 +128,50 @@ RSpec.describe User, type: :model do
     end
   end
 
+  # A Stripe customer is a real, billable object behind an external API call, so WHEN
+  # it is created matters. Hanging it off `before_validation` meant every REJECTED
+  # signup still minted one, orphaned, with no `users` row referencing it — which is
+  # exactly what happened while the LevelCode Google flow omitted `terms_accepted` and
+  # tripped the `on: :create` acceptance validation on every new account.
+  #
+  # These two examples pin the timing from both sides: a rejected create must not
+  # reach Stripe, and an accepted one still must. The negative alone would pass if
+  # the callback were simply deleted.
+  describe 'Stripe customer creation timing' do
+    # Deliberately NOT `build(:user)`: the factory no-ops `create_stripe_customer`,
+    # which is the callback under test. This builds the record directly so the real
+    # callback chain runs, stubbing only the outbound Stripe call and the unrelated
+    # avatar generation.
+    def new_user(**attrs)
+      User.new(
+        email: "stripe-timing-#{SecureRandom.hex(4)}@example.com",
+        password: 'password123',
+        terms_accepted: true,
+        **attrs
+      ).tap { |user| user.define_singleton_method(:generate_default_avatar) { true } }
+    end
+
+    before do
+      allow(Stripe::Customer).to receive(:create).and_return(double(id: 'cus_spec123'))
+    end
+
+    it 'does not create a Stripe customer when the record fails validation' do
+      user = new_user(terms_accepted: false)
+
+      expect(user.save).to be(false)
+      expect(user.errors[:terms_accepted]).to include('must be accepted')
+      expect(Stripe::Customer).not_to have_received(:create)
+    end
+
+    it 'creates the Stripe customer and stores its id when the record is valid' do
+      user = new_user
+
+      expect(user.save).to be(true)
+      expect(Stripe::Customer).to have_received(:create).with(email: user.email).once
+      expect(user.stripe_id).to eq('cus_spec123')
+    end
+  end
+
   describe '#plan' do
     it 'returns the first plan across subscriptions' do
       user = create(:user)
