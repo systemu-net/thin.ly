@@ -10,18 +10,18 @@ require "rails_helper"
 #
 # This builds a user carrying a row in every table on that path and destroys them.
 RSpec.describe "User#destroy with dependent records", type: :model do
-  let(:stripe_helper) { StripeMock.create_test_helper }
   before { StripeMock.start }
   after { StripeMock.stop }
 
-  # User has `after_destroy :delete_stripe_customer`, which does
-  # Stripe::Customer.retrieve(stripe_id).delete — a real external call. Stubbed so
-  # these examples test the DB cascade and nothing reaches Stripe.
+  # Deleting a user calls Stripe (`after_commit :delete_stripe_customer, on: :destroy`
+  # -> Stripe::Customer.retrieve(stripe_id).delete), a real external call. Stubbed so
+  # these examples exercise the DB cascade and nothing reaches Stripe.
+  let(:stripe_customer) { instance_double(Stripe::Customer, delete: true) }
+
   before do
     allow(Stripe::Customer).to receive(:create)
       .and_return(Stripe::Customer.construct_from(id: "cus_test"))
-    allow(Stripe::Customer).to receive(:retrieve)
-      .and_return(instance_double(Stripe::Customer, delete: true))
+    allow(Stripe::Customer).to receive(:retrieve).and_return(stripe_customer)
   end
 
   let!(:user) { create(:user, email: "doomed@example.com") }
@@ -77,5 +77,40 @@ RSpec.describe "User#destroy with dependent records", type: :model do
     user_id = user.id
     user.destroy!
     expect(UsageFeedback.where(user_id: user_id)).to be_empty
+  end
+
+  # The Stripe cleanup runs after the DB transaction commits and is best-effort.
+  # Before that, it ran inside the transaction and could roll the whole deletion
+  # back — which is easy to hit now that the cascade actually reaches it.
+  describe "Stripe customer cleanup" do
+    # The factory no-ops create_stripe_customer, so a built user has NO stripe_id.
+    # That default is itself the bug this guards: the old code called
+    # Stripe::Customer.retrieve(nil), which raised INSIDE the destroy transaction
+    # and rolled the deletion back.
+    it "deletes a user that has no stripe_id, without calling Stripe" do
+      expect(user.stripe_id).to be_blank
+
+      expect { user.destroy! }.not_to raise_error
+      expect(User.where(id: user.id)).to be_empty
+      expect(Stripe::Customer).not_to have_received(:retrieve)
+    end
+
+    it "deletes the customer when there is one" do
+      user.update_columns(stripe_id: "cus_test")
+
+      user.destroy!
+      expect(stripe_customer).to have_received(:delete)
+    end
+
+    it "keeps the user deleted when Stripe fails, and logs it" do
+      user.update_columns(stripe_id: "cus_test")
+      allow(Stripe::Customer).to receive(:retrieve).and_raise(Stripe::APIError.new("stripe is down"))
+      allow(Rails.logger).to receive(:warn)
+      user_id = user.id
+
+      expect { user.destroy! }.not_to raise_error
+      expect(User.where(id: user_id)).to be_empty
+      expect(Rails.logger).to have_received(:warn).with(/Stripe customer .* was not deleted/)
+    end
   end
 end
