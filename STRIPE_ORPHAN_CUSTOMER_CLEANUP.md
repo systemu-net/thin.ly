@@ -50,7 +50,11 @@ cutoff = 1.hour.ago   # ignore in-flight signups: they have a customer, not yet 
 
 # Every customer id the database still claims. Both columns — `levelcode_stripe_id` is not
 # written by any code path today, but it is uniquely indexed and could have been backfilled.
-known = User.pluck(:stripe_id, :levelcode_stripe_id).flatten.compact_blank.to_set
+# Batched so a large users table does not land in console memory all at once.
+known = Set.new
+User.in_batches(of: 10_000) do |batch|
+  known.merge(batch.pluck(:stripe_id, :levelcode_stripe_id).flatten.compact_blank)
+end
 
 candidates = []
 Stripe::Customer.list({ created: { gte: since.to_i, lte: cutoff.to_i }, limit: 100 })
@@ -63,10 +67,18 @@ accounts = User.where(email: emails).pluck(:email, :stripe_id, :levelcode_stripe
                .to_h { |m, s, l| [ m.to_s.downcase, [ s, l ].compact_blank ] }
 dupes    = candidates.filter_map { |c| c.email.presence&.downcase }.tally
 
+# Any sign this was ever a real, transacting customer. A saved payment method counts:
+# someone who entered card details is not a signup that never completed.
+# A Stripe error means "cannot tell", which resolves to `true` — the conservative
+# direction, since the only cost is that a human looks at it.
 active = lambda do |id|
   Stripe::Subscription.list({ customer: id, status: "all", limit: 1 }).data.any? ||
     Stripe::Invoice.list({ customer: id, limit: 1 }).data.any? ||
-    Stripe::Charge.list({ customer: id, limit: 1 }).data.any?
+    Stripe::Charge.list({ customer: id, limit: 1 }).data.any? ||
+    Stripe::PaymentMethod.list({ customer: id, limit: 1 }).data.any?
+rescue Stripe::StripeError => e
+  puts "  probe failed for #{id} (#{e.class}: #{e.message}) — treating as active"
+  true
 end
 
 report = candidates.map do |c|
@@ -79,11 +91,17 @@ report = candidates.map do |c|
   { id: c.id, email: c.email, created: Time.zone.at(c.created), dupes: dupes[email].to_i, klass: klass }
 end
 
-puts "failed google signups in window: " \
-     "#{AuthEvent.where(kind: 'oauth', provider: 'google', outcome: 'failure', created_at: since..cutoff).count}"
-puts "first/last failure: " \
-     "#{AuthEvent.where(kind: 'oauth', provider: 'google', outcome: 'failure').minimum(:created_at)} .. " \
-     "#{AuthEvent.where(kind: 'oauth', provider: 'google', outcome: 'failure').maximum(:created_at)}"
+# `reason` matters: only `oauth_failed` reached the code that creates a customer.
+# `session_expired` returns at the state check, before `google_user` is ever called,
+# so counting it would inflate the corroboration against real orphans.
+failures = AuthEvent.where(kind: "oauth", provider: "google",
+                           outcome: "failure", reason: "oauth_failed")
+
+puts "failed google signups in window: #{failures.where(created_at: since..cutoff).count}"
+# Deliberately NOT limited to the window — the point is to see whether failures begin
+# before `since`, which a windowed query could never tell you.
+puts "first/last failure, all time: " \
+     "#{failures.minimum(:created_at)} .. #{failures.maximum(:created_at)}"
 puts "candidates: #{report.size}"
 report.group_by { |r| r[:klass] }.each { |k, v| puts "  #{k}: #{v.size}" }
 report.sort_by { |r| [ r[:klass], r[:created] ] }.each do |r|
@@ -126,12 +144,21 @@ Only after step 2. Start from the `RETRY` set, or paste an explicit list of ids 
 on. Each deletion is re-checked first: someone rejected during the outage may since have signed up
 and been assigned that very customer, which would make the report stale.
 
+**This block is disarmed as written.** Paste it, read the count it refuses with, then set
+`expected` to that number and paste again. Pasting once cannot delete anything, and if the figure
+does not match what you reviewed in step 2, the mismatch is the point — re-run step 1 rather than
+raising the number to match.
+
 ```ruby
 doomed = report.select { |r| r[:klass] == "RETRY" }.map { |r| r[:id] }
 # ...or be explicit:
 # doomed = %w[cus_AAA cus_BBB]
 
-puts "about to delete #{doomed.size} customers"
+expected = nil   # <- set to the number below to arm this block
+
+if expected != doomed.size
+  puts "REFUSING: #{doomed.size} customers queued. Set `expected = #{doomed.size}` to arm."
+else
 
 deleted = 0
 skipped = 0
@@ -156,6 +183,7 @@ rescue Stripe::InvalidRequestError => e
 end
 
 puts "deleted #{deleted}, skipped #{skipped}"
+end
 nil
 ```
 
