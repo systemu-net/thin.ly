@@ -48,12 +48,19 @@ Paste this whole block. It deletes nothing.
 since  = Time.zone.parse("2026-07-22")
 cutoff = 1.hour.ago   # ignore in-flight signups: they have a customer, not yet a committed row
 
-# Every customer id the database still claims. Both columns — `levelcode_stripe_id` is not
-# written by any code path today, but it is uniquely indexed and could have been backfilled.
-# Batched so a large users table does not land in console memory all at once.
+# Which columns actually hold a Stripe customer id, asked of the database rather than
+# assumed. `levelcode_stripe_id` is in db/schema.rb but NOT in production — it was added
+# to the schema by an annotate run with no migration behind it, so databases built by
+# `db:schema:load` (development, test) have it and production does not. Asking
+# `column_names` makes this block correct on both.
+id_cols = User.column_names & %w[stripe_id levelcode_stripe_id]
+puts "matching on: #{id_cols.join(', ')}"
+
+# Every customer id the database still claims. Batched, so a large users table does not
+# land in console memory all at once.
 known = Set.new
 User.in_batches(of: 10_000) do |batch|
-  known.merge(batch.pluck(:stripe_id, :levelcode_stripe_id).flatten.compact_blank)
+  known.merge(batch.pluck(*id_cols).flatten.compact_blank)
 end
 
 candidates = []
@@ -63,8 +70,8 @@ Stripe::Customer.list({ created: { gte: since.to_i, lte: cutoff.to_i }, limit: 1
 # email => the customer ids that email's account actually references (blanks dropped).
 # nil means no account; [] means an account exists but references no customer at all.
 emails   = candidates.filter_map { |c| c.email.presence&.downcase }.uniq
-accounts = User.where(email: emails).pluck(:email, :stripe_id, :levelcode_stripe_id)
-               .to_h { |m, s, l| [ m.to_s.downcase, [ s, l ].compact_blank ] }
+accounts = User.where(email: emails).pluck(:email, *id_cols)
+               .to_h { |mail, *ids| [ mail.to_s.downcase, ids.compact_blank ] }
 dupes    = candidates.filter_map { |c| c.email.presence&.downcase }.tally
 
 # Any sign this was ever a real, transacting customer. A saved payment method counts:
@@ -137,6 +144,12 @@ Two limits no amount of classification fixes:
   equally orphaned, but they are not this outage.
 - The `auth_events` failure rows carry **no email** (the OAuth callback has no user by then), so
   they corroborate the count and time span, not which customers are which.
+- `levelcode_stripe_id` is in `db/schema.rb` and in the model annotations but **does not exist in
+  the production database**. It was introduced by an annotate run (`b7b2cfc`) with no migration
+  behind it, so databases built by `db:schema:load` have it while production, built by migrations,
+  never did — and `db:migrate` will not create it, because nothing defines it. Step 1 asks
+  `User.column_names` instead of assuming, and prints which columns it matched on. Worth fixing
+  separately: either add a real migration or drop it from the schema.
 
 ## Step 3 — Delete
 
@@ -163,7 +176,7 @@ else
 deleted = 0
 skipped = 0
 doomed.each do |id|
-  if User.where(stripe_id: id).or(User.where(levelcode_stripe_id: id)).exists?
+  if id_cols.any? { |col| User.where(col => id).exists? }
     puts "SKIP #{id} — a user now points at it"
     skipped += 1
     next
