@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "set"
+
 # Reconciliation for Stripe customers that no `users` row points at.
 #
 # WHY THEY EXIST: `User#create_stripe_customer` used to hang off `before_validation,
@@ -117,8 +119,16 @@ namespace :stripe do
       # An email that still belongs to a user is the strongest signal available: the
       # person was rejected, retried, and eventually got an account — so the customer
       # left behind is provably the discarded one, not somebody's live billing record.
+      #
+      # Map email -> every customer id that account actually references, across BOTH
+      # columns and dropping blanks. The empty array is a distinct, meaningful case: an
+      # account that exists but references NO Stripe customer is not evidence that this
+      # customer is the discarded duplicate — there is no "other" customer to be the
+      # live one — so it must not reach ORPHAN_RETRY, the class `delete` acts on.
       emails = candidates.filter_map { |c| c.email.presence&.downcase }.uniq
-      users_by_email = User.where(email: emails).pluck(:email, :stripe_id).to_h
+      users_by_email = User.where(email: emails)
+                          .pluck(:email, :stripe_id, :levelcode_stripe_id)
+                          .to_h { |mail, sid, lid| [ mail.to_s.downcase, [ sid, lid ].select(&:present?) ] }
       email_counts = candidates.filter_map { |c| c.email.presence&.downcase }.tally
 
       rows = candidates.map { |c| classify(c, users_by_email, email_counts) }
@@ -211,8 +221,13 @@ namespace :stripe do
       What the classifications mean:
 
         ORPHAN_RETRY      No users row points at this customer, but a user EXISTS with the same
-                          email and a DIFFERENT stripe_id. That is the outage signature: rejected,
-                          retried, eventually got in. The safest class to delete.
+                          email and references at least one OTHER Stripe customer (either column).
+                          That is the outage signature: rejected, retried, eventually got in, and
+                          the live customer is a different one. The safest class to delete.
+
+                          The "references at least one other" half is load-bearing. An account with
+                          NO stripe id is not a retry — there is no live customer for this one to be
+                          the discard of — so it falls through to UNMATCHED for a human instead.
 
         ORPHAN_DUPLICATE  Several customers in the window share this email and none is referenced.
                           A burst of retries by one person. Safe, but confirm the email is not a
@@ -253,17 +268,23 @@ namespace :stripe do
 
     def classify(customer, users_by_email, email_counts)
       email = customer.email.presence&.downcase
+      # nil  -> no account with this email at all
+      # []   -> an account exists but references no Stripe customer (anomaly, not retry)
+      # [..] -> an account exists and references these customers
+      account_ids = email ? users_by_email[email] : nil
+
       row = {
         id: customer.id,
         email: customer.email,
         created: Time.zone.at(customer.created),
-        user_with_same_email: users_by_email[email].present?
+        user_with_same_email: !account_ids.nil?,
+        user_stripe_ids: account_ids || []
       }
 
       classification =
         if commercial_activity?(customer.id)
           "REVIEW_ACTIVITY"
-        elsif email && users_by_email.key?(email) && users_by_email[email] != customer.id
+        elsif account_ids.present? && account_ids.exclude?(customer.id)
           "ORPHAN_RETRY"
         elsif email && email_counts[email].to_i > 1
           "ORPHAN_DUPLICATE"
