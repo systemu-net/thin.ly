@@ -71,9 +71,27 @@ class User < ApplicationRecord
 
   mount_uploader :avatar, AvatarUploader
 
-  before_validation :create_stripe_customer, on: :create
   before_validation :generate_default_avatar, on: :create, if: -> { avatar.blank? }
   before_validation :stamp_terms_acceptance, on: :create
+  # `before_create`, NOT `before_validation`: this reaches out to Stripe, and a
+  # `before_validation` hook fires even when the record is about to be REJECTED.
+  # Every failed signup therefore left a real, billable Stripe customer behind with
+  # no `users` row pointing at it. That was not hypothetical — `terms_accepted`
+  # below is validated `on: :create`, and while the LevelCode Google flow omitted
+  # the flag it rejected every new signup, minting one orphan customer per attempt.
+  #
+  # `before_create` runs only once validation has passed, and still runs before the
+  # INSERT, so `stripe_id` is part of the initial row and `create_default_subscription`
+  # (before_commit) still sees it. Nothing validates `stripe_id`, and the column is
+  # nullable, so nothing depends on it being set at validation time.
+  #
+  # This narrows the orphan window rather than closing it absolutely: the call sits
+  # inside the create transaction, so a Stripe success followed by a failed INSERT
+  # (a unique-email race, say) can still orphan a customer. That is a far smaller
+  # target than "every rejected signup", and the alternative — creating the customer
+  # after commit — would need a second write and leave `stripe_id` nil for the
+  # subscription callback.
+  before_create :create_stripe_customer
   before_commit :create_default_subscription, on: :create
   after_commit :create_default_campaign, on: :create
   after_commit :create_default_profile, on: :create
