@@ -23,6 +23,11 @@
 - [Autocomplete](https://levelcode.ai/docs/autocomplete): Inline ghost-text completion as you type, and how to tune it.
 - [Providers and models](https://levelcode.ai/docs/providers): Bring your own key for any supported provider, run models locally with Ollama, or use the metered gateway.
 
+## MCP
+
+- [MCP servers](https://levelcode.ai/docs/mcp): Connect Model Context Protocol servers to give the agent tools LevelCode doesn't ship, and the approval model that governs them.
+- [Server recipes](https://levelcode.ai/docs/mcp-recipes): Working configurations for GitHub, the filesystem, image generation, and hosted servers — plus how to keep API tokens out of settings.json.
+
 ## The editor
 
 - [Power editing](https://levelcode.ai/docs/power-editing): The Notepad++ pack: macros, column mode, line operations, encoding and line-ending control, big-file mode.
