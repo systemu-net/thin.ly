@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_07_22_120001) do
+ActiveRecord::Schema[7.2].define(version: 2026_07_29_022150) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -389,12 +389,10 @@ ActiveRecord::Schema[7.2].define(version: 2026_07_22_120001) do
     t.string "role", default: "member", null: false
     t.string "last_country"
     t.datetime "last_seen_at"
-    t.string "levelcode_stripe_id"
     t.jsonb "signup_attribution"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["jti"], name: "index_users_on_jti", unique: true
     t.index ["last_seen_at"], name: "index_users_on_last_seen_at"
-    t.index ["levelcode_stripe_id"], name: "index_users_on_levelcode_stripe_id", unique: true, where: "(levelcode_stripe_id IS NOT NULL)"
     t.index ["provider", "uid"], name: "index_users_on_provider_and_uid", unique: true
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
