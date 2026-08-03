@@ -76,4 +76,4 @@ gem "bcrypt", "3.1.21"
 
 gem "sidekiq-cron", "~> 2.4"
 
-gem "redis", "~> 5.4"
+gem "redis", "~> 6.0"
