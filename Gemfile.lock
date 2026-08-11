@@ -79,10 +79,11 @@ GEM
     annotate (3.2.0)
       activerecord (>= 3.2, < 8.0)
       rake (>= 10.4, < 14.0)
-    anthropic (1.59.0)
-      cgi
-      connection_pool
-      standardwebhooks
+    anthropic (1.61.0)
+      base64 (~> 0.1)
+      cgi (~> 0.1)
+      connection_pool (>= 2, < 4)
+      standardwebhooks (~> 1.0)
     ast (2.4.3)
     aws-eventstream (1.4.0)
     aws-partitions (1.1272.0)
@@ -570,7 +571,7 @@ PLATFORMS
 
 DEPENDENCIES
   annotate (~> 3.2)
-  anthropic (~> 1.59)
+  anthropic (~> 1.61)
   aws-sdk-s3 (~> 1.228)
   bcrypt (= 3.1.21)
   bigdecimal (= 4.0.1)
