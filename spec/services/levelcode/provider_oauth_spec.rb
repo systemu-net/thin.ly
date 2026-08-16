@@ -116,4 +116,51 @@ RSpec.describe Levelcode::ProviderOAuth do
       expect(Rails.logger).to have_received(:error).with(/google sign-up rejected by validation/i)
     end
   end
+  # Until this was added, perform_http set NO timeouts, so every provider call inherited Net::HTTP's
+  # 60-second defaults. A Google sign-in makes two of them back to back, so one stalled provider held
+  # the browser on a blank spinner for ~2 minutes before the callback gave up. Reported by customers as
+  # "sign-in is stuck loading".
+  describe "outbound provider HTTP is bounded" do
+    # perform_http is private and every provider call funnels through it, so pinning it here covers the
+    # Google token exchange, the id_token key fetch, and both GitHub calls at once.
+    def perform(http_double)
+      allow(Net::HTTP).to receive(:new).and_return(http_double)
+      allow(http_double).to receive(:use_ssl=)
+      described_class.send(:perform_http, URI.parse("https://oauth2.googleapis.com/token"), double("req"))
+    end
+
+    it "sets a connect, read AND write timeout on every call" do
+      http = double("http")
+      allow(http).to receive(:request).and_return(double("res"))
+      expect(http).to receive(:open_timeout=).with(described_class::OPEN_TIMEOUT)
+      expect(http).to receive(:read_timeout=).with(described_class::READ_TIMEOUT)
+      expect(http).to receive(:write_timeout=).with(described_class::WRITE_TIMEOUT)
+      perform(http)
+    end
+
+    it "keeps the timeouts short enough that a stalled provider cannot outlast a user's patience" do
+      # The failure mode being prevented is a spinner with no end, so the bound that matters is the
+      # WORST CASE for one sign-in: two sequential calls, each able to burn connect + read.
+      worst_case = 2 * (described_class::OPEN_TIMEOUT + described_class::READ_TIMEOUT)
+      expect(worst_case).to be <= 40
+      expect(described_class::OPEN_TIMEOUT).to be >= 2   # not so tight that a slow TLS handshake fails
+    end
+
+    it "turns a timeout into nil rather than an exception, so the callback can show an error" do
+      # perform_http returning nil is what makes oauth_callback redirect to /ai/login?error=oauth_failed.
+      # If a timeout escaped instead, the user would get a 500 — still broken, but now unexplained.
+      http = double("http")
+      allow(http).to receive(:use_ssl=)
+      allow(http).to receive(:open_timeout=)
+      allow(http).to receive(:read_timeout=)
+      allow(http).to receive(:write_timeout=)
+      allow(http).to receive(:request).and_raise(Net::ReadTimeout)
+      allow(Net::HTTP).to receive(:new).and_return(http)
+
+      expect {
+        expect(described_class.send(:perform_http, URI.parse("https://oauth2.googleapis.com/token"), double("req"))).to be_nil
+      }.not_to raise_error
+    end
+  end
+
 end
