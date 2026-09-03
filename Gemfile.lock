@@ -279,7 +279,7 @@ GEM
       logger
       mime-types-data (~> 3.2025, >= 3.2025.0507)
     mime-types-data (3.2026.0414)
-    mini_magick (5.3.3)
+    mini_magick (5.4.0)
       logger
     mini_mime (1.1.5)
     mini_portile2 (2.8.9)
@@ -589,7 +589,7 @@ DEPENDENCIES
   importmap-rails
   jbuilder
   json (= 2.21.2)
-  mini_magick (~> 5.3)
+  mini_magick (~> 5.4)
   octokit (~> 10.0)
   ostruct (~> 0.6.3)
   pagy (~> 9.3)
