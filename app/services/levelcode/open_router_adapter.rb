@@ -17,9 +17,9 @@ module Levelcode
 
     # OpenRouter provider routing for the FREE model (gpt-oss). OpenRouter's "WandB" provider
     # mishandles the gpt-oss "harmony" format and 401s with "Unknown role: final", so pin the free
-    # model to reliable providers and exclude WandB. Scoped to the free model — paid models keep full
-    # routing. See atompp-internal/orbits-build/DECISIONS.md (2026-07-08). If WandB reappears, verify
-    # the `ignore` slug against OpenRouter's provider list / Activity log.
+    # model to reliable providers and exclude WandB. Scoped to the free model; paid models get a PRICE
+    # ceiling instead (with_provider_routing). If WandB reappears, verify the `ignore` slug against
+    # OpenRouter's provider list / Activity log.
     FREE_MODEL_PROVIDER = {
       "order" => %w[fireworks together deepinfra],
       "ignore" => %w[wandb],
@@ -46,7 +46,7 @@ module Levelcode
       # final usage chunk otherwise, and the request would consume tokens unmetered
       # (cap bypass + under-billing). Preserve any client-supplied stream_options.
       stream_opts = (body["stream_options"] || body[:stream_options] || {}).merge("include_usage" => true)
-      request = build_request(uri, with_free_model_routing(body).merge("stream" => true, "stream_options" => stream_opts))
+      request = build_request(uri, with_provider_routing(body).merge("stream" => true, "stream_options" => stream_opts))
 
       usage = nil
       model = body["model"] || body[:model]
@@ -89,7 +89,7 @@ module Levelcode
     # Non-streaming pass-through. Returns the parsed upstream JSON Hash.
     def complete(body)
       uri = URI(BASE_URL)
-      request = build_request(uri, with_free_model_routing(body).merge("stream" => false))
+      request = build_request(uri, with_provider_routing(body).merge("stream" => false))
       response = http(uri).request(request)
 
       unless response.code.to_i == 200
@@ -111,15 +111,54 @@ module Levelcode
 
     private
 
-    # Inject the free-model provider routing (FREE_MODEL_PROVIDER) when the request targets the
-    # gpt-oss free model, unless the client already supplied its own `provider` preference. Every
-    # other model is returned unchanged so paid routing is untouched.
-    def with_free_model_routing(body)
+    # Shape the upstream `provider` preference for the routed model.
+    #
+    #   free model (gpt-oss) → FREE_MODEL_PROVIDER, unless the client sent its own preference.
+    #   any other catalog row → a PRICE CEILING at that row's catalog rate, merged ON TOP of whatever the
+    #                           client sent (a client may steer routing; it may not lift the ceiling).
+    #   off-catalog / Moonshot-native → untouched.
+    #
+    # WHY THE CEILING. Metering bills a request at the catalog rate (Levelcode.cost_micros) and never
+    # reads what OpenRouter actually charged. OpenRouter, left to route freely, spreads one model over
+    # endpoints priced up to 2x that rate — GPT-6 Astra runs $5/$25 (Flex) through $20/$100 (Fast), and
+    # Opus 4.8 has an Anthropic "fast" tier at $10/$50 against our $5/$25. Routed there, we under-bill by
+    # half and cannot see it. `max_price` makes wire cost <= billed cost by construction.
+    #
+    # It is a HARD filter: OpenRouter refuses the request outright if no endpoint fits, rather than
+    # quietly running it over price. That is the safe money direction — the same direction rate_for
+    # takes for an off-catalog id — and it turns a stale catalog price into a loud 4xx instead of a
+    # silent loss. Units line up without conversion: OpenRouter reads max_price in $/M tokens, and a
+    # catalog rate is micro-$/token, which is the same number.
+    #
+    # The FREE model is deliberately NOT ceilinged: its catalog row ($0.03/$0.15) sits below its listed
+    # endpoints ($0.04/$0.17), so a ceiling would exclude every endpoint and take the free tier down.
+    def with_provider_routing(body)
       model = (body["model"] || body[:model]).to_s
-      return body unless model.include?("gpt-oss")
-      return body if body.key?("provider") || body.key?(:provider)
+      if model.include?("gpt-oss")
+        return body if body.key?("provider") || body.key?(:provider)
 
-      body.merge("provider" => FREE_MODEL_PROVIDER)
+        return body.merge("provider" => FREE_MODEL_PROVIDER)
+      end
+
+      ceiling = price_ceiling(model)
+      return body unless ceiling
+
+      # Exactly one string-keyed "provider" goes out, whatever the caller sent. A symbol-keyed body
+      # would otherwise serialise :provider beside "provider" (and :max_price beside "max_price"), and
+      # which of the two OpenRouter honours would be down to its parser — the ceiling would hold or
+      # not by accident. A preference that is not an object is dropped rather than raised on: the
+      # ceiling is the part that has to survive, and a 500 here would be ours, not upstream's.
+      client = body["provider"] || body[:provider]
+      client = client.is_a?(Hash) ? client.transform_keys(&:to_s).except("max_price") : {}
+      body.except(:provider).merge("provider" => client.merge("max_price" => ceiling))
+    end
+
+    # `{"prompt" => $/M, "completion" => $/M}` for a catalog model, nil for anything else.
+    def price_ceiling(model)
+      row = Levelcode::ModelCatalog.find(model)
+      return nil unless row
+
+      { "prompt" => row[:input].to_f, "completion" => row[:output].to_f }
     end
 
     def http(uri)
