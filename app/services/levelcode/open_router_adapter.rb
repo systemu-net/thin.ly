@@ -18,8 +18,8 @@ module Levelcode
     # OpenRouter provider routing for the FREE model (gpt-oss). OpenRouter's "WandB" provider
     # mishandles the gpt-oss "harmony" format and 401s with "Unknown role: final", so pin the free
     # model to reliable providers and exclude WandB. Scoped to the free model; paid models get a PRICE
-    # ceiling instead (with_provider_routing). See atompp-internal/orbits-build/DECISIONS.md (D58,
-    # D60). If WandB reappears, verify the `ignore` slug against OpenRouter's provider list.
+    # ceiling instead (with_provider_routing). If WandB reappears, verify the `ignore` slug against
+    # OpenRouter's provider list / Activity log.
     FREE_MODEL_PROVIDER = {
       "order" => %w[fireworks together deepinfra],
       "ignore" => %w[wandb],
@@ -143,8 +143,14 @@ module Levelcode
       ceiling = price_ceiling(model)
       return body unless ceiling
 
-      client = body["provider"] || body[:provider] || {}
-      body.merge("provider" => client.merge("max_price" => ceiling))
+      # Exactly one string-keyed "provider" goes out, whatever the caller sent. A symbol-keyed body
+      # would otherwise serialise :provider beside "provider" (and :max_price beside "max_price"), and
+      # which of the two OpenRouter honours would be down to its parser — the ceiling would hold or
+      # not by accident. A preference that is not an object is dropped rather than raised on: the
+      # ceiling is the part that has to survive, and a 500 here would be ours, not upstream's.
+      client = body["provider"] || body[:provider]
+      client = client.is_a?(Hash) ? client.transform_keys(&:to_s).except("max_price") : {}
+      body.except(:provider).merge("provider" => client.merge("max_price" => ceiling))
     end
 
     # `{"prompt" => $/M, "completion" => $/M}` for a catalog model, nil for anything else.

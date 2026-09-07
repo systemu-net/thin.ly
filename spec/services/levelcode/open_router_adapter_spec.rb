@@ -68,6 +68,22 @@ RSpec.describe Levelcode::OpenRouterAdapter do
       expect(out["provider"]["max_price"]).to eq("prompt" => 5.0, "completion" => 25.0)
     end
 
+    it "drops a provider preference that is not an object and still applies the ceiling (never a 500)" do
+      [ "openai", %w[openai azure], true, false, nil, 7 ].each do |bad|
+        out = routed("model" => "openai/gpt-6-astra", "provider" => bad)
+        expect(out["provider"]).to eq("max_price" => { "prompt" => 10.0, "completion" => 50.0 }), bad.inspect
+      end
+    end
+
+    it "normalises a symbol-keyed body to ONE string-keyed provider, so the ceiling survives serialisation" do
+      out = routed(model: "openai/gpt-6-astra", provider: { sort: "price", max_price: { prompt: 99.0, completion: 999.0 } })
+      expect(out).not_to have_key(:provider)
+      expect(out["provider"]).to eq("sort" => "price", "max_price" => { "prompt" => 10.0, "completion" => 50.0 })
+      json = JSON.generate(out)
+      expect(json.scan('"provider"').size).to eq(1)
+      expect(json.scan('"max_price"').size).to eq(1)
+    end
+
     it "leaves an off-catalog model untouched (nothing to ceiling against)" do
       body = { "model" => "vendor/not-in-catalog", "messages" => [] }
       expect(routed(body)).to eq(body)
