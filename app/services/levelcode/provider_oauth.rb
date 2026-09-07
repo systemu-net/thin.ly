@@ -23,6 +23,20 @@ module Levelcode
   module ProviderOAuth
     module_function
 
+    # Every provider call goes through perform_http, and until now NONE of them set a timeout — so each
+    # one inherited Net::HTTP's 60-second defaults. A Google sign-in makes two of these back to back
+    # (token exchange, then the id_token verification's key fetch), so one stalled provider could hold
+    # the browser on a blank spinner for around two minutes before the callback finally gave up and
+    # redirected to /ai/login?error=oauth_failed. Reported as "sign-in is stuck loading".
+    #
+    # These are sized against what the endpoints actually do — a token exchange is a single small POST
+    # to Google or GitHub, not a slow query. Failing in seconds and showing the user an error they can
+    # retry beats succeeding on the rare 30-second call, because a spinner with no end is the one
+    # outcome from which a user cannot recover on their own.
+    OPEN_TIMEOUT  = 5    # seconds to establish the TCP+TLS connection
+    READ_TIMEOUT  = 10   # seconds to wait for the response body
+    WRITE_TIMEOUT = 10   # seconds to send the request body
+
     GITHUB_PROVIDER = "github"
 
     GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
@@ -269,6 +283,9 @@ module Levelcode
     def perform_http(uri, req)
       http = Net::HTTP.new(uri.host, uri.port)
       http.use_ssl = (uri.scheme == "https")
+      http.open_timeout  = OPEN_TIMEOUT
+      http.read_timeout  = READ_TIMEOUT
+      http.write_timeout = WRITE_TIMEOUT
       res = http.request(req)
       res.is_a?(Net::HTTPSuccess) ? res.body : nil
     rescue StandardError => e

@@ -48,12 +48,32 @@ Rails.application.configure do
   # Can be used together with config.force_ssl for Strict-Transport-Security and secure cookies.
   config.assume_ssl = true
 
-  # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
-  # Disabled for CloudFront - CloudFront handles SSL termination
-  config.force_ssl = false
-
-  # Skip http-to-https redirect for the default health check endpoint.
-  # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
+  # Strict-Transport-Security + secure cookies, WITHOUT the http->https redirect.
+  #
+  # `force_ssl` turns on ActionDispatch::SSL, which does three separate jobs: redirect, HSTS, and
+  # flagging cookies `secure`. We want the last two and specifically NOT the first:
+  #
+  #   * The ALB already redirects — verified: http://thin.ly 301s and http://levelcode.ai 302s.
+  #   * The ALB health check hits `/up` over PLAIN HTTP on the instance, and .ebextensions pins
+  #     `MatcherHTTPCode: "200"`. A redirect there is a 301, every instance goes unhealthy, and the
+  #     site is down. `assume_ssl` above should make the redirect unreachable anyway (it marks every
+  #     request as SSL), but "should" is not a thing to bet an outage on, so the redirect is turned
+  #     off explicitly rather than relied upon to never fire.
+  #
+  # Until now this was `force_ssl = false`, so the session cookie shipped WITHOUT `Secure` — it went
+  # in cleartext on any plain-HTTP request — and no HSTS header was sent at all. Both verified on the
+  # wire before this change.
+  #
+  # HSTS starts deliberately SHORT. A browser honours it for the full max-age and there is no way to
+  # take it back early, so this is a week rather than the Rails default of a year. Once a week has
+  # passed with no plain-HTTP breakage, raise `expires` to 1.year — and only then consider
+  # `subdomains: true`, which would commit every present and future subdomain to HTTPS at once.
+  config.force_ssl = true
+  config.ssl_options = {
+    redirect: false,
+    secure_cookies: true,
+    hsts: { expires: 1.week, subdomains: false, preload: false }
+  }
 
   # Log to STDOUT by default
   config.logger = ActiveSupport::Logger.new(STDOUT)
