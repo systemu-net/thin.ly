@@ -92,12 +92,28 @@ module Levelcode
         input: 5.00, cached_input: 0.50, output: 30.00,
         context: 1_050_000, min_tier: :pro, status: :confirmed
       },
+      # Fable 5.1 is NOT a price twin of Fable 5: same $10/$50, but cached reads are $0.25/M against
+      # $1.00, so a reference turn is cheaper (~12.9x vs ~13.3x). The monotonic-multiplier invariant
+      # orders by cost, so it sits BEFORE Fable 5 and Astra rather than beside them.
+      "anthropic/claude-fable-5.1" => {
+        label: "Fable 5.1", provider: "openrouter",
+        # Confirmed vs the OpenRouter models API (2026-09-08, listed 2026-09-01): $10/M in · $50/M out
+        # · $0.25/M cached read · 1M ctx. Image + file input. Every endpoint (Anthropic, Azure, Bedrock,
+        # Google) is at exactly this price, so the routing ceiling leaves all of them standing.
+        # Tier: pro — the same decision as Fable 5 below. ~20 turns a month on Pro, ~40 on Pro+.
+        input: 10.00, cached_input: 0.25, output: 50.00,
+        context: 1_000_000, min_tier: :pro, status: :confirmed
+      },
       "anthropic/claude-fable-5" => {
         label: "Fable 5", provider: "openrouter",
-        # OpenRouter 2026-07-26: $10/M in, $50/M out, $1/M cached, 1M ctx. ~13.3x -> ~28 Pro turns;
-        # gated to Max/Ultra so it never feels broken (rec #3).
+        # OpenRouter 2026-07-26, re-checked 2026-09-08: $10/M in, $50/M out, $1/M cached, 1M ctx. ~13.3x.
+        #
+        # Tier: pro (was max). Owner's decision, 2026-09-08: reach over rec #3. As of that date no
+        # business-approved editor ships a Fable/Astra-class model, and the dollar budget means a pricey
+        # pick drains the allowance faster without touching margin. What Pro buys is ~19 turns a month,
+        # so the honest count lives on the pricing page and in the picker rather than in the gate.
         input: 10.00, cached_input: 1.00, output: 50.00,
-        context: 1_000_000, min_tier: :max, status: :confirmed
+        context: 1_000_000, min_tier: :pro, status: :confirmed
       },
       # Sits immediately after Fable 5 because the rate card is IDENTICAL ($10/$1/$50) — an equal
       # neighbour, exactly as Opus 5 follows Opus 4.8, so the monotonic-multiplier invariant holds.
@@ -109,7 +125,8 @@ module Levelcode
         #
         # Tier: pro_plus, not max. Same per-turn cost as Fable 5 (~13.3x), which buys ~39 turns on Pro+ —
         # the number Pro already advertises for Opus 5 — and only ~19 on Pro, which is where rec #3 says a
-        # model starts to feel broken. Fable 5 stays at :max as previously decided; revisit together.
+        # model starts to feel broken. Fable 5 / 5.1 went to :pro on 2026-09-08 by the owner's call;
+        # Astra stays at pro_plus until the same call is made for it.
         input: 10.00, cached_input: 1.00, output: 50.00,
         context: 1_050_000, min_tier: :pro_plus, status: :confirmed
       }
