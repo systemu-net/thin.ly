@@ -195,6 +195,21 @@ RSpec.describe Levelcode::ProviderOAuth do
       end
     end
 
+    # A timeout is now the likeliest way for this line to fire, and its message alone names neither
+    # the provider nor the call.
+    it "logs what failed and where: the exception, the method, the host and path — never the query" do
+      allow(Rails.logger).to receive(:warn)
+      with_read_timeout(0.2)
+      with_provider do |uri|
+        uri.query = "code=secret"
+        perform(uri, Net::HTTP::Get.new(uri))
+      end
+
+      expect(Rails.logger).to have_received(:warn).with(
+        a_string_matching(%r{\ALevelcode OAuth HTTP error: Net::ReadTimeout: .* \(GET 127\.0\.0\.1/token\)\z})
+      )
+    end
+
     # Changing one of these is a decision about how long a person waits on a spinner. This makes it
     # a visible one.
     it "allows a call five seconds to connect and ten to answer, once" do

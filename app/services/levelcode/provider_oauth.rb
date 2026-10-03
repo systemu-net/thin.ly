@@ -283,7 +283,8 @@ module Levelcode
       end
       res.is_a?(Net::HTTPSuccess) ? res.body : nil
     rescue StandardError => e
-      Rails.logger.warn("Levelcode OAuth HTTP error: #{e.message}")
+      # Host and path only — a query string is where a code or a token would be.
+      Rails.logger.warn("Levelcode OAuth HTTP error: #{e.class}: #{e.message} (#{req.method} #{uri.host}#{uri.path})")
       nil
     end
 
