@@ -48,12 +48,11 @@ Rails.application.configure do
   # Can be used together with config.force_ssl for Strict-Transport-Security and secure cookies.
   config.assume_ssl = true
 
-  # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
-  # Disabled for CloudFront - CloudFront handles SSL termination
-  config.force_ssl = false
-
-  # Skip http-to-https redirect for the default health check endpoint.
-  # config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
+  # Strict-Transport-Security, and deliberately NOT the http->https redirect: the ALB health check
+  # reaches /up over plain HTTP and accepts only a 200. The options, and the reason for each, are
+  # SSL_OPTIONS in config/application.rb — kept there so the specs can run the real middleware.
+  config.force_ssl = true
+  config.ssl_options = Backend::Application::SSL_OPTIONS
 
   # Log to STDOUT by default
   config.logger = ActiveSupport::Logger.new(STDOUT)

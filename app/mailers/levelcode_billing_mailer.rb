@@ -7,7 +7,7 @@
 class LevelcodeBillingMailer < ApplicationMailer
   layout false
 
-  # The one Rails host serves the account SPA under /ai (see StaticController::LEVELCODE_HOSTS).
+  # The one Rails host serves the account SPA under /ai (see Levelcode::Hosts).
   LEVELCODE_SITE = "https://levelcode.ai"
 
   # LevelCode-branded sender, overriding the thin.ly default. Point LEVELCODE_MAIL_FROM at a verified

@@ -116,4 +116,104 @@ RSpec.describe Levelcode::ProviderOAuth do
       expect(Rails.logger).to have_received(:error).with(/google sign-up rejected by validation/i)
     end
   end
+
+  # perform_http carries the GitHub token exchange and API reads, and the Google token exchange.
+  # (Google's signing keys are fetched by the googleauth gem itself, not through here.) These run it
+  # against a real local socket rather than a double, so they describe what a provider would see and
+  # hold however the Net::HTTP call happens to be written.
+  describe "talking to a provider" do
+    # A local stand-in for a provider. Given a response it answers each request with it; given none
+    # it accepts the connection and never answers — the failure the timeouts exist for.
+    def with_provider(response = nil)
+      server = TCPServer.new("127.0.0.1", 0)
+      connections = []
+      listener = Thread.new do
+        loop do
+          socket = server.accept
+          connections << socket
+          next unless response
+
+          socket.gets("\r\n\r\n") # the request head — the answered examples send no body
+          socket.write(response)
+          socket.close
+        end
+      end
+      yield URI("http://127.0.0.1:#{server.addr[1]}/token"), connections
+    ensure
+      listener&.kill
+      connections&.each { |socket| socket.close unless socket.closed? }
+      server&.close
+    end
+
+    def http_response(status, body)
+      "HTTP/1.1 #{status}\r\nContent-Length: #{body.bytesize}\r\nConnection: close\r\n\r\n#{body}"
+    end
+
+    def perform(uri, request)
+      described_class.send(:perform_http, uri, request)
+    end
+
+    # A stall should cost the suite a fraction of a second, not the ten a real sign-in is allowed.
+    def with_read_timeout(seconds)
+      stub_const("#{described_class}::HTTP_OPTIONS", described_class::HTTP_OPTIONS.merge(read_timeout: seconds))
+    end
+
+    it "returns the body of a successful response" do
+      with_provider(http_response("200 OK", '{"access_token":"t"}')) do |uri|
+        expect(perform(uri, Net::HTTP::Get.new(uri))).to eq('{"access_token":"t"}')
+      end
+    end
+
+    it "returns nil for any other status, so the caller can fail the sign-in" do
+      with_provider(http_response("503 Service Unavailable", "busy")) do |uri|
+        expect(perform(uri, Net::HTTP::Get.new(uri))).to be_nil
+      end
+    end
+
+    # nil rather than an exception is what sends the callback to /ai/login?error=oauth_failed — an
+    # error the user can retry — instead of a 500. The clock is what proves the timeout was applied:
+    # without one, this still returns nil, after Net::HTTP's default sixty seconds.
+    it "gives up on a provider that accepts the connection and never answers" do
+      with_read_timeout(0.2)
+      with_provider do |uri|
+        request = Net::HTTP::Post.new(uri).tap { |post| post.set_form_data(code: "c") }
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+        expect(perform(uri, request)).to be_nil
+        expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 5
+      end
+    end
+
+    # Net::HTTP retries an idempotent request once after a timeout, on a fresh connection. Left on,
+    # the GitHub profile and email reads are each allowed double the timeout — which is how a bound
+    # advertised as fifteen seconds a call quietly becomes thirty.
+    it "does not retry a GET that timed out" do
+      with_read_timeout(0.2)
+      with_provider do |uri, connections|
+        expect(perform(uri, Net::HTTP::Get.new(uri))).to be_nil
+        expect(connections.size).to eq(1)
+      end
+    end
+
+    # A timeout is now the likeliest way for this line to fire, and its message alone names neither
+    # the provider nor the call.
+    it "logs what failed and where: the exception, the method, the host and path — never the query" do
+      allow(Rails.logger).to receive(:warn)
+      with_read_timeout(0.2)
+      with_provider do |uri|
+        uri.query = "code=secret"
+        perform(uri, Net::HTTP::Get.new(uri))
+      end
+
+      expect(Rails.logger).to have_received(:warn).with(
+        a_string_matching(%r{\ALevelcode OAuth HTTP error: Net::ReadTimeout: .* \(GET 127\.0\.0\.1/token\)\z})
+      )
+    end
+
+    # Changing one of these is a decision about how long a person waits on a spinner. This makes it
+    # a visible one.
+    it "allows a call five seconds to connect and ten to answer, once" do
+      expect(described_class::HTTP_OPTIONS).to eq(open_timeout: 5, read_timeout: 10, write_timeout: 10, max_retries: 0)
+    end
+  end
 end
