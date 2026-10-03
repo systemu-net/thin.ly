@@ -28,7 +28,11 @@ module Levelcode
     # the one outcome a user cannot recover from alone. A token exchange is a single small request,
     # so seconds are enough: failing fast with an error the user can retry beats succeeding on the
     # rare slow call.
-    HTTP_OPTIONS = { open_timeout: 5, read_timeout: 10, write_timeout: 10 }.freeze
+    #
+    # max_retries is part of the bound, not a detail: Net::HTTP silently retries an idempotent request
+    # once when it times out, so without this every GET here — the GitHub profile and email reads —
+    # is allowed twice as long as the numbers beside it say.
+    HTTP_OPTIONS = { open_timeout: 5, read_timeout: 10, write_timeout: 10, max_retries: 0 }.freeze
 
     GITHUB_PROVIDER = "github"
 

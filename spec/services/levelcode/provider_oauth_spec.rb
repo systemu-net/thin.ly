@@ -184,10 +184,21 @@ RSpec.describe Levelcode::ProviderOAuth do
       end
     end
 
+    # Net::HTTP retries an idempotent request once after a timeout, on a fresh connection. Left on,
+    # the GitHub profile and email reads are each allowed double the timeout — which is how a bound
+    # advertised as fifteen seconds a call quietly becomes thirty.
+    it "does not retry a GET that timed out" do
+      with_read_timeout(0.2)
+      with_provider do |uri, connections|
+        expect(perform(uri, Net::HTTP::Get.new(uri))).to be_nil
+        expect(connections.size).to eq(1)
+      end
+    end
+
     # Changing one of these is a decision about how long a person waits on a spinner. This makes it
     # a visible one.
-    it "allows a call five seconds to connect and ten to answer" do
-      expect(described_class::HTTP_OPTIONS).to eq(open_timeout: 5, read_timeout: 10, write_timeout: 10)
+    it "allows a call five seconds to connect and ten to answer, once" do
+      expect(described_class::HTTP_OPTIONS).to eq(open_timeout: 5, read_timeout: 10, write_timeout: 10, max_retries: 0)
     end
   end
 end
