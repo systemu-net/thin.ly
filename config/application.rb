@@ -20,9 +20,37 @@ Bundler.require(*Rails.groups)
 
 module Backend
   class Application < Rails::Application
+    # What ActionDispatch::SSL is given in production, where config/environments/production.rb turns
+    # it on. Held here as a value so the specs can run the real middleware with the real options.
+    #
+    # redirect: false — the ALB already redirects http to https, and its health check reaches /up over
+    # PLAIN HTTP and accepts only a 200 (.ebextensions/03_healthcheck.config). A redirect there marks
+    # every instance unhealthy and takes the site down.
+    #
+    # hsts — deliberately short. A browser honours it for the full max-age and it cannot be withdrawn
+    # early. Raise `expires` to 1.year once a week has passed clean, and only then consider
+    # `subdomains: true`, which commits every present and future subdomain to HTTPS at once.
+    SSL_OPTIONS = {
+      redirect: false,
+      hsts: { expires: 1.week, subdomains: false, preload: false }
+    }.freeze
+
     # Use cookies for session store
     config.middleware.use ActionDispatch::Cookies
-    config.middleware.use ActionDispatch::Session::CookieStore, key: "_your_app_session"
+    # `secure` is set HERE, on the store, because nothing else will set it: with its redirect off,
+    # ActionDispatch::SSL does not flag cookies Secure — Rails skips that for any request it would not
+    # have redirected. Production only: unconditionally, the cookie would never be sent over
+    # http://localhost, and neither development nor the specs could hold a session.
+    #
+    # same_site MUST STAY :lax. It is the Rails default, so it is stated explicitly to stop anyone
+    # "hardening" it to :strict — the Google OAuth callback is a cross-site top-level GET, :strict
+    # withholds the cookie on exactly that request, and the sign-in then dies with `session_expired`
+    # because the `state` stashed in the session never comes back. See Levelcode::WebController.
+    config.middleware.use ActionDispatch::Session::CookieStore,
+                          key: "_your_app_session",
+                          secure: Rails.env.production?,
+                          same_site: :lax,
+                          httponly: true
 
     config.api_only = true
     # Initialize configuration defaults for originally generated Rails version.

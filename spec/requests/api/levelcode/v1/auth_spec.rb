@@ -304,8 +304,7 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
         emails_res = instance_double(Net::HTTPOK, body: [ { email: 'octo@example.com', primary: true, verified: true } ].to_json)
         allow(emails_res).to receive(:is_a?).with(Net::HTTPSuccess).and_return(true)
         http = instance_double(Net::HTTP)
-        allow(Net::HTTP).to receive(:new).and_return(http)
-        allow(http).to receive(:use_ssl=)
+        allow(Net::HTTP).to receive(:start) { |*, &session| session.call(http) }
         allow(http).to receive(:request) do |req|
           case req.path
           when '/login/oauth/access_token' then token_res

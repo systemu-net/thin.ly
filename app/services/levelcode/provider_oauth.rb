@@ -23,6 +23,17 @@ module Levelcode
   module ProviderOAuth
     module_function
 
+    # How long a provider is given before a sign-in gives up on it. Net::HTTP allows sixty seconds for
+    # each of these by default, and a stalled provider then holds the browser on a blank spinner —
+    # the one outcome a user cannot recover from alone. A token exchange is a single small request,
+    # so seconds are enough: failing fast with an error the user can retry beats succeeding on the
+    # rare slow call.
+    #
+    # max_retries is part of the bound, not a detail: Net::HTTP silently retries an idempotent request
+    # once when it times out, so without this every GET here — the GitHub profile and email reads —
+    # is allowed twice as long as the numbers beside it say.
+    HTTP_OPTIONS = { open_timeout: 5, read_timeout: 10, write_timeout: 10, max_retries: 0 }.freeze
+
     GITHUB_PROVIDER = "github"
 
     GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
@@ -267,12 +278,13 @@ module Levelcode
     end
 
     def perform_http(uri, req)
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = (uri.scheme == "https")
-      res = http.request(req)
+      res = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", **HTTP_OPTIONS) do |http|
+        http.request(req)
+      end
       res.is_a?(Net::HTTPSuccess) ? res.body : nil
     rescue StandardError => e
-      Rails.logger.warn("Levelcode OAuth HTTP error: #{e.message}")
+      # Host and path only — a query string is where a code or a token would be.
+      Rails.logger.warn("Levelcode OAuth HTTP error: #{e.class}: #{e.message} (#{req.method} #{uri.host}#{uri.path})")
       nil
     end
 
