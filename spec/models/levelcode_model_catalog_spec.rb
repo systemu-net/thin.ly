@@ -23,6 +23,7 @@ RSpec.describe Levelcode::ModelCatalog do
       expect(described_class.find("anthropic/claude-opus-5")[:context]).to eq(1_000_000)
       expect(described_class.find("moonshotai/kimi-k3")[:context]).to eq(1_048_576)
       expect(described_class.find("openai/gpt-oss-120b")[:context]).to eq(131_072)
+      expect(described_class.find("openai/gpt-6-astra")[:context]).to eq(1_050_000)
       # No row may go without one: a nil/0 window disables the clamp entirely.
       expect(described_class.all.values.map { |m| m[:context] }).to all(be_positive)
     end
@@ -49,7 +50,10 @@ RSpec.describe Levelcode::ModelCatalog do
         # Opus 5 TIES Opus 4.8 — identical rates ⇒ identical multiplier. That tie is exactly what lets
         # it sit beside 4.8 without disturbing the monotonic ordering asserted below.
         "anthropic/claude-opus-4-8" => 6.67, "anthropic/claude-opus-5" => 6.67,
-        "openai/gpt-5.5" => 7.40, "anthropic/claude-fable-5" => 13.35
+        "openai/gpt-5.5" => 7.40,
+        # GPT-6 Astra TIES Fable 5 — identical rate card ⇒ identical multiplier — so it sits after Fable
+        # without disturbing the monotonic ordering, the same way Opus 5 sits beside Opus 4.8.
+        "anthropic/claude-fable-5" => 13.35, "openai/gpt-6-astra" => 13.35
       }.each { |id, mult| expect(described_class.multiplier(id)).to be_within(0.02).of(mult) }
     end
 
@@ -65,14 +69,20 @@ RSpec.describe Levelcode::ModelCatalog do
       expect(described_class.entitled(:free)).to eq([ "openai/gpt-oss-120b" ])
     end
 
-    it "pro reaches the roster EXCEPT Fable (gated to Max/Ultra by UX, rec #3)" do
+    it "pro reaches the roster EXCEPT the ~13x models (Fable, Astra — ~19 Pro turns feels broken, rec #3)" do
       pro = described_class.entitled(:pro)
       expect(pro).to include("moonshotai/kimi-k2.7-code", "anthropic/claude-opus-4-8", "anthropic/claude-opus-5", "openai/gpt-5.5")
-      expect(pro).not_to include("anthropic/claude-fable-5")
+      expect(pro).not_to include("anthropic/claude-fable-5", "openai/gpt-6-astra")
     end
 
-    it "Max/Ultra reach the full roster incl. Fable" do
-      expect(described_class.entitled(:max)).to include("anthropic/claude-fable-5")
+    it "pro_plus adds GPT-6 Astra (~39 turns — the count Pro already advertises for Opus 5) but not Fable" do
+      pro_plus = described_class.entitled(:pro_plus)
+      expect(pro_plus).to include("openai/gpt-6-astra")
+      expect(pro_plus).not_to include("anthropic/claude-fable-5")
+    end
+
+    it "Max/Ultra reach the full roster incl. Fable and Astra" do
+      expect(described_class.entitled(:max)).to include("anthropic/claude-fable-5", "openai/gpt-6-astra")
       expect(described_class.entitled(:ultra)).to match_array(described_class.ids)
     end
   end
