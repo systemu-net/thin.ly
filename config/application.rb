@@ -20,12 +20,27 @@ Bundler.require(*Rails.groups)
 
 module Backend
   class Application < Rails::Application
+    # What ActionDispatch::SSL is given in production, where config/environments/production.rb turns
+    # it on. Held here as a value so the specs can run the real middleware with the real options.
+    #
+    # redirect: false — the ALB already redirects http to https, and its health check reaches /up over
+    # PLAIN HTTP and accepts only a 200 (.ebextensions/03_healthcheck.config). A redirect there marks
+    # every instance unhealthy and takes the site down.
+    #
+    # hsts — deliberately short. A browser honours it for the full max-age and it cannot be withdrawn
+    # early. Raise `expires` to 1.year once a week has passed clean, and only then consider
+    # `subdomains: true`, which commits every present and future subdomain to HTTPS at once.
+    SSL_OPTIONS = {
+      redirect: false,
+      hsts: { expires: 1.week, subdomains: false, preload: false }
+    }.freeze
+
     # Use cookies for session store
     config.middleware.use ActionDispatch::Cookies
-    # `secure` at the store as well as via ssl_options in production: defence in depth, and it keeps the
-    # attribute visible here rather than only as a side effect of force_ssl three files away. Gated on
-    # the environment because an unconditional `secure: true` means the cookie is never sent over
-    # http://localhost — development and the specs would silently stop being able to hold a session.
+    # `secure` is set HERE, on the store, because nothing else will set it: with its redirect off,
+    # ActionDispatch::SSL does not flag cookies Secure — Rails skips that for any request it would not
+    # have redirected. Production only: unconditionally, the cookie would never be sent over
+    # http://localhost, and neither development nor the specs could hold a session.
     #
     # same_site MUST STAY :lax. It is the Rails default, so it is stated explicitly to stop anyone
     # "hardening" it to :strict — the Google OAuth callback is a cross-site top-level GET, :strict
