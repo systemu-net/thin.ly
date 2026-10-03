@@ -27,6 +27,10 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
     allow(Stripe::Customer).to receive(:retrieve).and_return(Stripe::Customer.construct_from(id: 'cus_test'))
   end
 
+  # A server that has been told nothing: the shipped editor schemes only, whatever the machine
+  # running the suite has exported (LEVELCODE_EXTRA_EDITOR_SCHEMES). Examples that opt in say so.
+  before { with_extra_editor_schemes('') }
+
   let(:password) { 'password123' }
   let!(:user) { create(:user, email: 'editor@example.com', password: password) }
   let(:redirect_uri) { 'levelcode://levelcode.levelcode-ai/auth/callback' }
@@ -109,6 +113,19 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
         expect(response.headers['Location']).to be_nil
         expect(json['access']).to be_present
       end
+    end
+
+    it '302s the code to a development editor once the server is told to take its scheme' do
+      with_extra_editor_schemes('levelcode-dev')
+
+      post '/api/levelcode/v1/auth/login',
+           params: { email: user.email, password: password, code_challenge: 'chal',
+                     redirect_uri: 'levelcode-dev://levelcode.levelcode-ai/auth/callback?windowId=2' }
+
+      expect(response).to have_http_status(:found)
+      location = response.headers['Location']
+      expect(location).to start_with('levelcode-dev://levelcode.levelcode-ai/auth/callback?windowId=2&code=')
+      expect(Rack::Utils.parse_query(URI.parse(location).query)['code']).to be_present
     end
 
     it 'refuses a non-https/non-editor redirect_uri (no open redirect)' do
