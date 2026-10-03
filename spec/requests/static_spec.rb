@@ -42,6 +42,45 @@ RSpec.describe "Static host/brand isolation", type: :request do
     end
   end
 
+  # Rack passes `req.host` through exactly as the client sent it (only the port is stripped), and
+  # the route constraint that keeps the shortcode lookup off LevelCode hosts compared it raw while
+  # the controller downcased — so a mixed-case Host header was a LevelCode host to #ui and NOT one
+  # to routing. A 7-char bare path like /pricing then resolved as a short code before #ui ever ran.
+  describe "on a LevelCode host sent with a mixed-case Host header" do
+    before { host! "LevelCode.AI" }
+
+    it "funnels a 7-char bare path into /ai — routing and the controller agree on the host" do
+      get "/pricing"
+      expect(response).to redirect_to("/ai/pricing")
+      expect(response).not_to redirect_to("/link-not-found")
+    end
+
+    it "renders the LevelCode Cloud shell under /ai" do
+      get "/ai/account"
+      expect(response).to have_http_status(:ok)
+    end
+  end
+
+  describe "StaticController.levelcode_host? (the ONE predicate routing and #ui share)" do
+    it "normalises case exactly as parse_hosts normalises the list" do
+      expect(StaticController.levelcode_host?("levelcode.ai")).to be(true)
+      expect(StaticController.levelcode_host?("LevelCode.AI")).to be(true)
+      expect(StaticController.levelcode_host?("WWW.LEVELCODE.AI")).to be(true)
+    end
+
+    it "is false for the shortener host, nothing, and nil" do
+      expect(StaticController.levelcode_host?("thin.ly")).to be(false)
+      expect(StaticController.levelcode_host?("")).to be(false)
+      expect(StaticController.levelcode_host?(nil)).to be(false)
+    end
+
+    it "is what the route constraint actually calls — the two sides cannot drift apart again" do
+      src = Rails.root.join("config/routes.rb").read
+      expect(src).to include("StaticController.levelcode_host?(req.host)")
+      expect(src).not_to match(/LEVELCODE_HOSTS\.include\?\(req\.host\)/)
+    end
+  end
+
   # A half-applied staging override — LEVELCODE_ORIGIN pointed at a tunnel while LEVELCODE_HOSTS still
   # listed only production — made /ai/login 301 to itself, forever. The browser follows the redirect
   # straight back into this action and the log fills with identical 301s.

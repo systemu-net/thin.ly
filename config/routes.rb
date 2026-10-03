@@ -207,7 +207,9 @@ Rails.application.routes.draw do
   # account app (not a shortener), so a 7-char bare path there (e.g. /pricing)
   # must fall through to static#ui — which redirects it into the /ai app — instead
   # of resolving as a short code.
-  constraints(->(req) { !StaticController::LEVELCODE_HOSTS.include?(req.host) }) do
+  # Same predicate as StaticController#ui, so routing and dispatch agree on what a LevelCode host is
+  # (a mixed-case Host header used to slip past this check and resolve /pricing as a short code).
+  constraints(->(req) { !StaticController.levelcode_host?(req.host) }) do
     get "/:lookup_code" => "api/v1/links#lookup_code", as: :lookup_code, constraints: { lookup_code: /[a-zA-Z0-9]{7}/ }
   end
   match "*ui", to: "static#ui", via: :get, constraints: ->(request) { request.format.html? && !request.path.start_with?("/api/") }

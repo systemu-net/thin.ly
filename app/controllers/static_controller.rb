@@ -15,6 +15,19 @@ class StaticController < ApplicationController
     raw.to_s.split(",").map { |h| h.strip.downcase }.reject(&:empty?)
   end
   LEVELCODE_HOSTS = parse_hosts(ENV.fetch("LEVELCODE_HOSTS", DEFAULT_LEVELCODE_HOSTS)).freeze
+
+  # THE host predicate — the one place that decides whether a request is on a LevelCode host.
+  #
+  # Both the route constraint that keeps the 7-char shortcode lookup off LevelCode hosts
+  # (config/routes.rb) and #ui's brand switch call this. They used to make the decision separately,
+  # and only this side normalised case: a `Host: LevelCode.AI` header passed the routing check as
+  # "not a LevelCode host", so a 7-char bare path such as /pricing resolved as a short code and
+  # landed on /link-not-found instead of funnelling into /ai. Rack hands `req.host` through exactly
+  # as sent (only the port is stripped), so the case is real. Normalise here, the same way
+  # parse_hosts normalises the list, and the two sides cannot disagree.
+  def self.levelcode_host?(host)
+    LEVELCODE_HOSTS.include?(host.to_s.downcase)
+  end
   # Canonical origin LevelCode Cloud lives on. thin.ly bounces any /ai request here so the account app
   # only ever opens on a LevelCode host. ENV-overridable for staging.
   LEVELCODE_ORIGIN = ENV.fetch("LEVELCODE_ORIGIN", "https://levelcode.ai").freeze
@@ -59,7 +72,7 @@ class StaticController < ApplicationController
   private
 
   def levelcode_host?
-    LEVELCODE_HOSTS.include?(request.host.to_s.downcase)
+    self.class.levelcode_host?(request.host)
   end
 
   # True when the canonical origin IS this request's host — i.e. redirecting would target ourselves.
