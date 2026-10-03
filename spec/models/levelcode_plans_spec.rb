@@ -107,6 +107,30 @@ RSpec.describe Levelcode do
     end
   end
 
+  # The pricing page prints PLANS[:features] verbatim. Pin the turn counts in each plan's first line
+  # to the formula, so a catalog price change (or a hand edit) cannot leave the page promising turns
+  # the budget no longer buys.
+  describe 'the pricing line' do
+    advertised = /~(?<kimi>[\d,]+) Kimi turns · ~(?<opus>\d+) on Opus 5 · ~(?<fable>\d+) on Fable 5\.1\z/
+
+    Levelcode::PLANS.each do |plan|
+      it "advertises the turns #{plan[:name]}'s budget buys — exact for the frontier models, within 1% for the rounded Kimi figure" do
+        line = plan[:features].first
+        # Asserted before it is relied on: if the copy changes shape, the failure is this line saying
+        # so — not a nil further down, or a count that silently reads as 0.
+        expect(line).to match(advertised)
+        counts = line.match(advertised)
+
+        expect(opus: counts[:opus].to_i, fable: counts[:fable].to_i).to eq(
+          opus: Levelcode.turns_for(plan[:key], 'anthropic/claude-opus-5'),
+          fable: Levelcode.turns_for(plan[:key], 'anthropic/claude-fable-5.1')
+        )
+        kimi = Levelcode.turns_for(plan[:key], Levelcode::DEFAULT_MODEL)
+        expect(counts[:kimi].delete(',').to_i).to be_within(kimi * 0.01).of(kimi)
+      end
+    end
+  end
+
   describe '.allowed_models / .gateway_model (entitlement)' do
     it 'free/no-plan may use ONLY the open-weights engine' do
       expect(Levelcode.allowed_models('free')).to eq([ Levelcode::FREE_MODEL ])
@@ -115,15 +139,16 @@ RSpec.describe Levelcode do
 
     it 'a paid plan may use the flagship AND the open-weights engine (confirmed-price roster)' do
       # Every Pro-tier engine is confirmed now — the frontier rows (Codex 5.3, GPT-5.5, Sonnet 5) went live.
-      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8', 'anthropic/claude-opus-5', 'moonshotai/kimi-k3', 'openai/gpt-5.3-codex', 'openai/gpt-5.5', 'anthropic/claude-sonnet-5' ])
-      # Fable 5 is confirmed too, but Max-tier — a Pro plan still can't reach it (entitlement, not price).
-      expect(Levelcode.allowed_models('orbits_pro')).not_to include('anthropic/claude-fable-5', 'openai/gpt-6-astra')
+      expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8', 'anthropic/claude-opus-5', 'moonshotai/kimi-k3', 'openai/gpt-5.3-codex', 'openai/gpt-5.5', 'anthropic/claude-sonnet-5',
+                                                                       'anthropic/claude-fable-5', 'anthropic/claude-fable-5.1' ])
+      # Fable 5 / 5.1 are Pro-tier since 2026-09-08 (owner's call). Astra is the one Pro can't reach.
+      expect(Levelcode.allowed_models('orbits_pro')).not_to include('openai/gpt-6-astra')
     end
 
-    it 'Pro+ reaches GPT-6 Astra; Fable stays Max-tier; Max reaches both' do
-      expect(Levelcode.allowed_models('orbits_pro_plus')).to include('openai/gpt-6-astra')
-      expect(Levelcode.allowed_models('orbits_pro_plus')).not_to include('anthropic/claude-fable-5')
-      expect(Levelcode.allowed_models('orbits_max')).to include('openai/gpt-6-astra', 'anthropic/claude-fable-5')
+    it 'Pro reaches Fable 5.1 as requested; Pro+ adds GPT-6 Astra; Max reaches all three' do
+      expect(Levelcode.gateway_model('orbits_pro', 'anthropic/claude-fable-5.1')).to eq('anthropic/claude-fable-5.1')
+      expect(Levelcode.allowed_models('orbits_pro_plus')).to include('openai/gpt-6-astra', 'anthropic/claude-fable-5', 'anthropic/claude-fable-5.1')
+      expect(Levelcode.allowed_models('orbits_max')).to include('openai/gpt-6-astra', 'anthropic/claude-fable-5', 'anthropic/claude-fable-5.1')
       # Entitlement, not price: a Pro user asking for Astra is routed to the plan default, never 402'd.
       expect(Levelcode.gateway_model('orbits_pro', 'openai/gpt-6-astra')).to eq(Levelcode::DEFAULT_MODEL)
       expect(Levelcode.gateway_model('orbits_pro_plus', 'openai/gpt-6-astra')).to eq('openai/gpt-6-astra')
