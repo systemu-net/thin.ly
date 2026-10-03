@@ -224,6 +224,21 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       expect(json).to eq('redirect' => '/ai/account')
     end
 
+    # An address that is not the editor's is not refused here — it is not an editor sign-in at all.
+    # The browser is signed in to the web account and sent to it, and the editor that asked hears
+    # nothing. That is what a developer sees when their editor's scheme is not one this server takes.
+    it 'treats an editor-shaped address on a scheme it does not take as a web sign-in' do
+      allow(Levelcode::EmailCode).to receive(:verify).and_return(true)
+      expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+      post '/ai/auth/verify',
+           params: { email: 'dev@example.com', code: '123456',
+                     redirect_uri: 'levelcode-dev://levelcode.levelcode-ai/auth/callback', code_challenge: 'chal' }
+
+      expect(response).to have_http_status(:ok)
+      expect(json).to eq('redirect' => '/ai/account')
+    end
+
     it 'rejects an invalid code' do
       allow(Levelcode::EmailCode).to receive(:verify).and_return(false)
       post '/ai/auth/verify', params: { email: 'nope@example.com', code: '000000' }
@@ -433,6 +448,42 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       post '/ai/authorize_editor', params: { redirect_uri: 'https://evil.example/steal', code_challenge: 'chal' }
 
       expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    # WHICH addresses are the editor's. The scheme is the editor build's identity; the host is the
+    # extension id and the path its auth route. One example per address, so that the list cannot
+    # grow or shrink without one of these changing.
+    {
+      'levelcode://levelcode.levelcode-ai/auth/callback' => 'the shipped editor',
+      'atom-plus-plus://levelcode.levelcode-ai/auth/callback' => 'a build from before the rename'
+    }.each_with_index do |(address, whose), i|
+      it "hands the code to #{whose} — #{address}" do
+        sign_in_browser("sess-takes-#{i}")
+        allow(Levelcode::OneTimeCode).to receive(:issue).with(user, 'chal').and_return('bound-code')
+
+        post '/ai/authorize_editor', params: { redirect_uri: "#{address}?windowId=2", code_challenge: 'chal' }
+
+        expect(response).to have_http_status(:ok)
+        expect(json['redirect']).to eq("#{address}?windowId=2&code=bound-code")
+      end
+    end
+
+    {
+      'levelcode-dev://levelcode.levelcode-ai/auth/callback' => 'a scheme that is not on the list',
+      'levelcode://evil.example/auth/callback' => 'the right scheme on another host',
+      'levelcode://levelcode.levelcode-ai/elsewhere' => 'the right host on another path',
+      'https://levelcode.levelcode-ai/auth/callback' => 'the right host and path over https',
+      'levelcode:levelcode.levelcode-ai/auth/callback' => 'an address with no host at all'
+    }.each_with_index do |(address, what), i|
+      it "mints nothing for #{what} — #{address}" do
+        sign_in_browser("sess-refuses-#{i}")
+        expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+        post '/ai/authorize_editor', params: { redirect_uri: address, code_challenge: 'chal' }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(json.dig('error', 'code')).to eq('invalid_request')
+      end
     end
 
     it 'does not mint for an anonymous request' do
