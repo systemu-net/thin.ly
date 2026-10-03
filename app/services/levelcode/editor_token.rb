@@ -9,7 +9,11 @@ module Levelcode
   # denylist held in a Redis set (`levelcode:revoked:jti`).
   #
   #   access  — TTL 8 h (a work session; revocable via jti, refresh-backed), scope "ai:chat ai:agent account:read"
-  #   refresh — TTL 30 days, scope "refresh"
+  #   refresh — TTL 30 days, scope "refresh". ROTATED on every use (auth#refresh returns a new one),
+  #             so the 30 days run from the last refresh, not the last sign-in: an active user never
+  #             reaches the wall, an idle one does after a month. The old token is not revoked —
+  #             rotation here is for the sliding window, not for replay detection; a client that
+  #             fails to persist the new token must keep working on the old one.
   module EditorToken
     module_function
 
@@ -30,6 +34,13 @@ module Levelcode
 
     class Error < StandardError; end
     class InvalidToken < Error; end
+    # A well-formed, correctly signed token whose `exp` has passed. Its own class because the
+    # caller's right response differs: an EXPIRED token means "sign in again" (or, for an access
+    # token, "refresh"); any other InvalidToken means something is wrong with the credential itself.
+    # Carries a human sentence — the JWT library's "Signature has expired" was reaching the editor
+    # transcript verbatim, which told the user nothing about what to do.
+    class ExpiredToken < InvalidToken; end
+    EXPIRED_MESSAGE = "Your LevelCode Cloud session has expired. Sign in again to continue."
 
     # Mint a short-lived access token for the user.
     def mint_access(user)
@@ -60,6 +71,8 @@ module Levelcode
       raise InvalidToken, "token revoked" if revoked?(claims["jti"])
 
       claims
+    rescue JWT::ExpiredSignature
+      raise ExpiredToken, EXPIRED_MESSAGE
     rescue JWT::DecodeError => e
       raise InvalidToken, e.message
     end

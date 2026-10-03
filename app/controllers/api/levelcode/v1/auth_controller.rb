@@ -150,13 +150,28 @@ module Api
         end
 
         # POST /api/levelcode/v1/auth/refresh  (editor)
-        # Body: { refresh } -> { access }
+        # Body: { refresh } -> { access, refresh }
+        #
+        # The refresh token ROTATES: every call returns a fresh 30-day one alongside the access token.
+        # Before this, the editor kept the refresh token it was handed at sign-in for its whole life,
+        # so the 30 days ran from the last SIGN-IN rather than the last use — and a daily user who had
+        # signed in five weeks earlier was logged out mid-session with no way to see why. The old
+        # token stays valid until its own expiry (no revocation): a client that crashes between
+        # receiving the new token and persisting it must not be locked out.
+        #
+        # An expired refresh token answers `refresh_expired` rather than the generic `invalid_refresh`,
+        # so the editor can tell "sign in again" apart from "this credential is broken".
         def refresh
           claims = ::Levelcode::EditorToken.verify(params[:refresh], scope: "refresh")
           user = User.find_by(id: claims["sub"])
           return render_levelcode_error("unauthorized", "User not found", :unauthorized) unless user
 
-          render json: { access: ::Levelcode::EditorToken.mint_access(user) }, status: :ok
+          render json: {
+            access: ::Levelcode::EditorToken.mint_access(user),
+            refresh: ::Levelcode::EditorToken.mint_refresh(user)
+          }, status: :ok
+        rescue ::Levelcode::EditorToken::ExpiredToken => e
+          render_levelcode_error("refresh_expired", e.message, :unauthorized)
         rescue ::Levelcode::EditorToken::InvalidToken => e
           render_levelcode_error("invalid_refresh", e.message, :unauthorized)
         end
