@@ -237,12 +237,8 @@ module Api
           return nil if raw.blank?
 
           uri = URI.parse(raw)
-          # Editor deep-link: host = extension id (levelcode.levelcode-ai), path pinned. Accept the
-          # current `levelcode` scheme and the legacy `atom-plus-plus` (pre-rename builds) during the
-          # transition; host + path stay pinned so this can't become an open redirect.
-          if %w[levelcode atom-plus-plus].include?(uri.scheme) && uri.host == "levelcode.levelcode-ai" && uri.path == "/auth/callback"
-            return uri
-          end
+          # The editor's deep link. Levelcode::EditorCallback has the rule, shared with the /ai flows.
+          return uri if ::Levelcode::EditorCallback.current.match?(uri)
 
           site_host = URI(ENV["SITE_ORIGIN"].presence || "https://levelcode.ai").host
           return uri if uri.scheme == "https" && uri.host == site_host
