@@ -116,51 +116,79 @@ RSpec.describe Levelcode::ProviderOAuth do
       expect(Rails.logger).to have_received(:error).with(/google sign-up rejected by validation/i)
     end
   end
-  # Until this was added, perform_http set NO timeouts, so every provider call inherited Net::HTTP's
-  # 60-second defaults. A Google sign-in makes two of them back to back, so one stalled provider held
-  # the browser on a blank spinner for ~2 minutes before the callback gave up. Reported by customers as
-  # "sign-in is stuck loading".
-  describe "outbound provider HTTP is bounded" do
-    # perform_http is private and every provider call funnels through it, so pinning it here covers the
-    # Google token exchange, the id_token key fetch, and both GitHub calls at once.
-    def perform(http_double)
-      allow(Net::HTTP).to receive(:new).and_return(http_double)
-      allow(http_double).to receive(:use_ssl=)
-      described_class.send(:perform_http, URI.parse("https://oauth2.googleapis.com/token"), double("req"))
+
+  # perform_http carries the GitHub token exchange and API reads, and the Google token exchange.
+  # (Google's signing keys are fetched by the googleauth gem itself, not through here.) These run it
+  # against a real local socket rather than a double, so they describe what a provider would see and
+  # hold however the Net::HTTP call happens to be written.
+  describe "talking to a provider" do
+    # A local stand-in for a provider. Given a response it answers each request with it; given none
+    # it accepts the connection and never answers — the failure the timeouts exist for.
+    def with_provider(response = nil)
+      server = TCPServer.new("127.0.0.1", 0)
+      connections = []
+      listener = Thread.new do
+        loop do
+          socket = server.accept
+          connections << socket
+          next unless response
+
+          socket.gets("\r\n\r\n") # the request head — the answered examples send no body
+          socket.write(response)
+          socket.close
+        end
+      end
+      yield URI("http://127.0.0.1:#{server.addr[1]}/token"), connections
+    ensure
+      listener&.kill
+      connections&.each { |socket| socket.close unless socket.closed? }
+      server&.close
     end
 
-    it "sets a connect, read AND write timeout on every call" do
-      http = double("http")
-      allow(http).to receive(:request).and_return(double("res"))
-      expect(http).to receive(:open_timeout=).with(described_class::OPEN_TIMEOUT)
-      expect(http).to receive(:read_timeout=).with(described_class::READ_TIMEOUT)
-      expect(http).to receive(:write_timeout=).with(described_class::WRITE_TIMEOUT)
-      perform(http)
+    def http_response(status, body)
+      "HTTP/1.1 #{status}\r\nContent-Length: #{body.bytesize}\r\nConnection: close\r\n\r\n#{body}"
     end
 
-    it "keeps the timeouts short enough that a stalled provider cannot outlast a user's patience" do
-      # The failure mode being prevented is a spinner with no end, so the bound that matters is the
-      # WORST CASE for one sign-in: two sequential calls, each able to burn connect + read.
-      worst_case = 2 * (described_class::OPEN_TIMEOUT + described_class::READ_TIMEOUT)
-      expect(worst_case).to be <= 40
-      expect(described_class::OPEN_TIMEOUT).to be >= 2   # not so tight that a slow TLS handshake fails
+    def perform(uri, request)
+      described_class.send(:perform_http, uri, request)
     end
 
-    it "turns a timeout into nil rather than an exception, so the callback can show an error" do
-      # perform_http returning nil is what makes oauth_callback redirect to /ai/login?error=oauth_failed.
-      # If a timeout escaped instead, the user would get a 500 — still broken, but now unexplained.
-      http = double("http")
-      allow(http).to receive(:use_ssl=)
-      allow(http).to receive(:open_timeout=)
-      allow(http).to receive(:read_timeout=)
-      allow(http).to receive(:write_timeout=)
-      allow(http).to receive(:request).and_raise(Net::ReadTimeout)
-      allow(Net::HTTP).to receive(:new).and_return(http)
+    # A stall should cost the suite a fraction of a second, not the ten a real sign-in is allowed.
+    def with_read_timeout(seconds)
+      stub_const("#{described_class}::READ_TIMEOUT", seconds)
+    end
 
-      expect {
-        expect(described_class.send(:perform_http, URI.parse("https://oauth2.googleapis.com/token"), double("req"))).to be_nil
-      }.not_to raise_error
+    it "returns the body of a successful response" do
+      with_provider(http_response("200 OK", '{"access_token":"t"}')) do |uri|
+        expect(perform(uri, Net::HTTP::Get.new(uri))).to eq('{"access_token":"t"}')
+      end
+    end
+
+    it "returns nil for any other status, so the caller can fail the sign-in" do
+      with_provider(http_response("503 Service Unavailable", "busy")) do |uri|
+        expect(perform(uri, Net::HTTP::Get.new(uri))).to be_nil
+      end
+    end
+
+    # nil rather than an exception is what sends the callback to /ai/login?error=oauth_failed — an
+    # error the user can retry — instead of a 500. The clock is what proves the timeout was applied:
+    # without one, this still returns nil, after Net::HTTP's default sixty seconds.
+    it "gives up on a provider that accepts the connection and never answers" do
+      with_read_timeout(0.2)
+      with_provider do |uri|
+        request = Net::HTTP::Post.new(uri).tap { |post| post.set_form_data(code: "c") }
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+        expect(perform(uri, request)).to be_nil
+        expect(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started).to be < 5
+      end
+    end
+
+    # Changing one of these is a decision about how long a person waits on a spinner. This makes it
+    # a visible one.
+    it "allows a call five seconds to connect and ten to answer" do
+      expect([ described_class::OPEN_TIMEOUT, described_class::READ_TIMEOUT, described_class::WRITE_TIMEOUT ])
+        .to eq([ 5, 10, 10 ])
     end
   end
-
 end
