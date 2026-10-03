@@ -1,6 +1,6 @@
 # LevelCode
 
-> LevelCode is an AI-native, hackable code editor for macOS, built on Code-OSS (MIT). It reads your codebase, edits across files, runs commands behind approval gates, and verifies its own work — using your own provider API key, a local model via Ollama, or a metered LevelCode Cloud plan.
+> LevelCode is an AI-native, open-source code editor for macOS, built on Code-OSS (MIT). It reads your codebase, edits across files, runs commands behind approval gates, and verifies its own work — using your own provider API key, a local model via Ollama, or a metered LevelCode Cloud plan.
 
 - macOS only. Apple Silicon and Intel.
 - Four AI systems share one provider configuration: Chat, Agent, Edit, and Autocomplete.
@@ -31,7 +31,7 @@
 ## The editor
 
 - [Power editing](https://levelcode.ai/docs/power-editing): The Notepad++ pack: macros, column mode, line operations, encoding and line-ending control, big-file mode.
-- [Hackability](https://levelcode.ai/docs/hackability): The init script, package authoring with hot reload, keymap presets, and themes.
+- [Customization](https://levelcode.ai/docs/customization): The init script, package authoring with hot reload, keymap presets, and themes.
 - [Import and updates](https://levelcode.ai/docs/import-and-updates): Bring your settings over from VS Code, VSCodium, or Cursor, install extensions from Open VSX, and stay on the latest build.
 
 ## Account
