@@ -29,14 +29,6 @@ module Levelcode
 
     before_action :authenticate_user!, only: %i[checkout billing authorize_editor]
 
-    # The frozen editor deep-link callback (SHARED CONTRACT). Host = the extension id
-    # <publisher>.<name> = levelcode.levelcode-ai; path = /auth/callback.
-    EDITOR_CALLBACK = "levelcode://levelcode.levelcode-ai/auth/callback"
-    # Accepted url schemes for the editor deep-link. `levelcode` is the current product urlProtocol;
-    # `atom-plus-plus` is the pre-rename scheme, still emitted by editor builds not yet rebuilt —
-    # accepted during the transition. The security-relevant host + path stay strictly pinned.
-    EDITOR_SCHEMES = %w[levelcode atom-plus-plus].freeze
-
     # Per-IP OTP-send cap. The recipient is caller-chosen, so EmailCode's per-email
     # resend window alone can be fanned out across many addresses — bound by source IP.
     EMAIL_SEND_WINDOW = 1.hour.to_i
@@ -272,7 +264,7 @@ module Levelcode
 
     # --- redirect_uri validation (no open redirect, never tokens in a URL) ----
     #
-    # Accept ONLY the editor deep-link, pinned by scheme + host + path. We must
+    # Accept ONLY the editor deep-link (Levelcode::EditorCallback has the rule). We must
     # tolerate a query string (VS Code's asExternalUri appends ?windowId=N to route
     # the callback to the right editor window) and percent-encoding (the value can
     # arrive single- OR double-encoded through the login → OAuth hops), but NOTHING
@@ -298,17 +290,10 @@ module Levelcode
       s
     end
 
-    # True when uri_str is the editor callback deep-link. Scheme + host + path are
-    # pinned to EDITOR_CALLBACK; any query (e.g. ?windowId=N) is allowed and gets
-    # preserved by editor_callback_with_code.
+    # True when uri_str is the editor callback deep-link. Any query (e.g. ?windowId=N) is allowed
+    # and gets preserved by editor_callback_with_code.
     def editor_deep_link?(uri_str)
-      return false if uri_str.blank?
-
-      u = URI.parse(uri_str.to_s)
-      e = URI.parse(EDITOR_CALLBACK)
-      EDITOR_SCHEMES.include?(u.scheme) && u.host == e.host && u.path == e.path
-    rescue URI::InvalidURIError
-      false
+      uri_str.present? && Levelcode::EditorCallback.current.match?(uri_str)
     end
 
     # --- Session-stashed editor context (OAuth round-trip) --------------------

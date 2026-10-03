@@ -27,6 +27,10 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
     allow(Stripe::Customer).to receive(:retrieve).and_return(Stripe::Customer.construct_from(id: 'cus_test'))
   end
 
+  # A server that has been told nothing: the shipped editor schemes only, whatever the machine
+  # running the suite has exported (LEVELCODE_EXTRA_EDITOR_SCHEMES). Examples that opt in say so.
+  before { with_extra_editor_schemes('') }
+
   let(:password) { 'password123' }
   let!(:user) { create(:user, email: 'editor@example.com', password: password) }
   let(:redirect_uri) { 'levelcode://levelcode.levelcode-ai/auth/callback' }
@@ -77,6 +81,51 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
 
       expect(response).to have_http_status(:unauthorized)
       expect(json.dig('error', 'code')).to eq('invalid_credentials')
+    end
+
+    # WHICH addresses are the editor's, at this controller's own gate (it keeps its own copy of the
+    # rule Levelcode::WebController has). Anything else falls back to JSON: no redirect, no code.
+    {
+      'levelcode://levelcode.levelcode-ai/auth/callback' => 'the shipped editor',
+      'atom-plus-plus://levelcode.levelcode-ai/auth/callback' => 'a build from before the rename'
+    }.each do |address, whose|
+      it "302s the code to #{whose} — #{address}" do
+        post '/api/levelcode/v1/auth/login',
+             params: { email: user.email, password: password, redirect_uri: "#{address}?windowId=2", code_challenge: 'chal' }
+
+        expect(response).to have_http_status(:found)
+        location = response.headers['Location']
+        expect(location).to start_with("#{address}?windowId=2&code=")
+        expect(Rack::Utils.parse_query(URI.parse(location).query)['code']).to be_present
+      end
+    end
+
+    {
+      'levelcode-dev://levelcode.levelcode-ai/auth/callback' => 'a scheme that is not on the list',
+      'levelcode://evil.example/auth/callback' => 'the right scheme on another host',
+      'levelcode://levelcode.levelcode-ai/elsewhere' => 'the right host on another path'
+    }.each do |address, what|
+      it "does not redirect to #{what} — #{address}" do
+        post '/api/levelcode/v1/auth/login',
+             params: { email: user.email, password: password, redirect_uri: address, code_challenge: 'chal' }
+
+        expect(response).to have_http_status(:ok)
+        expect(response.headers['Location']).to be_nil
+        expect(json['access']).to be_present
+      end
+    end
+
+    it '302s the code to a development editor once the server is told to take its scheme' do
+      with_extra_editor_schemes('levelcode-dev')
+
+      post '/api/levelcode/v1/auth/login',
+           params: { email: user.email, password: password, code_challenge: 'chal',
+                     redirect_uri: 'levelcode-dev://levelcode.levelcode-ai/auth/callback?windowId=2' }
+
+      expect(response).to have_http_status(:found)
+      location = response.headers['Location']
+      expect(location).to start_with('levelcode-dev://levelcode.levelcode-ai/auth/callback?windowId=2&code=')
+      expect(Rack::Utils.parse_query(URI.parse(location).query)['code']).to be_present
     end
 
     it 'refuses a non-https/non-editor redirect_uri (no open redirect)' do
