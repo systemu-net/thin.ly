@@ -304,14 +304,7 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
         emails_res = instance_double(Net::HTTPOK, body: [ { email: 'octo@example.com', primary: true, verified: true } ].to_json)
         allow(emails_res).to receive(:is_a?).with(Net::HTTPSuccess).and_return(true)
         http = instance_double(Net::HTTP)
-        allow(Net::HTTP).to receive(:new).and_return(http)
-        allow(http).to receive(:use_ssl=)
-        # perform_http now bounds every provider call (provider_oauth.rb: OPEN/READ/WRITE_TIMEOUT).
-        # The double has to permit the setters or it rejects the very calls that stop a stalled
-        # provider hanging the browser; the timeout VALUES are asserted in provider_oauth_spec.rb.
-        allow(http).to receive(:open_timeout=)
-        allow(http).to receive(:read_timeout=)
-        allow(http).to receive(:write_timeout=)
+        allow(Net::HTTP).to receive(:start) { |*, &session| session.call(http) }
         allow(http).to receive(:request) do |req|
           case req.path
           when '/login/oauth/access_token' then token_res

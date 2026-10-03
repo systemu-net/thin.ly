@@ -155,7 +155,7 @@ RSpec.describe Levelcode::ProviderOAuth do
 
     # A stall should cost the suite a fraction of a second, not the ten a real sign-in is allowed.
     def with_read_timeout(seconds)
-      stub_const("#{described_class}::READ_TIMEOUT", seconds)
+      stub_const("#{described_class}::HTTP_OPTIONS", described_class::HTTP_OPTIONS.merge(read_timeout: seconds))
     end
 
     it "returns the body of a successful response" do
@@ -187,8 +187,7 @@ RSpec.describe Levelcode::ProviderOAuth do
     # Changing one of these is a decision about how long a person waits on a spinner. This makes it
     # a visible one.
     it "allows a call five seconds to connect and ten to answer" do
-      expect([ described_class::OPEN_TIMEOUT, described_class::READ_TIMEOUT, described_class::WRITE_TIMEOUT ])
-        .to eq([ 5, 10, 10 ])
+      expect(described_class::HTTP_OPTIONS).to eq(open_timeout: 5, read_timeout: 10, write_timeout: 10)
     end
   end
 end

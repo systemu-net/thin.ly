@@ -23,19 +23,12 @@ module Levelcode
   module ProviderOAuth
     module_function
 
-    # Every provider call goes through perform_http, and until now NONE of them set a timeout — so each
-    # one inherited Net::HTTP's 60-second defaults. A Google sign-in makes two of these back to back
-    # (token exchange, then the id_token verification's key fetch), so one stalled provider could hold
-    # the browser on a blank spinner for around two minutes before the callback finally gave up and
-    # redirected to /ai/login?error=oauth_failed. Reported as "sign-in is stuck loading".
-    #
-    # These are sized against what the endpoints actually do — a token exchange is a single small POST
-    # to Google or GitHub, not a slow query. Failing in seconds and showing the user an error they can
-    # retry beats succeeding on the rare 30-second call, because a spinner with no end is the one
-    # outcome from which a user cannot recover on their own.
-    OPEN_TIMEOUT  = 5    # seconds to establish the TCP+TLS connection
-    READ_TIMEOUT  = 10   # seconds to wait for the response body
-    WRITE_TIMEOUT = 10   # seconds to send the request body
+    # How long a provider is given before a sign-in gives up on it. Net::HTTP allows sixty seconds for
+    # each of these by default, and a stalled provider then holds the browser on a blank spinner —
+    # the one outcome a user cannot recover from alone. A token exchange is a single small request,
+    # so seconds are enough: failing fast with an error the user can retry beats succeeding on the
+    # rare slow call.
+    HTTP_OPTIONS = { open_timeout: 5, read_timeout: 10, write_timeout: 10 }.freeze
 
     GITHUB_PROVIDER = "github"
 
@@ -281,12 +274,9 @@ module Levelcode
     end
 
     def perform_http(uri, req)
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = (uri.scheme == "https")
-      http.open_timeout  = OPEN_TIMEOUT
-      http.read_timeout  = READ_TIMEOUT
-      http.write_timeout = WRITE_TIMEOUT
-      res = http.request(req)
+      res = Net::HTTP.start(uri.host, uri.port, use_ssl: uri.scheme == "https", **HTTP_OPTIONS) do |http|
+        http.request(req)
+      end
       res.is_a?(Net::HTTPSuccess) ? res.body : nil
     rescue StandardError => e
       Rails.logger.warn("Levelcode OAuth HTTP error: #{e.message}")
