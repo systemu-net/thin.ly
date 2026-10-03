@@ -4,15 +4,12 @@ require "rails_helper"
 # design invariants hold (entitlement tiers, monotonic multipliers, dollar-denominated budgets).
 RSpec.describe Levelcode::ModelCatalog do
   describe "roster integrity" do
+    # Asked of the roster itself, not of a list of ids kept by hand: only a :confirmed row is selectable
+    # or billable, so any other status — staged as "coming soon", mistyped, or missing — is a model
+    # that has silently gone dark. A hand-kept list guards only the rows someone remembered to add.
     it "carries a confirmed price on every roster engine — the frontier rows are enabled now" do
-      %w[openai/gpt-oss-120b moonshotai/kimi-k2.7-code anthropic/claude-opus-4-8 moonshotai/kimi-k3
-         anthropic/claude-opus-5 openai/gpt-5.3-codex openai/gpt-5.5 anthropic/claude-sonnet-5
-         anthropic/claude-fable-5].each do |id|
-        expect(described_class.find(id)[:status]).to eq(:confirmed), id
-      end
-      # Nothing left staged — the "coming soon" set is empty.
-      assumed = described_class.all.select { |_id, m| m[:status] == :assumption }.keys
-      expect(assumed).to be_empty
+      unconfirmed = described_class.all.reject { |_id, model| model[:status] == :confirmed }.keys
+      expect(unconfirmed).to eq([])
     end
 
     # `context` is not decoration — estimate_cost_micros clamps its input estimate DOWN to it, so a
