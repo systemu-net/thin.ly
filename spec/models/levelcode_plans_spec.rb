@@ -107,18 +107,26 @@ RSpec.describe Levelcode do
     end
   end
 
-  describe 'the turn counts advertised in PLANS features' do
-    # The pricing page prints these strings verbatim. Pin them to the formula so a catalog price change
-    # (or a hand edit) cannot leave the page promising turns the budget no longer buys.
-    it 'match what turns_for computes — exact for the frontier models, within 1% for the rounded Kimi figure' do
-      Levelcode::PLANS.each do |plan|
+  # The pricing page prints PLANS[:features] verbatim. Pin the turn counts in each plan's first line
+  # to the formula, so a catalog price change (or a hand edit) cannot leave the page promising turns
+  # the budget no longer buys.
+  describe 'the pricing line' do
+    advertised = /~(?<kimi>[\d,]+) Kimi turns · ~(?<opus>\d+) on Opus 5 · ~(?<fable>\d+) on Fable 5\.1\z/
+
+    Levelcode::PLANS.each do |plan|
+      it "advertises the turns #{plan[:name]}'s budget buys — exact for the frontier models, within 1% for the rounded Kimi figure" do
         line = plan[:features].first
-        kimi  = line[/~([\d,]+) Kimi turns/, 1].delete(',').to_i
-        opus  = line[/~(\d+) on Opus 5/, 1].to_i
-        fable = line[/~(\d+) on Fable 5\.1/, 1].to_i
-        expect(opus).to eq(Levelcode.turns_for(plan[:key], 'anthropic/claude-opus-5')), "#{plan[:key]}: Opus 5"
-        expect(fable).to eq(Levelcode.turns_for(plan[:key], 'anthropic/claude-fable-5.1')), "#{plan[:key]}: Fable 5.1"
-        expect(kimi).to be_within(Levelcode.turns_for(plan[:key], Levelcode::DEFAULT_MODEL) * 0.01).of(Levelcode.turns_for(plan[:key], Levelcode::DEFAULT_MODEL)), "#{plan[:key]}: Kimi"
+        # Asserted before it is relied on: if the copy changes shape, the failure is this line saying
+        # so — not a nil further down, or a count that silently reads as 0.
+        expect(line).to match(advertised)
+        counts = line.match(advertised)
+
+        expect(opus: counts[:opus].to_i, fable: counts[:fable].to_i).to eq(
+          opus: Levelcode.turns_for(plan[:key], 'anthropic/claude-opus-5'),
+          fable: Levelcode.turns_for(plan[:key], 'anthropic/claude-fable-5.1')
+        )
+        kimi = Levelcode.turns_for(plan[:key], Levelcode::DEFAULT_MODEL)
+        expect(counts[:kimi].delete(',').to_i).to be_within(kimi * 0.01).of(kimi)
       end
     end
   end
