@@ -98,6 +98,20 @@ module Levelcode
         # gated to Max/Ultra so it never feels broken (rec #3).
         input: 10.00, cached_input: 1.00, output: 50.00,
         context: 1_000_000, min_tier: :max, status: :confirmed
+      },
+      # Sits immediately after Fable 5 because the rate card is IDENTICAL ($10/$1/$50) — an equal
+      # neighbour, exactly as Opus 5 follows Opus 4.8, so the monotonic-multiplier invariant holds.
+      "openai/gpt-6-astra" => {
+        label: "GPT-6 Astra", provider: "openrouter",
+        # Confirmed vs the OpenRouter models API (2026-09-06, listed 2026-09-04): $10/M in · $50/M out
+        # · $1/M cached read · 1.05M ctx (128K out). Image + file input. Its ENDPOINTS span $5/$25 (Flex)
+        # to $20/$100 (Fast) — the routing ceiling in OpenRouterAdapter is what keeps our cost at this row.
+        #
+        # Tier: pro_plus, not max. Same per-turn cost as Fable 5 (~13.3x), which buys ~39 turns on Pro+ —
+        # the number Pro already advertises for Opus 5 — and only ~19 on Pro, which is where rec #3 says a
+        # model starts to feel broken. Fable 5 stays at :max as previously decided; revisit together.
+        input: 10.00, cached_input: 1.00, output: 50.00,
+        context: 1_050_000, min_tier: :pro_plus, status: :confirmed
       }
     }.freeze
 

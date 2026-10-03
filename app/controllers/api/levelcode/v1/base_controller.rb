@@ -23,6 +23,12 @@ module Api
         rescue_from ::Levelcode::EditorToken::InvalidToken do |e|
           render_levelcode_error("unauthorized", e.message, :unauthorized)
         end
+        # Declared AFTER the parent handler: Rails checks rescue_from handlers most-recent first, so
+        # this is what an expired token hits. The editor keys on the code to show a sign-in prompt
+        # instead of an error.
+        rescue_from ::Levelcode::EditorToken::ExpiredToken do |e|
+          render_levelcode_error("token_expired", e.message, :unauthorized)
+        end
 
         # The authenticated user for this request, resolved from either the editor
         # bearer token or the web session. Memoized.

@@ -1,6 +1,10 @@
 require 'rails_helper'
 
 RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
+  # travel_to — token expiry is a function of the clock, and these examples move it rather than
+  # minting pre-expired tokens, so they exercise the same code path a real expiry takes.
+  include ActiveSupport::Testing::TimeHelpers
+
   # The editor tokens are signed with a dedicated secret; set it for the suite.
   around do |example|
     prev = ENV['LEVELCODE_JWT_SECRET']
@@ -164,6 +168,74 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
       post '/api/levelcode/v1/auth/refresh', params: { refresh: access }, as: :json
 
       expect(response).to have_http_status(:unauthorized)
+    end
+
+    it 'ROTATES the refresh token — a new one, with a later expiry, so the 30 days run from last use' do
+      refresh = Levelcode::EditorToken.mint_refresh(user)
+      old_claims = Levelcode::EditorToken.verify(refresh, scope: 'refresh')
+
+      travel_to(10.days.from_now) do
+        post '/api/levelcode/v1/auth/refresh', params: { refresh: refresh }, as: :json
+      end
+
+      expect(response).to have_http_status(:ok)
+      expect(json['refresh']).to be_present
+      expect(json['refresh']).not_to eq(refresh)
+      new_claims = Levelcode::EditorToken.verify(json['refresh'], scope: 'refresh')
+      expect(new_claims['jti']).not_to eq(old_claims['jti'])
+      expect(new_claims['exp']).to be > old_claims['exp']
+      expect(new_claims['exp'] - old_claims['exp']).to be_within(60).of(10.days.to_i)
+    end
+
+    it 'keeps the previous refresh token usable (rotation is a sliding window, not revocation)' do
+      refresh = Levelcode::EditorToken.mint_refresh(user)
+      post '/api/levelcode/v1/auth/refresh', params: { refresh: refresh }, as: :json
+      expect(response).to have_http_status(:ok)
+
+      post '/api/levelcode/v1/auth/refresh', params: { refresh: refresh }, as: :json
+      expect(response).to have_http_status(:ok)
+    end
+
+    it 'answers refresh_expired, in plain words, for a refresh token past its 30 days' do
+      refresh = Levelcode::EditorToken.mint_refresh(user)
+
+      travel_to(31.days.from_now) do
+        post '/api/levelcode/v1/auth/refresh', params: { refresh: refresh }, as: :json
+      end
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(json.dig('error', 'code')).to eq('refresh_expired')
+      expect(json.dig('error', 'message')).to eq(Levelcode::EditorToken::EXPIRED_MESSAGE)
+      expect(response.body).not_to include('Signature')
+    end
+
+    it 'still answers invalid_refresh for a refresh token that is broken rather than expired' do
+      post '/api/levelcode/v1/auth/refresh', params: { refresh: 'not.a.token' }, as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(json.dig('error', 'code')).to eq('invalid_refresh')
+    end
+  end
+
+  describe 'an expired ACCESS token at a bearer endpoint' do
+    it 'answers token_expired with a sentence, never the JWT library text' do
+      access = Levelcode::EditorToken.mint_access(user)
+
+      travel_to(9.hours.from_now) do
+        post '/api/levelcode/v1/auth/web_handoff', headers: { 'Authorization' => "Bearer #{access}" }, as: :json
+      end
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(json.dig('error', 'code')).to eq('token_expired')
+      expect(json.dig('error', 'message')).to eq(Levelcode::EditorToken::EXPIRED_MESSAGE)
+      expect(response.body).not_to include('Signature has expired')
+    end
+
+    it 'keeps the generic unauthorized code for a token that is invalid rather than expired' do
+      post '/api/levelcode/v1/auth/web_handoff', headers: { 'Authorization' => 'Bearer not.a.token' }, as: :json
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(json.dig('error', 'code')).to eq('unauthorized')
     end
   end
 
