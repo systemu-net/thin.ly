@@ -99,7 +99,7 @@ GEM
     aws-sdk-kms (1.132.0)
       aws-sdk-core (~> 3, >= 3.256.0)
       aws-sigv4 (~> 1.5)
-    aws-sdk-s3 (1.232.3)
+    aws-sdk-s3 (1.233.1)
       aws-sdk-core (~> 3, >= 3.256.0)
       aws-sdk-kms (~> 1)
       aws-sigv4 (~> 1.5)
@@ -559,7 +559,7 @@ PLATFORMS
 DEPENDENCIES
   annotate (~> 3.2)
   anthropic (~> 1.70)
-  aws-sdk-s3 (~> 1.232)
+  aws-sdk-s3 (~> 1.233)
   bcrypt (= 3.1.21)
   bigdecimal (= 4.0.1)
   brakeman (~> 8.0)
