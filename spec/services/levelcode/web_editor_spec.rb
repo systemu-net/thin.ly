@@ -90,16 +90,42 @@ RSpec.describe Levelcode::WebEditor do
         "the Kelvin sign, which case-folds to k" => "https://Keditor.levelcode.ai",
         "an encoded host" => "https://%65ditor.levelcode.ai",
         "a backslash" => "https://editor.levelcode.ai\\@evil.test",
-        "two entries run together" => "https://a.example,https://b.example"
+        "two entries run together" => "https://a.example,https://b.example",
+        "an IPv6 literal that is not one" => "https://[:::]",
+        "an IPv6 literal with an IPv4 inside the brackets" => "https://[1.2.3.4]",
+        "an IPv6 literal with a prefix" => "https://[::1/64]",
+        "an empty IPv6 literal" => "https://[]",
+        "a short IPv4 a browser would widen" => "https://1.2.3",
+        "an IPv4 with an octet past 255" => "https://300.1.1.1",
+        "an IPv4 as one number" => "https://2130706433",
+        "an IPv4 in hex" => "https://0x7f.1",
+        "a name that ends in a number" => "https://editor.1",
+        "a name that ends in hex" => "https://editor.0x1f",
+        "an IPv4 with a leading zero octet" => "https://127.00.0.1"
       }.each do |what, entry|
         expect(described_class.origin(entry)).to be_nil, "#{what}: #{entry.inspect}"
       end
+    end
+
+    it "takes the addresses that are what a browser would write" do
+      expect(described_class.origin("https://127.0.0.1:8443")).to eq("https://127.0.0.1:8443")
+      expect(described_class.origin("http://127.0.0.1:3000")).to eq("http://127.0.0.1:3000")
+      expect(described_class.origin("https://[2001:db8::1]:8443")).to eq("https://[2001:db8::1]:8443")
+      expect(described_class.origin("https://[::FFFF:127.0.0.1]")).to eq("https://[::ffff:127.0.0.1]")
+      expect(described_class.origin("https://editor1.levelcode.ai")).to eq("https://editor1.levelcode.ai")
+      expect(described_class.origin("https://1editor.levelcode.ai")).to eq("https://1editor.levelcode.ai")
     end
 
     it "is nil — never an exception — for what is not a string" do
       expect(described_class.origin(nil)).to be_nil
       expect(described_class.origin(42)).to be_nil
       expect(described_class.origin(%w[https://editor.levelcode.ai])).to be_nil
+    end
+
+    it "is nil — never an exception — for text that is not valid UTF-8" do
+      expect(described_class.origin("https://editor\xFF.levelcode.ai".dup.force_encoding("UTF-8"))).to be_nil
+      expect(described_class.origin("\xFF".dup.force_encoding("UTF-8"))).to be_nil
+      expect(described_class.parse_url("https://editor.levelcode.ai/\xFF".dup.force_encoding("UTF-8"))).to be_nil
     end
 
     it "is nil for a host longer than a DNS name can be" do

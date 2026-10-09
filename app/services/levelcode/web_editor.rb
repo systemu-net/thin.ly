@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "ipaddr"
+
 module Levelcode
   # What an address of the editor's web edition looks like — the grammar, and only that.
   #
@@ -33,6 +35,11 @@ module Levelcode
     HOSTNAME = "(?:#{LABEL}\\.)*#{LABEL}"
     IPV6 = "\\[[0-9a-f:.]+\\]"
     MAX_HOST = 253
+    # A host that ends in a number is an IPv4 address to a browser, however it is spelled: `1.2.3` is
+    # 1.2.0.3 and `0x7f.1` is 127.0.0.1. Only the canonical dotted quad is taken — written any other
+    # way it would never be the origin a browser sends.
+    NUMERIC_END = /(?:\A|\.)(?:\d+|0x\h*)\z/
+    IPV4 = /\A(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}\z/
 
     ORIGIN = %r{\A(?<scheme>https?)://(?<host>#{HOSTNAME}|#{IPV6})(?::(?<port>\d{1,5}))?\z}
     # An origin and, optionally, a path — what the account page links to. No query, no fragment.
@@ -43,7 +50,7 @@ module Levelcode
     # The origin an entry names, in the one form the list is kept in (lower case, default port
     # dropped) — or nil when the entry is not an origin this server will take.
     def origin(entry)
-      found = ORIGIN.match(entry.to_s.strip.downcase(:ascii))
+      found = ORIGIN.match(entry.to_s.scrub.strip.downcase(:ascii))
       return nil unless found
 
       scheme = found[:scheme]
@@ -51,6 +58,7 @@ module Levelcode
       port = found[:port]&.to_i
       return nil if host.length > MAX_HOST
       return nil if port && !(1..65_535).cover?(port)
+      return nil unless address_or_name?(host)
       return nil if scheme == "http" && !local?(host)
 
       serialize(scheme, host, port)
@@ -58,7 +66,7 @@ module Levelcode
 
     # [origin, path] for an entry that is an origin with an optional path, or nil.
     def parse_url(entry)
-      found = URL.match(entry.to_s.strip)
+      found = URL.match(entry.to_s.scrub.strip)
       return nil unless found
 
       origin = origin(found[:origin])
@@ -76,6 +84,20 @@ module Levelcode
 
     def local?(host)
       %w[localhost 127.0.0.1 [::1]].include?(host) || host.end_with?(".localhost")
+    end
+
+    # A name, or an address that is one as written: [::1] must be IPv6, and a host that ends in a
+    # number must be a whole dotted quad.
+    def address_or_name?(host)
+      return ipv6?(host[1..-2]) if host.start_with?("[")
+
+      !host.match?(NUMERIC_END) || host.match?(IPV4)
+    end
+
+    def ipv6?(text)
+      IPAddr.new(text).ipv6?
+    rescue IPAddr::Error
+      false
     end
 
     def serialize(scheme, host, port)
