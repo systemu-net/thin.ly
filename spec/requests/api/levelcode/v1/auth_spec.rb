@@ -136,6 +136,106 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
       expect(response).to have_http_status(:ok)
       expect(json['access']).to be_present
     end
+
+    # The web edition of the editor: this gate asks the same rule as the /ai flows do, so a page the
+    # one takes is a page the other takes, and the one it refuses it refuses.
+    context 'on a server told of a web editor (LEVELCODE_WEB_EDITOR_ORIGINS)' do
+      let(:web_callback) do
+        'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode' \
+          '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback'
+      end
+
+      before { with_web_editor('https://editor.levelcode.test') }
+
+      it '302s the code to the editor\'s page, with the callback as the editor built it' do
+        post '/api/levelcode/v1/auth/login',
+             params: { email: user.email, password: password, redirect_uri: web_callback, code_challenge: 'chal' }
+
+        expect(response).to have_http_status(:found)
+        location = response.headers['Location']
+        expect(location).to start_with("#{web_callback}&code=")
+        expect(Rack::Utils.parse_query(URI.parse(location).query)['code']).to be_present
+      end
+
+      it 'binds the code to the challenge it was sent with: the page must hold the verifier' do
+        post '/api/levelcode/v1/auth/login',
+             params: { email: user.email, password: password, redirect_uri: web_callback, code_challenge: 'chal' }
+        code = Rack::Utils.parse_query(URI.parse(response.headers['Location']).query)['code']
+
+        expect { Levelcode::OneTimeCode.redeem(code, 'not-the-verifier') }.to raise_error(Levelcode::OneTimeCode::InvalidVerifier)
+      end
+
+      it 'puts its own code over one the address came with' do
+        post '/api/levelcode/v1/auth/login',
+             params: { email: user.email, password: password, redirect_uri: "#{web_callback}&code=attacker", code_challenge: 'chal' }
+
+        expect(response).to have_http_status(:found)
+        q = Rack::Utils.parse_query(URI.parse(response.headers['Location']).query)
+        expect(q['code']).to be_present
+        expect(q['code']).not_to eq('attacker')
+      end
+
+      {
+        'an origin that is not on the list' => 'https://evil.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'credentials that make the listed host another' => 'https://editor.levelcode.test@evil.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'the listed origin over http' => 'http://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'another page of the listed origin' => 'https://editor.levelcode.test/index.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'a page told to hand the code to another extension' => 'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=vscode&vscode-authority=vscode.github-authentication&vscode-path=%2Fdid-authenticate',
+        'a page whose vscode-query names the code' => 'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback&vscode-query=code%3Dattacker'
+      }.each do |what, address|
+        it "does not redirect to #{what}" do
+          post '/api/levelcode/v1/auth/login',
+               params: { email: user.email, password: password, redirect_uri: address, code_challenge: 'chal' }
+
+          expect(response).to have_http_status(:ok)
+          expect(response.headers['Location']).to be_nil
+          expect(json['access']).to be_present
+        end
+      end
+
+      it 'goes on redirecting to the desktop editor' do
+        post '/api/levelcode/v1/auth/login',
+             params: { email: user.email, password: password, redirect_uri: "#{redirect_uri}?windowId=2", code_challenge: 'chal' }
+
+        expect(response.headers['Location']).to start_with("#{redirect_uri}?windowId=2&code=")
+      end
+    end
+
+    context 'on a server told of the web editor\'s extension host (LEVELCODE_WEB_EXTENSION_HOST_ORIGINS)' do
+      before do
+        with_web_editor('https://editor.levelcode.test',
+                        extension_hosts: 'https://*.ext.levelcode.test, https://ext.levelcode.test, http://*.localhost:8801')
+      end
+
+      {
+        'a session of the extension host' => 'https://v--abc123.ext.levelcode.test',
+        'the extension host\'s domain, named exactly' => 'https://ext.levelcode.test',
+        'a local development session of it' => 'http://v--abc.localhost:8801'
+      }.each do |what, base|
+        it "does not redirect to the callback page on #{what}" do
+          post '/api/levelcode/v1/auth/login',
+               params: { email: user.email, password: password, code_challenge: 'chal',
+                         redirect_uri: "#{base}/callback.html?vscode-reqid=1&vscode-scheme=levelcode" \
+                                       '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback' }
+
+          expect(response).to have_http_status(:ok)
+          expect(response.headers['Location']).to be_nil
+          expect(json['access']).to be_present
+        end
+      end
+    end
+
+    # Production, until the web editor ships.
+    it 'does not redirect to the web editor\'s page on a server that has not been told of one' do
+      post '/api/levelcode/v1/auth/login',
+           params: { email: user.email, password: password, code_challenge: 'chal',
+                     redirect_uri: 'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode' \
+                                   '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback' }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers['Location']).to be_nil
+      expect(json['access']).to be_present
+    end
   end
 
   describe 'POST /api/levelcode/v1/auth/signup' do

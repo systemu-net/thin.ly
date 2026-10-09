@@ -271,6 +271,215 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       expect(json.dig('error', 'code')).to eq('link_expired')
     end
 
+    # The web edition of the editor: a page on an origin of its own. Its callback is that page's
+    # /callback.html, carrying the deep link it stands for in the vscode-* parameters. The code goes to
+    # the page, which hands it to the extension that asked.
+    context 'on a server told of a web editor (LEVELCODE_WEB_EDITOR_ORIGINS)' do
+      let(:web_origin) { 'https://editor.levelcode.test' }
+      # As the editor's own code builds it: asExternalUri(levelcode://levelcode.levelcode-ai/auth/callback).
+      let(:web_callback) do
+        "#{web_origin}/callback.html?vscode-reqid=1&vscode-scheme=levelcode" \
+          '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback'
+      end
+
+      before do
+        with_web_editor(web_origin)
+        allow(Levelcode::EmailCode).to receive(:verify).and_return(true)
+        allow(Levelcode::OneTimeCode).to receive(:issue).and_return('one-time-code')
+      end
+
+      it 'hands the code to the page, bound to the PKCE challenge, with the callback as the editor built it' do
+        post '/ai/auth/verify',
+             params: { email: 'web-editor@example.com', code: '123456', redirect_uri: web_callback, code_challenge: 'chal' }
+
+        expect(response).to have_http_status(:ok)
+        expect(json).to eq('redirect' => "#{web_callback}&code=one-time-code")
+        expect(Levelcode::OneTimeCode).to have_received(:issue).with(User.find_by(email: 'web-editor@example.com'), 'chal')
+      end
+
+      it 'does the same when the callback arrives encoded once more, as it does through the login page' do
+        post '/ai/auth/verify',
+             params: { email: 'enc-web@example.com', code: '123456', redirect_uri: CGI.escape(web_callback), code_challenge: 'chal' }
+
+        expect(response).to have_http_status(:ok)
+        expect(json).to eq('redirect' => "#{web_callback}&code=one-time-code")
+      end
+
+      # What the extension actually sends: vscode.Uri#toString() has percent-encoded the query as one
+      # component (`=` and `&` and the `%` of the encoded path with it), and the hops through the login
+      # page and the provider add their own. The gate decodes until stable, and hands the page the
+      # callback as it built it.
+      it 'takes the callback in the form the extension sends it — its query encoded as a whole' do
+        as_sent = "#{web_origin}/callback.html?" + ERB::Util.url_encode(
+          'vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback'
+        )
+        expect(as_sent).to include('vscode-reqid%3D1%26vscode-scheme%3Dlevelcode', 'vscode-path%3D%252Fauth%252Fcallback')
+
+        post '/ai/auth/verify',
+             params: { email: 'as-sent@example.com', code: '123456', redirect_uri: as_sent, code_challenge: 'chal' }
+
+        expect(response).to have_http_status(:ok)
+        expect(json).to eq('redirect' => "#{web_callback}&code=one-time-code")
+      end
+
+      # The whole of it, through both controllers and a real one-time code: the page that asked gets a
+      # code it can exchange — with the verifier it holds, and not without.
+      it 'is a whole sign-in: the code the page is handed is redeemed with its verifier, and only with it' do
+        allow(Levelcode::OneTimeCode).to receive(:issue).and_call_original
+        verifier = 'v' * 43
+        challenge = Base64.urlsafe_encode64(Digest::SHA256.digest(verifier), padding: false)
+
+        with_fake_redis do
+          2.times do |attempt|
+            post '/ai/auth/verify',
+                 params: { email: "whole-#{attempt}@example.com", code: '123456', redirect_uri: web_callback, code_challenge: challenge }
+            code = Rack::Utils.parse_query(URI.parse(json['redirect']).query)['code']
+            expect(code).to be_present
+
+            post '/api/levelcode/v1/auth/exchange',
+                 params: { code: code, verifier: attempt.zero? ? verifier : 'not-the-verifier' }.to_json,
+                 headers: { 'CONTENT_TYPE' => 'application/json' }
+
+            if attempt.zero?
+              expect(response).to have_http_status(:ok)
+              expect(json['access']).to be_present
+              expect(json['refresh']).to be_present
+              expect(json.dig('profile', 'email')).to eq('whole-0@example.com')
+            else
+              expect(response).to have_http_status(:unauthorized)
+              expect(json.dig('error', 'code')).to eq('invalid_verifier')
+            end
+          end
+        end
+      end
+
+      it 'keeps the request id and every parameter the page asked with — only the code is added' do
+        asked = "#{web_origin}/callback.html?vscode-reqid=42&vscode-scheme=atom-plus-plus" \
+                '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback&vscode-query=windowId%3D3'
+        post '/ai/auth/verify',
+             params: { email: 'keep@example.com', code: '123456', redirect_uri: asked, code_challenge: 'chal' }
+
+        q = Rack::Utils.parse_query(URI.parse(json['redirect']).query)
+        expect(q).to eq('vscode-reqid' => '42', 'vscode-scheme' => 'atom-plus-plus',
+                        'vscode-authority' => 'levelcode.levelcode-ai', 'vscode-path' => '/auth/callback',
+                        'vscode-query' => 'windowId=3', 'code' => 'one-time-code')
+      end
+
+      it 'puts its own code over one the address came with' do
+        post '/ai/auth/verify',
+             params: { email: 'over@example.com', code: '123456', redirect_uri: "#{web_callback}&code=attacker", code_challenge: 'chal' }
+
+        q = Rack::Utils.parse_query(URI.parse(json['redirect']).query)
+        expect(q['code']).to eq('one-time-code')
+        expect(json['redirect']).not_to include('attacker')
+      end
+
+      it 'still fails closed with no code_challenge' do
+        expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+        post '/ai/auth/verify', params: { email: 'nc-web@example.com', code: '123456', redirect_uri: web_callback }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(json.dig('error', 'code')).to eq('link_expired')
+      end
+
+      it 'still hands a desktop editor its own code' do
+        post '/ai/auth/verify',
+             params: { email: 'desk@example.com', code: '123456', redirect_uri: editor_uri, code_challenge: 'chal' }
+
+        expect(json).to eq('redirect' => "#{editor_uri}?code=one-time-code")
+      end
+
+      # Not refused: not an editor sign-in at all. The browser is signed in to the web account and sent
+      # to it, and nothing is minted for anywhere else.
+      {
+        'an origin the server was not told of' =>
+          'https://evil.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'the listed host with credentials that make it another' =>
+          'https://editor.levelcode.test@evil.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'a look-alike host' =>
+          'https://editor.levelcode.test.evil.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'the listed origin over http' =>
+          'http://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'another page of the listed origin' =>
+          'https://editor.levelcode.test/index.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'a page told to hand the code to another extension' =>
+          'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=vscode&vscode-authority=vscode.github-authentication&vscode-path=%2Fdid-authenticate',
+        'a page told twice' =>
+          'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=vscode.github-authentication&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'a page whose vscode-query names the code' =>
+          'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback&vscode-query=code%3Dattacker',
+        'a page whose vscode-query names the code, encoded past what is decoded for it' =>
+          'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback&vscode-query=%2525252563ode%25252523%25252561ttacker',
+        'the page with a fragment' =>
+          'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback#x'
+      }.each do |what, address|
+        it "signs in to the web account and mints nothing for #{what}" do
+          expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+          post '/ai/auth/verify',
+               params: { email: 'refused-web@example.com', code: '123456', redirect_uri: address, code_challenge: 'chal' }
+
+          expect(response).to have_http_status(:ok)
+          expect(json).to eq('redirect' => '/ai/account')
+        end
+      end
+    end
+
+    # The extension host runs on an origin of its own per session and calls the API from there; CORS lets
+    # it in. It is never where a code is sent: nothing it names is a callback.
+    context 'on a server told of the web editor\'s extension host (LEVELCODE_WEB_EXTENSION_HOST_ORIGINS)' do
+      let(:vscode_query) do
+        'vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback'
+      end
+
+      before do
+        with_web_editor('https://editor.levelcode.test',
+                        extension_hosts: 'https://*.ext.levelcode.test, https://ext.levelcode.test, http://*.localhost:8801')
+        allow(Levelcode::EmailCode).to receive(:verify).and_return(true)
+        allow(Levelcode::OneTimeCode).to receive(:issue).and_return('one-time-code')
+      end
+
+      it 'still hands the code to the editor\'s own page' do
+        post '/ai/auth/verify',
+             params: { email: 'host-a@example.com', code: '123456', code_challenge: 'chal',
+                       redirect_uri: "https://editor.levelcode.test/callback.html?#{vscode_query}" }
+
+        expect(json['redirect']).to eq("https://editor.levelcode.test/callback.html?#{vscode_query}&code=one-time-code")
+      end
+
+      {
+        'a session of the extension host' => 'https://v--abc123.ext.levelcode.test',
+        'the extension host\'s domain, named exactly' => 'https://ext.levelcode.test',
+        'a local development session of it' => 'http://v--abc.localhost:8801'
+      }.each do |what, base|
+        it "signs in to the web account and mints nothing for the callback page on #{what}" do
+          expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+          post '/ai/auth/verify',
+               params: { email: 'host-b@example.com', code: '123456', code_challenge: 'chal',
+                         redirect_uri: "#{base}/callback.html?#{vscode_query}" }
+
+          expect(response).to have_http_status(:ok)
+          expect(json).to eq('redirect' => '/ai/account')
+        end
+      end
+    end
+
+    # Production, until the web editor ships: the page's own address is no editor's.
+    it 'treats the web editor\'s callback as a web sign-in on a server that has not been told of one' do
+      allow(Levelcode::EmailCode).to receive(:verify).and_return(true)
+      expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+      post '/ai/auth/verify',
+           params: { email: 'off@example.com', code: '123456', code_challenge: 'chal',
+                     redirect_uri: 'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode' \
+                                   '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback' }
+
+      expect(response).to have_http_status(:ok)
+      expect(json).to eq('redirect' => '/ai/account')
+    end
+
     it 'rejects an invalid code' do
       allow(Levelcode::EmailCode).to receive(:verify).and_return(false)
       post '/ai/auth/verify', params: { email: 'nope@example.com', code: '000000' }
@@ -320,6 +529,41 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       get '/ai/auth/callback', params: { code: 'ggl', state: 'teststate' }
 
       expect(response).to redirect_to('/ai/account')
+    end
+
+    context 'for a web editor (LEVELCODE_WEB_EDITOR_ORIGINS)' do
+      let(:web_callback) do
+        'https://editor.levelcode.test/callback.html?vscode-reqid=3&vscode-scheme=levelcode' \
+          '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback'
+      end
+
+      before do
+        with_web_editor('https://editor.levelcode.test')
+        allow(SecureRandom).to receive(:urlsafe_base64).and_return('teststate')
+        allow(Levelcode::ProviderOAuth).to receive(:authorize_url).and_return('https://github.test/authorize')
+        allow(Levelcode::ProviderOAuth).to receive(:github_user)
+          .and_return(User.create!(email: 'gh-web@example.com', password: 'x' * 20, terms_accepted: true))
+      end
+
+      it 'carries the page through the provider round trip, and hands the code to it' do
+        allow(Levelcode::OneTimeCode).to receive(:issue).and_return('one-time-code')
+
+        get '/ai/auth/oauth/github', params: { redirect_uri: web_callback, code_challenge: 'chal' }
+        get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
+
+        expect(response).to redirect_to("#{web_callback}&code=one-time-code")
+        expect(Levelcode::OneTimeCode).to have_received(:issue).with(User.find_by(email: 'gh-web@example.com'), 'chal')
+      end
+
+      it 'does not carry an address that is not the page — the sign-in ends on the web account' do
+        expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+        get '/ai/auth/oauth/github',
+            params: { redirect_uri: web_callback.sub('editor.levelcode.test', 'evil.test'), code_challenge: 'chal' }
+        get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
+
+        expect(response).to redirect_to('/ai/account')
+      end
     end
 
     it 'GET /ai/auth/oauth/twitter is rejected (only github/google are allowed)' do
@@ -562,6 +806,102 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       post '/ai/authorize_editor', params: { redirect_uri: 'https://levelcode.levelcode-ai/auth/callback', code_challenge: 'chal' }
 
       expect(response).to have_http_status(:unprocessable_content)
+    end
+
+    context 'on a server told of a web editor (LEVELCODE_WEB_EDITOR_ORIGINS)' do
+      let(:web_callback) do
+        'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode' \
+          '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback'
+      end
+
+      before { with_web_editor('https://editor.levelcode.test') }
+
+      it 'hands a PKCE-bound code to the page for the signed-in browser — no second login' do
+        sign_in_browser('sess-web-a')
+        allow(Levelcode::OneTimeCode).to receive(:issue).with(user, 'chal').and_return('bound-code')
+
+        post '/ai/authorize_editor', params: { redirect_uri: web_callback, code_challenge: 'chal' }
+
+        expect(response).to have_http_status(:ok)
+        expect(json['redirect']).to eq("#{web_callback}&code=bound-code")
+      end
+
+      it 'fails closed without a code_challenge' do
+        sign_in_browser('sess-web-b')
+        expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+        post '/ai/authorize_editor', params: { redirect_uri: web_callback }
+
+        expect(response).to have_http_status(:unprocessable_content)
+        expect(json.dig('error', 'code')).to eq('invalid_request')
+      end
+
+      {
+        'an origin that is not on the list' => 'https://evil.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'the account site itself' => 'https://levelcode.ai/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'the listed origin over http' => 'http://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'the listed origin, another page' => 'https://editor.levelcode.test/?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback',
+        'the page with no vscode-* parameters' => 'https://editor.levelcode.test/callback.html'
+      }.each_with_index do |(what, address), i|
+        it "mints nothing for #{what}" do
+          sign_in_browser("sess-web-refuses-#{i}")
+          expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+          post '/ai/authorize_editor', params: { redirect_uri: address, code_challenge: 'chal' }
+
+          expect(response).to have_http_status(:unprocessable_content)
+          expect(json.dig('error', 'code')).to eq('invalid_request')
+        end
+      end
+
+      it 'goes on handing the code to the desktop editor' do
+        sign_in_browser('sess-web-c')
+        allow(Levelcode::OneTimeCode).to receive(:issue).with(user, 'chal').and_return('bound-code')
+
+        post '/ai/authorize_editor', params: { redirect_uri: "#{editor_uri}?windowId=2", code_challenge: 'chal' }
+
+        expect(json['redirect']).to eq("#{editor_uri}?windowId=2&code=bound-code")
+      end
+    end
+
+    context 'on a server told of the web editor\'s extension host (LEVELCODE_WEB_EXTENSION_HOST_ORIGINS)' do
+      before do
+        with_web_editor('https://editor.levelcode.test',
+                        extension_hosts: 'https://*.ext.levelcode.test, https://ext.levelcode.test, http://*.localhost:8801')
+      end
+
+      {
+        'a session of the extension host' => 'https://v--abc123.ext.levelcode.test',
+        'the extension host\'s domain, named exactly' => 'https://ext.levelcode.test',
+        'a local development session of it' => 'http://v--abc.localhost:8801'
+      }.each_with_index do |(what, base), i|
+        it "mints nothing for the callback page on #{what}" do
+          sign_in_browser("sess-host-#{i}")
+          expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+          post '/ai/authorize_editor',
+               params: { code_challenge: 'chal',
+                         redirect_uri: "#{base}/callback.html?vscode-reqid=1&vscode-scheme=levelcode" \
+                                       '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback' }
+
+          expect(response).to have_http_status(:unprocessable_content)
+          expect(json.dig('error', 'code')).to eq('invalid_request')
+        end
+      end
+    end
+
+    # Production, until the web editor ships.
+    it 'mints nothing for the web editor\'s page on a server that has not been told of one' do
+      sign_in_browser('sess-web-off')
+      expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+      post '/ai/authorize_editor',
+           params: { code_challenge: 'chal',
+                     redirect_uri: 'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode' \
+                                   '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback' }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(json.dig('error', 'code')).to eq('invalid_request')
     end
 
     it 'does not mint for an anonymous request' do

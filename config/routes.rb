@@ -153,6 +153,7 @@ Rails.application.routes.draw do
 
         # Billing + account (SPEC §3, §6)
         get   "pricing",         to: "pricing#index"
+        get   "web_editor",      to: "web_editor#show"     # is there a web edition of the editor, and where (public)
         resources :checkouts,    only: %i[create]
         resources :billings,     only: %i[create]
         get   "account/profile",  to: "account#profile"
