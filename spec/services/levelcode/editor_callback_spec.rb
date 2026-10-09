@@ -524,6 +524,16 @@ RSpec.describe Levelcode::EditorCallback do
         expect(rule.match?(nil)).to be(false)
       end
 
+      # The URI library refuses a malformed percent-escape today, so none of the examples above reach the
+      # decoder with one. The rule does not depend on that: whatever the library let through, the query
+      # that cannot be decoded is not the editor's.
+      it "is false when the query cannot be decoded, whatever the URI library let through" do
+        allow(URI).to receive(:decode_www_form).and_raise(ArgumentError, "invalid %-encoding")
+
+        expect { rule.match?(observed) }.not_to raise_error
+        expect(rule.match?(observed)).to be(false)
+      end
+
       it "is not talked out of its answer by an invalidly encoded name it is not asking about" do
         expect(rule.match?("#{callback}&%FFx=1")).to be(true)
       end
