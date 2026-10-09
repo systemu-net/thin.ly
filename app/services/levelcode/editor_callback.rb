@@ -35,16 +35,19 @@ module Levelcode
   # the setting that is missing.
   #
   # The web edition of the editor — the same editor built as a static page and served from an origin
-  # of its own — is told about by two settings:
+  # of its own — is told about by three settings:
   #
-  #   LEVELCODE_WEB_EDITOR_ORIGINS   comma list of the origins it is served from, exactly, e.g.
-  #                                  `https://editor.levelcode.ai`
-  #   LEVELCODE_WEB_EDITOR_URL       where the account page links to it: one of those origins and,
-  #                                  optionally, a path. The first origin when unset.
+  #   LEVELCODE_WEB_EDITOR_ORIGINS          comma list of the origins it is served from, exactly, e.g.
+  #                                         `https://editor.levelcode.ai`
+  #   LEVELCODE_WEB_EDITOR_URL              where the account page links to it: one of those origins
+  #                                         and, optionally, a path. The first origin when unset.
+  #   LEVELCODE_WEB_EXTENSION_HOST_ORIGINS  comma list of the origins its extension host runs on, when
+  #                                         the deployment isolates it: each an origin as above, or one
+  #                                         wildcard, e.g. `https://*.ext.levelcode.ai`
   #
   # Unset — production, until the web editor ships — the feature is OFF: no web address is accepted,
   # CORS adds nothing and the account page is told there is no web editor. The rule is exactly what
-  # it was. Set both on every environment whose account site should hand sign-ins to a web editor,
+  # it was. Set them on every environment whose account site should hand sign-ins to a web editor,
   # and restart: they are read once per process, with the rest of this.
   #
   # An origin is `scheme://host[:port]` and nothing more — no path, no query, no wildcard
@@ -53,6 +56,19 @@ module Levelcode
   # origins may call the LevelCode API from a page (config/initializers/cors.rb). When a web editor's
   # sign-in ends on the account page, or its page cannot reach the API, its origin is the setting
   # that is missing.
+  #
+  # The extension host is the one other origin the API hears from. Where it is isolated (the web
+  # build's webEndpointUrlTemplate) it is a cross-origin iframe on a subdomain of its own per session,
+  # https://v--<hash>.ext.levelcode.ai, and EVERY call an extension makes — the exchange, the refresh,
+  # the account reads, the gateway — comes from there and not from the editor's page. Without this
+  # setting that deployment cannot sign in or chat. It is CORS only: an extension host is never where
+  # a sign-in code is sent, so no entry of it is a callback, wildcard or not. One wildcard is allowed
+  # per entry, as `scheme://*.parent[:port]`: the star is exactly one whole label and the leftmost
+  # (never `v--*`, never twice, never in the scheme or the port), the parent has at least two labels
+  # (`*.com` is refused; `localhost` is the one exception) and is not an address, and it stands only
+  # for a label the editor itself put there — `v--` and then letters and digits. It matches by
+  # parts, never by a test on the text of an address. The parent must be a domain the deployment
+  # owns: a public suffix (`co.uk`) is not detected, and under it anyone may register `v--x`.
   class EditorCallback
     HOST = "levelcode.levelcode-ai"
     PATH = "/auth/callback"
@@ -68,6 +84,7 @@ module Levelcode
     ENV_KEY = "LEVELCODE_EXTRA_EDITOR_SCHEMES"
     WEB_ORIGINS_KEY = "LEVELCODE_WEB_EDITOR_ORIGINS"
     WEB_URL_KEY = "LEVELCODE_WEB_EDITOR_URL"
+    WEB_EXTENSION_HOST_KEY = "LEVELCODE_WEB_EXTENSION_HOST_ORIGINS"
 
     # The page the web editor's callback lands on. The editor builds its callback from the address
     # it is running at — location.href with this path and the vscode-* parameters — so the path is
@@ -92,7 +109,8 @@ module Levelcode
         new(
           extra_schemes: env.fetch(ENV_KEY, ""),
           web_origins: env.fetch(WEB_ORIGINS_KEY, ""),
-          web_url: env.fetch(WEB_URL_KEY, "")
+          web_url: env.fetch(WEB_URL_KEY, ""),
+          extension_host_origins: env.fetch(WEB_EXTENSION_HOST_KEY, "")
         )
       end
 
@@ -112,10 +130,22 @@ module Levelcode
                             "nothing after it, https (http only for localhost)")
         end
 
-        return if rule.ignored_web_url.nil?
+        unless rule.ignored_web_url.nil?
+          Rails.logger.warn("[levelcode] #{WEB_URL_KEY}: ignoring #{rule.ignored_web_url.inspect} — " \
+                            "the web editor's URL is one of the origins in #{WEB_ORIGINS_KEY} and, optionally, a path")
+        end
 
-        Rails.logger.warn("[levelcode] #{WEB_URL_KEY}: ignoring #{rule.ignored_web_url.inspect} — " \
-                          "the web editor's URL is one of the origins in #{WEB_ORIGINS_KEY} and, optionally, a path")
+        unless rule.ignored_extension_host_origins.empty?
+          Rails.logger.warn("[levelcode] #{WEB_EXTENSION_HOST_KEY}: ignoring " \
+                            "#{rule.ignored_extension_host_origins.map(&:inspect).join(', ')} — an extension host origin " \
+                            "looks like https://ext.example.com, or one wildcard, https://*.ext.example.com: the star a " \
+                            "whole leftmost label, the rest two labels or more (http only for localhost)")
+        end
+
+        return unless rule.extension_host_unused?
+
+        Rails.logger.warn("[levelcode] #{WEB_EXTENSION_HOST_KEY} is set and #{WEB_ORIGINS_KEY} names no origin — " \
+                          "the web editor is off, and so is CORS for its extension host")
       end
     end
 
@@ -128,6 +158,11 @@ module Levelcode
     #   of them. nil while the web edition is off.
     # ignored_web_origins / ignored_web_url: what the settings said that was not taken, as written.
     attr_reader :web_origins, :web_url, :ignored_web_origins, :ignored_web_url
+    # extension_host_origins: the origins named exactly. extension_host_wildcards: the wildcards, as
+    #   WebEditor::Wildcard. Together they are the origins the web editor's extension host runs on —
+    #   for CORS only; none of them is a callback.
+    # ignored_extension_host_origins: entries of that setting that were not taken, as written.
+    attr_reader :extension_host_origins, :extension_host_wildcards, :ignored_extension_host_origins
 
     # extra_schemes: a comma list — entries are trimmed and case-folded, blanks and repeats dropped.
     # A shipped scheme named again is neither added nor reported: it is taken already.
@@ -136,7 +171,10 @@ module Levelcode
     # and repeats dropped. An entry that is not an origin this server takes is dropped and reported.
     #
     # web_url: one URL, or blank. Taken only when it is a listed origin with an optional path.
-    def initialize(extra_schemes: "", web_origins: "", web_url: "")
+    #
+    # extension_host_origins: a comma list, each an origin as above or one wildcard origin
+    # (`https://*.ext.example.com`). Never a callback: it is not consulted by #match?.
+    def initialize(extra_schemes: "", web_origins: "", web_url: "", extension_host_origins: "")
       # scrub: a setting is read once, at boot — text that is not valid UTF-8 must come out as an entry
       # that is not taken, not as an exception that stops the server starting.
       entries = extra_schemes.to_s.scrub.split(",").map(&:strip).reject { |entry| entry.empty? || SCHEMES.include?(entry.downcase) }
@@ -146,6 +184,8 @@ module Levelcode
 
       @web_origins, @ignored_web_origins = read_web_origins(web_origins)
       @web_url, @ignored_web_url = read_web_url(web_url, @web_origins)
+      @extension_host_origins, @extension_host_wildcards, @ignored_extension_host_origins =
+        read_extension_hosts(extension_host_origins)
       freeze
     end
 
@@ -158,6 +198,25 @@ module Levelcode
     # An exact member of the list: no pattern, no suffix, no case-folding.
     def web_origin?(source)
       web_origins.include?(source)
+    end
+
+    # Is `source` an origin the web editor's extension host runs on: one named exactly, or one a
+    # wildcard stands for? Compared by parts (WebEditor.wildcard_origin?), on the origin as a browser
+    # writes it. Says nothing about whether the web edition is on — #web_cors_origin? does.
+    def extension_host_origin?(source)
+      extension_host_origins.include?(source) || WebEditor.wildcard_origin?(extension_host_wildcards, source)
+    end
+
+    # The one question CORS asks: may a page on `source` call the LevelCode API? The editor's own
+    # origins, and — while the web edition is on — the origins its extension host runs on. Nothing
+    # here is a callback address: #match? does not ask this.
+    def web_cors_origin?(source)
+      web_enabled? && (web_origin?(source) || extension_host_origin?(source))
+    end
+
+    # Was the extension-host setting given entries that are not used because the web edition is off?
+    def extension_host_unused?
+      !web_enabled? && !(extension_host_origins.empty? && extension_host_wildcards.empty?)
     end
 
     # Is `address` — a URI or a string — the editor's callback? Never raises: an address that does
@@ -230,6 +289,22 @@ module Levelcode
         origin ? origins << origin : ignored << entry
       end
       [ origins.uniq.freeze, ignored.freeze ]
+    end
+
+    # [origins, wildcards, ignored]: what each entry of the extension-host setting is — an origin, one
+    # wildcard, or neither.
+    def read_extension_hosts(list)
+      origins = []
+      wildcards = []
+      ignored = []
+      list.to_s.scrub.split(",").map(&:strip).reject(&:empty?).each do |entry|
+        case (taken = WebEditor.extension_host(entry))
+        when String then origins << taken
+        when WebEditor::Wildcard then wildcards << taken
+        else ignored << entry
+        end
+      end
+      [ origins.uniq.freeze, wildcards.uniq.freeze, ignored.freeze ]
     end
 
     # [url, ignored]. Taken when it is an origin on the list plus an optional path; otherwise the

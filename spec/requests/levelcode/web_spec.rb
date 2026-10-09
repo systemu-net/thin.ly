@@ -426,6 +426,46 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       end
     end
 
+    # The extension host runs on an origin of its own per session and calls the API from there; CORS lets
+    # it in. It is never where a code is sent: nothing it names is a callback.
+    context 'on a server told of the web editor\'s extension host (LEVELCODE_WEB_EXTENSION_HOST_ORIGINS)' do
+      let(:vscode_query) do
+        'vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback'
+      end
+
+      before do
+        with_web_editor('https://editor.levelcode.test',
+                        extension_hosts: 'https://*.ext.levelcode.test, https://ext.levelcode.test, http://*.localhost:8801')
+        allow(Levelcode::EmailCode).to receive(:verify).and_return(true)
+        allow(Levelcode::OneTimeCode).to receive(:issue).and_return('one-time-code')
+      end
+
+      it 'still hands the code to the editor\'s own page' do
+        post '/ai/auth/verify',
+             params: { email: 'host-a@example.com', code: '123456', code_challenge: 'chal',
+                       redirect_uri: "https://editor.levelcode.test/callback.html?#{vscode_query}" }
+
+        expect(json['redirect']).to eq("https://editor.levelcode.test/callback.html?#{vscode_query}&code=one-time-code")
+      end
+
+      {
+        'a session of the extension host' => 'https://v--abc123.ext.levelcode.test',
+        'the extension host\'s domain, named exactly' => 'https://ext.levelcode.test',
+        'a local development session of it' => 'http://v--abc.localhost:8801'
+      }.each do |what, base|
+        it "signs in to the web account and mints nothing for the callback page on #{what}" do
+          expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+          post '/ai/auth/verify',
+               params: { email: 'host-b@example.com', code: '123456', code_challenge: 'chal',
+                         redirect_uri: "#{base}/callback.html?#{vscode_query}" }
+
+          expect(response).to have_http_status(:ok)
+          expect(json).to eq('redirect' => '/ai/account')
+        end
+      end
+    end
+
     # Production, until the web editor ships: the page's own address is no editor's.
     it 'treats the web editor\'s callback as a web sign-in on a server that has not been told of one' do
       allow(Levelcode::EmailCode).to receive(:verify).and_return(true)
@@ -821,6 +861,32 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
         post '/ai/authorize_editor', params: { redirect_uri: "#{editor_uri}?windowId=2", code_challenge: 'chal' }
 
         expect(json['redirect']).to eq("#{editor_uri}?windowId=2&code=bound-code")
+      end
+    end
+
+    context 'on a server told of the web editor\'s extension host (LEVELCODE_WEB_EXTENSION_HOST_ORIGINS)' do
+      before do
+        with_web_editor('https://editor.levelcode.test',
+                        extension_hosts: 'https://*.ext.levelcode.test, https://ext.levelcode.test, http://*.localhost:8801')
+      end
+
+      {
+        'a session of the extension host' => 'https://v--abc123.ext.levelcode.test',
+        'the extension host\'s domain, named exactly' => 'https://ext.levelcode.test',
+        'a local development session of it' => 'http://v--abc.localhost:8801'
+      }.each_with_index do |(what, base), i|
+        it "mints nothing for the callback page on #{what}" do
+          sign_in_browser("sess-host-#{i}")
+          expect(Levelcode::OneTimeCode).not_to receive(:issue)
+
+          post '/ai/authorize_editor',
+               params: { code_challenge: 'chal',
+                         redirect_uri: "#{base}/callback.html?vscode-reqid=1&vscode-scheme=levelcode" \
+                                       '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback' }
+
+          expect(response).to have_http_status(:unprocessable_content)
+          expect(json.dig('error', 'code')).to eq('invalid_request')
+        end
       end
     end
 

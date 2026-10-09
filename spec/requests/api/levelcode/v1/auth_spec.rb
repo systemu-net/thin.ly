@@ -201,6 +201,30 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
       end
     end
 
+    context 'on a server told of the web editor\'s extension host (LEVELCODE_WEB_EXTENSION_HOST_ORIGINS)' do
+      before do
+        with_web_editor('https://editor.levelcode.test',
+                        extension_hosts: 'https://*.ext.levelcode.test, https://ext.levelcode.test, http://*.localhost:8801')
+      end
+
+      {
+        'a session of the extension host' => 'https://v--abc123.ext.levelcode.test',
+        'the extension host\'s domain, named exactly' => 'https://ext.levelcode.test',
+        'a local development session of it' => 'http://v--abc.localhost:8801'
+      }.each do |what, base|
+        it "does not redirect to the callback page on #{what}" do
+          post '/api/levelcode/v1/auth/login',
+               params: { email: user.email, password: password, code_challenge: 'chal',
+                         redirect_uri: "#{base}/callback.html?vscode-reqid=1&vscode-scheme=levelcode" \
+                                       '&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback' }
+
+          expect(response).to have_http_status(:ok)
+          expect(response.headers['Location']).to be_nil
+          expect(json['access']).to be_present
+        end
+      end
+    end
+
     # Production, until the web editor ships.
     it 'does not redirect to the web editor\'s page on a server that has not been told of one' do
       post '/api/levelcode/v1/auth/login',

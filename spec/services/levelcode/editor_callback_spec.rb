@@ -735,4 +735,298 @@ RSpec.describe Levelcode::EditorCallback do
       expect(rule.ignored_web_origins).to be_frozen
     end
   end
+
+  # Where the web editor's extension host is isolated, it runs in a cross-origin iframe on a subdomain of
+  # its own per session — https://v--<hash>.ext.example.com — and EVERY call an extension makes to the API
+  # comes from there. CORS has to let that origin in. It is not the editor's page: nothing is ever sent a
+  # sign-in code there, so none of it is a callback, wildcard or not.
+  describe "the web editor's extension host" do
+    let(:editor) { "https://editor.example.com" }
+    let(:hosts) { "https://*.ext.example.com" }
+    let(:rule) { described_class.new(web_origins: editor, extension_host_origins: hosts) }
+    let(:session) { "https://v--abc123.ext.example.com" }
+
+    describe "when the server has not been told of one (production)" do
+      subject(:off) { described_class.new }
+
+      it "has none, and lets no origin in" do
+        expect(off.extension_host_origins).to eq([])
+        expect(off.extension_host_wildcards).to eq([])
+        expect(off.ignored_extension_host_origins).to eq([])
+        expect(off.extension_host_unused?).to be(false)
+        expect(off.extension_host_origin?(session)).to be(false)
+        expect(off.web_cors_origin?(session)).to be(false)
+        expect(off.web_cors_origin?(editor)).to be(false)
+      end
+
+      it "is no more on for a web edition that is" do
+        on = described_class.new(web_origins: editor)
+        expect(on.extension_host_origin?(session)).to be(false)
+        expect(on.web_cors_origin?(session)).to be(false)
+        expect(on.web_cors_origin?(editor)).to be(true)
+      end
+    end
+
+    describe "#extension_host_origin?" do
+      it "is true for a session's own subdomain of the entry's domain" do
+        expect(rule.extension_host_origin?(session)).to be(true)
+        expect(rule.extension_host_origin?("https://v--a.ext.example.com")).to be(true)
+        expect(rule.extension_host_origin?("https://v--#{'0z' * 26}.ext.example.com")).to be(true)
+      end
+
+      {
+        "another domain" => "https://evil.com",
+        "the domain as the prefix of another" => "https://v--abc.ext.example.com.evil.com",
+        "the domain with a label added in front of it" => "https://v--abc.evil.ext.example.com",
+        "the marker one label too deep" => "https://x.v--abc.ext.example.com",
+        "the wrong scheme" => "http://v--abc.ext.example.com",
+        "a port the entry had not" => "https://v--abc.ext.example.com:8443",
+        "a label that only ends like the marker" => "https://notv.ext.example.com",
+        "the marker with nothing after it" => "https://v--.ext.example.com",
+        "no marker" => "https://abc.ext.example.com",
+        "the domain itself" => "https://ext.example.com",
+        "the editor's own origin" => "https://editor.example.com",
+        "an upper-case label" => "https://V--ABC123.ext.example.com",
+        "an upper-case domain" => "https://v--abc123.EXT.example.com",
+        "an upper-case scheme" => "HTTPS://v--abc123.ext.example.com",
+        "a trailing dot" => "https://v--abc123.ext.example.com.",
+        "a default port written out" => "https://v--abc123.ext.example.com:443",
+        "userinfo" => "https://evil.com@v--abc123.ext.example.com",
+        "userinfo that makes it another host" => "https://v--abc123.ext.example.com@evil.com",
+        "a path" => "https://v--abc123.ext.example.com/",
+        "the string null" => "null"
+      }.each do |what, source|
+        it "is false for #{what}" do
+          expect(rule.extension_host_origin?(source)).to be(false), source
+          # CORS lets the editor's own page in, as an editor origin; nothing else of these gets in.
+          expect(rule.web_cors_origin?(source)).to be(source == editor), source
+        end
+      end
+
+      it "is false — never an exception — for what is not text" do
+        [ nil, 42, [], {}, Object.new, "\xFF".dup.force_encoding("UTF-8") ].each do |source|
+          expect { rule.extension_host_origin?(source) }.not_to raise_error
+          expect(rule.extension_host_origin?(source)).to be(false)
+        end
+      end
+
+      it "is true for a local development host, over http, with its port" do
+        dev = described_class.new(web_origins: "http://localhost:5173", extension_host_origins: "http://*.localhost:8801")
+        expect(dev.extension_host_origin?("http://v--abc.localhost:8801")).to be(true)
+        expect(dev.web_cors_origin?("http://v--abc.localhost:8801")).to be(true)
+        expect(dev.web_cors_origin?("http://localhost:5173")).to be(true)
+        [ "http://v--abc.localhost", "http://v--abc.localhost:8802", "https://v--abc.localhost:8801",
+          "http://v--abc.ext.localhost:8801", "http://v--abc.localhost.evil.com:8801", "http://localhost:8801",
+          "http://V--abc.localhost:8801" ].each do |source|
+          expect(dev.extension_host_origin?(source)).to be(false), source
+        end
+      end
+
+      it "takes an origin named exactly, beside the wildcards, and only that exact origin" do
+        both = described_class.new(web_origins: editor, extension_host_origins: "https://ext.example.com, https://*.ext2.example.com")
+        expect(both.extension_host_origins).to eq(%w[https://ext.example.com])
+        expect(both.extension_host_wildcards.map(&:to_s)).to eq(%w[https://*.ext2.example.com])
+        expect(both.extension_host_origin?("https://ext.example.com")).to be(true)
+        expect(both.extension_host_origin?("https://v--abc.ext2.example.com")).to be(true)
+        expect(both.extension_host_origin?("https://v--abc.ext.example.com")).to be(false)
+        expect(both.extension_host_origin?("https://ext.example.com:8443")).to be(false)
+        expect(both.extension_host_origin?("https://ext2.example.com")).to be(false)
+      end
+
+      it "reads each entry of the list: any wildcard on it stands" do
+        many = described_class.new(
+          web_origins: editor,
+          extension_host_origins: "https://*.ext.example.com, https://*.other.example.org:8443, http://*.localhost:8801"
+        )
+        expect(many.extension_host_origin?("https://v--abc.ext.example.com")).to be(true)
+        expect(many.extension_host_origin?("https://v--abc.other.example.org:8443")).to be(true)
+        expect(many.extension_host_origin?("http://v--abc.localhost:8801")).to be(true)
+        expect(many.extension_host_origin?("https://v--abc.other.example.org")).to be(false)
+      end
+    end
+
+    describe "#web_cors_origin?" do
+      it "lets the editor's own origin in, and the extension host's, and no other" do
+        expect(rule.web_cors_origin?("https://editor.example.com")).to be(true)
+        expect(rule.web_cors_origin?(session)).to be(true)
+        expect(rule.web_cors_origin?("https://evil.com")).to be(false)
+        expect(rule.web_cors_origin?("https://example.com")).to be(false)
+        expect(rule.web_cors_origin?("https://v--abc.example.com")).to be(false)
+      end
+
+      it "is off with the web edition, whatever the setting says" do
+        orphan = described_class.new(extension_host_origins: hosts)
+        expect(orphan.web_enabled?).to be(false)
+        expect(orphan.extension_host_origin?(session)).to be(true) # the list is the list...
+        expect(orphan.web_cors_origin?(session)).to be(false)      # ...and CORS is not given on it alone
+        expect(orphan.extension_host_unused?).to be(true)
+      end
+    end
+
+    # The callback rule is exactly what it was: an extension host is never where a code is sent.
+    describe "#match? — never a callback" do
+      let(:vscode) do
+        { "vscode-reqid" => "7", "vscode-scheme" => "levelcode",
+          "vscode-authority" => "levelcode.levelcode-ai", "vscode-path" => "/auth/callback" }
+      end
+
+      def callback(base)
+        "#{base}/callback.html?#{URI.encode_www_form(vscode)}"
+      end
+
+      it "refuses the editor's own callback page on every origin an extension host can have" do
+        [
+          session, "https://v--a.ext.example.com", "https://ext.example.com",
+          "https://v--abc.ext.example.com:8443", "https://evil.com", "https://v--abc.ext.example.com.evil.com",
+          "https://v--abc.evil.ext.example.com", "https://x.v--abc.ext.example.com",
+          "http://v--abc.ext.example.com", "https://notv.ext.example.com", "https://v--.ext.example.com",
+          "https://V--ABC123.ext.example.com", "https://v--abc123.EXT.example.com"
+        ].each do |base|
+          expect(rule.match?(callback(base))).to be(false), base
+        end
+      end
+
+      it "refuses it for a local development host, and an exact origin on the list, as well" do
+        dev = described_class.new(
+          web_origins: "http://localhost:5173",
+          extension_host_origins: "http://*.localhost:8801, https://ext.example.com"
+        )
+        expect(dev.match?(callback("http://v--abc.localhost:8801"))).to be(false)
+        expect(dev.match?(callback("https://ext.example.com"))).to be(false)
+        expect(dev.match?(callback("http://localhost:5173"))).to be(true) # the editor's own, as ever
+      end
+
+      it "takes the editor's callback just as it did, with the extension host told" do
+        expect(rule.match?(callback(editor))).to be(true)
+        expect(rule.match?(address)).to be(true)
+        expect(rule.match?("#{address}?windowId=3")).to be(true)
+      end
+
+      it "does not make an origin on both lists a callback it was not: the editor list alone decides" do
+        shared = described_class.new(web_origins: "https://editor.example.com", extension_host_origins: "https://editor.example.com")
+        expect(shared.match?(callback("https://editor.example.com"))).to be(true)
+
+        only_hosts = described_class.new(web_origins: "https://other.example.com", extension_host_origins: "https://editor.example.com")
+        expect(only_hosts.match?(callback("https://editor.example.com"))).to be(false)
+        expect(only_hosts.web_cors_origin?("https://editor.example.com")).to be(true)
+      end
+    end
+
+    describe "the setting" do
+      it "is a comma list — entries trimmed and case-folded, default ports dropped, blanks and repeats dropped" do
+        rule = described_class.new(
+          web_origins: editor,
+          extension_host_origins: " HTTPS://*.EXT.Example.com:443 ,, https://*.ext.example.com, https://Other.Example.com:443,http://*.localhost:8801"
+        )
+        expect(rule.extension_host_wildcards.map(&:to_s)).to eq(%w[https://*.ext.example.com http://*.localhost:8801])
+        expect(rule.extension_host_origins).to eq(%w[https://other.example.com])
+        expect(rule.ignored_extension_host_origins).to eq([])
+      end
+
+      it "reports an entry it will not take as written, beside the ones it did" do
+        rule = described_class.new(
+          web_origins: editor,
+          extension_host_origins: "https://*.ext.example.com, https://*.com, https://v--*.example.com, http://*.example.com, *.example.com"
+        )
+        expect(rule.extension_host_wildcards.map(&:to_s)).to eq(%w[https://*.ext.example.com])
+        expect(rule.ignored_extension_host_origins).to eq(%w[https://*.com https://v--*.example.com http://*.example.com *.example.com])
+      end
+
+      it "never lets a neighbour's typo cost an entry its place" do
+        rule = described_class.new(web_origins: editor, extension_host_origins: "https://*.a.example.com, oops, https://*.b.example.com")
+        expect(rule.extension_host_wildcards.map(&:to_s)).to eq(%w[https://*.a.example.com https://*.b.example.com])
+        expect(rule.ignored_extension_host_origins).to eq(%w[oops])
+      end
+
+      it "is none for an empty or missing list" do
+        expect(described_class.new(extension_host_origins: "").extension_host_wildcards).to eq([])
+        expect(described_class.new(extension_host_origins: nil).extension_host_origins).to eq([])
+        expect(described_class.new(extension_host_origins: " , ").ignored_extension_host_origins).to eq([])
+      end
+
+      it "does not raise for text that is not valid UTF-8" do
+        rule = described_class.new(
+          web_origins: editor,
+          extension_host_origins: "https://*.ext.example.com,\xFFhttps://*.x.test".dup.force_encoding("UTF-8")
+        )
+        expect(rule.extension_host_wildcards.map(&:to_s)).to eq(%w[https://*.ext.example.com])
+        expect(rule.ignored_extension_host_origins.size).to eq(1)
+      end
+
+      it "is neither added to, nor read from, the editor's own list" do
+        rule = described_class.new(web_origins: "https://*.ext.example.com", extension_host_origins: editor)
+        expect(rule.web_origins).to eq([])
+        expect(rule.ignored_web_origins).to eq(%w[https://*.ext.example.com])
+        expect(rule.extension_host_origins).to eq(%w[https://editor.example.com])
+        expect(rule.web_enabled?).to be(false)
+      end
+
+      it "is immutable" do
+        rule = described_class.new(web_origins: editor, extension_host_origins: "https://*.ext.example.com, https://x.example.com, oops")
+        expect(rule).to be_frozen
+        expect(rule.extension_host_origins).to be_frozen
+        expect(rule.extension_host_wildcards).to be_frozen
+        expect(rule.extension_host_wildcards.first).to be_frozen
+        expect(rule.ignored_extension_host_origins).to be_frozen
+      end
+    end
+
+    describe ".from_env" do
+      it "reads the setting from the environment it is given" do
+        rule = described_class.from_env(
+          "LEVELCODE_WEB_EDITOR_ORIGINS" => editor,
+          "LEVELCODE_WEB_EXTENSION_HOST_ORIGINS" => "https://*.ext.example.com"
+        )
+        expect(rule.extension_host_wildcards.map(&:to_s)).to eq(%w[https://*.ext.example.com])
+        expect(rule.web_cors_origin?(session)).to be(true)
+      end
+
+      it "is none when the setting is absent — what production runs with" do
+        rule = described_class.from_env("LEVELCODE_WEB_EDITOR_ORIGINS" => editor)
+        expect(rule.extension_host_origins).to eq([])
+        expect(rule.extension_host_wildcards).to eq([])
+        expect(rule.web_cors_origin?(session)).to be(false)
+      end
+    end
+
+    describe ".current" do
+      let(:fresh) { Class.new(described_class) }
+
+      it "says so in the log, once, when the setting names something it will not take" do
+        allow(fresh).to receive(:from_env).and_return(
+          described_class.new(web_origins: editor, extension_host_origins: "https://*.ext.example.com, https://*.com, http://*.example.com")
+        )
+        expect(Rails.logger).to receive(:warn).once.with(
+          %r{LEVELCODE_WEB_EXTENSION_HOST_ORIGINS: ignoring "https://\*\.com", "http://\*\.example\.com" — an extension host origin looks like https://ext\.example\.com}
+        )
+
+        2.times { fresh.current }
+      end
+
+      it "says so, once, when the setting is given and the web edition is off — it would otherwise do nothing, silently" do
+        allow(fresh).to receive(:from_env).and_return(described_class.new(extension_host_origins: "https://*.ext.example.com"))
+        expect(Rails.logger).to receive(:warn).once.with(
+          /LEVELCODE_WEB_EXTENSION_HOST_ORIGINS is set and LEVELCODE_WEB_EDITOR_ORIGINS names no origin/
+        )
+
+        2.times { fresh.current }
+      end
+
+      it "says nothing when every entry was taken and the web edition is on" do
+        allow(fresh).to receive(:from_env).and_return(
+          described_class.new(web_origins: editor, extension_host_origins: "https://*.ext.example.com, http://*.localhost:8801")
+        )
+        expect(Rails.logger).not_to receive(:warn)
+
+        fresh.current
+      end
+
+      it "says nothing when the setting is not given" do
+        allow(fresh).to receive(:from_env).and_return(described_class.new(web_origins: editor))
+        expect(Rails.logger).not_to receive(:warn)
+
+        fresh.current
+      end
+    end
+  end
 end

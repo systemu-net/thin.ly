@@ -62,8 +62,13 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
   # cannot autoload the app's constants. The rule reads the environment once per process (and is
   # read at boot, below, so a typo in the setting is in the boot log rather than found by the first
   # sign-in): a change to the setting needs a restart. Unset, the list is empty and this never matches.
+  #
+  # Where the extension host is isolated (LEVELCODE_WEB_EXTENSION_HOST_ORIGINS) every extension's call
+  # comes from an origin of its own, https://v--<hash>.ext.example.com, which is not the editor's: it
+  # is let in here, by parts, and nowhere else. The same grant, the same headers, and still no
+  # credentials.
   allow do
-    origins { |source, _env| Levelcode::EditorCallback.current.web_origin?(source) }
+    origins { |source, _env| Levelcode::EditorCallback.current.web_cors_origin?(source) }
     # A pattern, not "/api/levelcode/v1/*": Rack::Cors makes the slash before `*` optional, which would
     # also take /api/levelcode/v1evil. The slash is part of the namespace.
     resource(
