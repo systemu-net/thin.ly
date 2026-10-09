@@ -11,7 +11,7 @@ module Api
         skip_before_action :authenticate_levelcode!, only: %i[show]
 
         # GET /api/levelcode/v1/web_editor
-        #   -> { enabled: true,  url: "https://editor.levelcode.ai" }
+        #   -> { enabled: true,  url: "https://editor.example.com" }
         #   -> { enabled: false, url: null }
         def show
           rule = ::Levelcode::EditorCallback.current

@@ -38,12 +38,12 @@ module Levelcode
   # of its own — is told about by three settings:
   #
   #   LEVELCODE_WEB_EDITOR_ORIGINS          comma list of the origins it is served from, exactly, e.g.
-  #                                         `https://editor.levelcode.ai`
+  #                                         `https://editor.example.com`
   #   LEVELCODE_WEB_EDITOR_URL              where the account page links to it: one of those origins
   #                                         and, optionally, a path. The first origin when unset.
   #   LEVELCODE_WEB_EXTENSION_HOST_ORIGINS  comma list of the origins its extension host runs on, when
   #                                         the deployment isolates it: each an origin as above, or one
-  #                                         wildcard, e.g. `https://*.ext.levelcode.ai`
+  #                                         wildcard, e.g. `https://*.ext.example.com`
   #
   # Unset — production, until the web editor ships — the feature is OFF: no web address is accepted,
   # CORS adds nothing and the account page is told there is no web editor. The rule is exactly what
@@ -59,7 +59,7 @@ module Levelcode
   #
   # The extension host is the one other origin the API hears from. Where it is isolated (the web
   # build's webEndpointUrlTemplate) it is a cross-origin iframe on a subdomain of its own per session,
-  # https://v--<hash>.ext.levelcode.ai, and EVERY call an extension makes — the exchange, the refresh,
+  # https://v--<hash>.ext.example.com, and EVERY call an extension makes — the exchange, the refresh,
   # the account reads, the gateway — comes from there and not from the editor's page. Without this
   # setting that deployment cannot sign in or chat. It is CORS only: an extension host is never where
   # a sign-in code is sent, so no entry of it is a callback, wildcard or not. One wildcard is allowed
@@ -69,6 +69,15 @@ module Levelcode
   # for a label the editor itself put there — `v--` and then letters and digits. It matches by
   # parts, never by a test on the text of an address. The parent must be a domain the deployment
   # owns: a public suffix (`co.uk`) is not detected, and under it anyone may register `v--x`.
+  #
+  # The editor, and the extension host's wildcard parent, MUST NOT be hosted on a subdomain of the
+  # account host (levelcode.ai) unless cookie auth on /api/levelcode/v1 is refused for same-site
+  # requests. The account session cookie is SameSite=Lax, which is a site boundary and not an
+  # origin one: it is sent on a request from a sibling subdomain. Api::Levelcode::V1::BaseController
+  # takes that cookie when there is no Bearer token, and has no CSRF or Origin check. A page that
+  # runs other people's extensions, on such a subdomain, can send credentialed requests that the
+  # account's session authorises (a plan change, a billing session, credits) — CORS here stops it
+  # reading the answer, not causing the effect. Host them on another registrable domain.
   class EditorCallback
     HOST = "levelcode.levelcode-ai"
     PATH = "/auth/callback"
