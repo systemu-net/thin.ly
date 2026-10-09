@@ -229,7 +229,8 @@ module Api
           uri.query.present? ? Hash[URI.decode_www_form(uri.query)] : {}
         end
 
-        # Allow ONLY the frozen editor deep-link callback or the levelcode.ai origin.
+        # Allow ONLY the editor's callback (the frozen deep link, or on a server told of
+        # one the web editor's page — Levelcode::EditorCallback) or the levelcode.ai origin.
         # A bare scheme check is an open redirect: build_callback_url appends the
         # one-time code (and, previously, raw tokens) to the query, so any allowed
         # host receives credentials. Pin exact host+path.
@@ -237,7 +238,8 @@ module Api
           return nil if raw.blank?
 
           uri = URI.parse(raw)
-          # The editor's deep link. Levelcode::EditorCallback has the rule, shared with the /ai flows.
+          # The editor's callback. Levelcode::EditorCallback has the rule, shared with the /ai flows —
+          # which decode the address before they ask; this gate asks about it as sent.
           return uri if ::Levelcode::EditorCallback.current.match?(uri)
 
           site_host = URI(ENV["SITE_ORIGIN"].presence || "https://levelcode.ai").host
