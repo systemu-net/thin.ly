@@ -19,6 +19,8 @@ module Levelcode
     class Error < StandardError; end
     class InvalidCode < Error; end
     class InvalidVerifier < Error; end
+    # A code issued with no challenge, redeemed where one is required: nothing ties it to the caller.
+    class UnboundCode < InvalidVerifier; end
 
     # Issue a code bound to the user, optionally to a PKCE challenge. Returns the
     # opaque code. When `pkce_challenge` is blank the code is unbound (still
@@ -38,7 +40,11 @@ module Levelcode
     # challenge. Single-use: the code is deleted before verification so a failed
     # attempt cannot be retried. Returns the User or raises InvalidCode /
     # InvalidVerifier.
-    def redeem(code, verifier = nil)
+    #
+    # `require_challenge: true` refuses an unbound code (UnboundCode), whatever verifier
+    # comes with it: without a challenge the verifier is never looked at, so a code
+    # someone else was issued would sign the caller in to that someone's account.
+    def redeem(code, verifier = nil, require_challenge: false)
       raise InvalidCode, "missing code" if code.blank?
       raise Error, "redis unavailable" unless redis
 
@@ -47,7 +53,9 @@ module Levelcode
 
       data = JSON.parse(raw)
       challenge = data["challenge"]
-      if challenge.present? && !pkce_matches?(challenge, verifier)
+      if challenge.blank?
+        raise UnboundCode, "code is not bound to a PKCE challenge" if require_challenge
+      elsif !pkce_matches?(challenge, verifier)
         raise InvalidVerifier, "PKCE verifier mismatch"
       end
 

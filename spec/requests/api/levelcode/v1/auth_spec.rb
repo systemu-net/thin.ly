@@ -299,6 +299,65 @@ RSpec.describe 'Api::Levelcode::V1::Auth', type: :request do
 
       expect(response).to have_http_status(:unauthorized)
     end
+
+    # The web edition's callback is a page anyone can link to. A code issued with no challenge, handed
+    # to it while someone is signing in, would be redeemed with THEIR verifier — never looked at for an
+    # unbound code — and sign them in to the account the code was issued for. A browser always sends
+    # Origin on a POST, so from one the code must be bound.
+    describe 'from a browser (Origin sent)' do
+      let(:attacker) { create(:user, email: 'attacker@example.com', password: password) }
+
+      def exchange_from_browser(code)
+        post '/api/levelcode/v1/auth/exchange',
+             params: { code: code, verifier: verifier }.to_json,
+             headers: { 'HTTP_ORIGIN' => 'https://editor.levelcode.test', 'CONTENT_TYPE' => 'application/json' }
+      end
+
+      # Refused, and used up: the desktop cannot take it afterwards either.
+      def expect_refused(code)
+        expect(response).to have_http_status(:unauthorized)
+        expect(json.dig('error', 'code')).to eq('invalid_verifier')
+        expect(json).not_to have_key('access')
+
+        post '/api/levelcode/v1/auth/exchange', params: { code: code, verifier: verifier }, as: :json
+        expect(json.dig('error', 'code')).to eq('invalid_code')
+      end
+
+      it 'redeems a code bound to the verifier it brings' do
+        exchange_from_browser(Levelcode::OneTimeCode.issue(user, challenge))
+
+        expect(response).to have_http_status(:ok)
+        expect(json.dig('profile', 'email')).to eq(user.email)
+      end
+
+      it 'refuses an unbound code from the API sign-in (no code_challenge), whatever verifier comes with it' do
+        post '/api/levelcode/v1/auth/login', params: { email: attacker.email, password: password, redirect_uri: redirect_uri }
+        code = Rack::Utils.parse_query(URI.parse(response.headers['Location']).query)['code']
+        expect(code).to be_present
+
+        exchange_from_browser(code)
+
+        expect_refused(code)
+      end
+
+      it 'refuses an unbound code from a web handoff' do
+        post '/api/levelcode/v1/auth/web_handoff',
+             headers: { 'Authorization' => "Bearer #{Levelcode::EditorToken.mint_access(attacker)}" }, as: :json
+        code = Rack::Utils.parse_query(URI.parse(json['url']).query)['code']
+        expect(code).to be_present
+
+        exchange_from_browser(code)
+
+        expect_refused(code)
+      end
+    end
+
+    it 'from the desktop editor (no Origin) still redeems an unbound code, as before' do
+      post '/api/levelcode/v1/auth/exchange', params: { code: Levelcode::OneTimeCode.issue(user), verifier: '' }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(json.dig('profile', 'email')).to eq(user.email)
+    end
   end
 
   describe 'POST /api/levelcode/v1/auth/refresh' do

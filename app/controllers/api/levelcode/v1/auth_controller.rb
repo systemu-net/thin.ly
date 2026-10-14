@@ -136,11 +136,21 @@ module Api
 
         # POST /api/levelcode/v1/auth/exchange  (editor, hardened PKCE)
         # Body: { code, verifier } -> { access, refresh, profile }
+        #
+        # From a browser — the web edition's page; a browser always sends Origin on a POST — the code
+        # must be bound to a PKCE challenge. Its callback is a page anyone can link to, so a code that is
+        # not bound (/auth/login without code_challenge, /auth/web_handoff) could be handed to it during
+        # someone's own sign-in and, redeemed with their verifier, sign them in to the code's account.
+        # Every sign-in the site runs for an editor binds its code. The desktop editor sends no Origin
+        # and is unchanged; a handoff code is redeemed at /ai/auth/handoff, not here.
         def exchange
-          user = ::Levelcode::OneTimeCode.redeem(params[:code], params[:verifier])
+          user = ::Levelcode::OneTimeCode.redeem(params[:code], params[:verifier], require_challenge: request.origin.present?)
           log_auth(kind: "exchange", outcome: "success", user: user)
           touch_access!(user)
           render json: token_bundle(user).merge(profile: profile_for(user)), status: :ok
+        rescue ::Levelcode::OneTimeCode::UnboundCode => e
+          log_auth(kind: "exchange", outcome: "failure", reason: "unbound_code")
+          render_levelcode_error("invalid_verifier", e.message, :unauthorized)
         rescue ::Levelcode::OneTimeCode::InvalidVerifier => e
           log_auth(kind: "exchange", outcome: "failure", reason: "invalid_verifier")
           render_levelcode_error("invalid_verifier", e.message, :unauthorized)
