@@ -111,9 +111,30 @@ RSpec.describe Levelcode::WebEditor do
       expect(described_class.origin("https://127.0.0.1:8443")).to eq("https://127.0.0.1:8443")
       expect(described_class.origin("http://127.0.0.1:3000")).to eq("http://127.0.0.1:3000")
       expect(described_class.origin("https://[2001:db8::1]:8443")).to eq("https://[2001:db8::1]:8443")
-      expect(described_class.origin("https://[::FFFF:127.0.0.1]")).to eq("https://[::ffff:127.0.0.1]")
+      expect(described_class.origin("https://[::FFFF:127.0.0.1]")).to eq("https://[::ffff:7f00:1]")
       expect(described_class.origin("https://editor1.levelcode.ai")).to eq("https://editor1.levelcode.ai")
       expect(described_class.origin("https://1editor.levelcode.ai")).to eq("https://1editor.levelcode.ai")
+    end
+
+    # Each right-hand side is what a browser's URL parser writes for the left (the URL Standard's IPv6
+    # serializer; checked against Node's WHATWG URL). Kept as written, an entry would be on the list and
+    # never equal to the Origin its page sends.
+    it "writes an IPv6 address the one way a browser does, whatever spelling the entry used" do
+      {
+        "https://[::FFFF:127.0.0.1]" => "https://[::ffff:7f00:1]",
+        "https://[0:0:0:0:0:ffff:7f00:1]" => "https://[::ffff:7f00:1]",
+        "https://[::1.2.3.4]" => "https://[::102:304]",
+        "https://[2001:0DB8:0000:0000:0000:0000:0000:0001]:8443" => "https://[2001:db8::1]:8443",
+        "https://[2001:db8::0:1]" => "https://[2001:db8::1]",
+        "https://[2001:db8:0:0:1:0:0:1]" => "https://[2001:db8::1:0:0:1]",
+        "https://[1:0:0:2:0:0:0:3]" => "https://[1:0:0:2::3]",
+        "https://[2001:db8:0:1:1:1:1:1]" => "https://[2001:db8:0:1:1:1:1:1]",
+        "https://[1::]" => "https://[1::]",
+        "https://[::]" => "https://[::]",
+        "http://[0:0:0:0:0:0:0:1]:3000" => "http://[::1]:3000"
+      }.each do |entry, browser|
+        expect(described_class.origin(entry)).to eq(browser), entry
+      end
     end
 
     it "is nil — never an exception — for what is not a string" do

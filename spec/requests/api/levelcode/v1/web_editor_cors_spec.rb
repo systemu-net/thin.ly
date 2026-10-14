@@ -26,6 +26,25 @@ RSpec.describe "LevelCode API CORS for the web editor", type: :request do
   def allow_methods = response.headers["Access-Control-Allow-Methods"].to_s.split(/,\s*/)
   def vary = response.headers["Vary"].to_s.split(/,\s*/)
 
+  # The list is read once and compared by equality with what the browser sends, so an IPv6 entry has to
+  # be written there the way the browser writes it — not as the operator happened to spell it.
+  describe "on a server told of an IPv6 origin in another spelling" do
+    before { with_web_editor("https://[::FFFF:127.0.0.1]:8443") }
+
+    it "answers the page at that address, whose Origin the browser writes in its own form" do
+      get "/api/levelcode/v1/pricing", headers: { "HTTP_ORIGIN" => "https://[::ffff:7f00:1]:8443" }
+
+      expect(response).to have_http_status(:ok)
+      expect(allow_origin).to eq("https://[::ffff:7f00:1]:8443")
+    end
+
+    it "takes that page as the editor's callback" do
+      page = "https://[::ffff:7f00:1]:8443/callback.html?vscode-reqid=1&vscode-scheme=levelcode" \
+             "&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback"
+      expect(Levelcode::EditorCallback.current.match?(page)).to be(true)
+    end
+  end
+
   describe "on a server told of the editor's origin" do
     before { with_web_editor(editor_origin) }
 

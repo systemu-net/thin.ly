@@ -75,6 +75,10 @@ module Levelcode
       scheme, host, port = parts_of(found)
       return nil unless scheme
       return nil unless address_or_name?(host)
+
+      # An IPv6 address has many spellings and a browser sends one: kept as written, the entry would be
+      # on the list and never equal to the Origin of the page it names.
+      host = "[#{browser_ipv6(host[1..-2])}]" if host.start_with?("[")
       return nil if scheme == "http" && !local?(host)
 
       serialize(scheme, host, port)
@@ -201,6 +205,27 @@ module Levelcode
       IPAddr.new(text).ipv6?
     rescue IPAddr::Error
       false
+    end
+
+    # An IPv6 address as a browser writes it in an origin (the URL Standard's IPv6 serializer): eight
+    # pieces in lower-case hex without leading zeros, the first of the longest runs of two or more zero
+    # pieces written `::`, and an IPv4 address inside written in hex like the rest. IPAddr#to_s keeps the
+    # dotted quad — `::ffff:127.0.0.1`, where a browser writes `::ffff:7f00:1`.
+    def browser_ipv6(text)
+      pieces = IPAddr.new(text).hton.unpack("n8")
+      start, length = nil, 1
+      i = 0
+      while i < 8
+        j = i
+        j += 1 while j < 8 && pieces[j].zero?
+        start, length = i, j - i if j - i > length
+        i = j == i ? i + 1 : j
+      end
+      return pieces.map { |piece| piece.to_s(16) }.join(":") unless start
+
+      head = pieces[0...start].map { |piece| piece.to_s(16) }.join(":")
+      tail = pieces[(start + length)..].map { |piece| piece.to_s(16) }.join(":")
+      "#{head}::#{tail}"
     end
 
     def serialize(scheme, host, port)
