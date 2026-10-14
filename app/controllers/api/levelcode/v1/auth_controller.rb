@@ -136,11 +136,21 @@ module Api
 
         # POST /api/levelcode/v1/auth/exchange  (editor, hardened PKCE)
         # Body: { code, verifier } -> { access, refresh, profile }
+        #
+        # From a browser — the web edition's page; a browser always sends Origin on a POST — the code
+        # must be bound to a PKCE challenge. Its callback is a page anyone can link to, so a code that is
+        # not bound (/auth/login without code_challenge, /auth/web_handoff) could be handed to it during
+        # someone's own sign-in and, redeemed with their verifier, sign them in to the code's account.
+        # Every sign-in the site runs for an editor binds its code. The desktop editor sends no Origin
+        # and is unchanged; a handoff code is redeemed at /ai/auth/handoff, not here.
         def exchange
-          user = ::Levelcode::OneTimeCode.redeem(params[:code], params[:verifier])
+          user = ::Levelcode::OneTimeCode.redeem(params[:code], params[:verifier], require_challenge: request.origin.present?)
           log_auth(kind: "exchange", outcome: "success", user: user)
           touch_access!(user)
           render json: token_bundle(user).merge(profile: profile_for(user)), status: :ok
+        rescue ::Levelcode::OneTimeCode::UnboundCode => e
+          log_auth(kind: "exchange", outcome: "failure", reason: "unbound_code")
+          render_levelcode_error("invalid_verifier", e.message, :unauthorized)
         rescue ::Levelcode::OneTimeCode::InvalidVerifier => e
           log_auth(kind: "exchange", outcome: "failure", reason: "invalid_verifier")
           render_levelcode_error("invalid_verifier", e.message, :unauthorized)
@@ -229,7 +239,8 @@ module Api
           uri.query.present? ? Hash[URI.decode_www_form(uri.query)] : {}
         end
 
-        # Allow ONLY the frozen editor deep-link callback or the levelcode.ai origin.
+        # Allow ONLY the editor's callback (the frozen deep link, or on a server told of
+        # one the web editor's page — Levelcode::EditorCallback) or the levelcode.ai origin.
         # A bare scheme check is an open redirect: build_callback_url appends the
         # one-time code (and, previously, raw tokens) to the query, so any allowed
         # host receives credentials. Pin exact host+path.
@@ -237,7 +248,8 @@ module Api
           return nil if raw.blank?
 
           uri = URI.parse(raw)
-          # The editor's deep link. Levelcode::EditorCallback has the rule, shared with the /ai flows.
+          # The editor's callback. Levelcode::EditorCallback has the rule, shared with the /ai flows —
+          # which decode the address before they ask; this gate asks about it as sent.
           return uri if ::Levelcode::EditorCallback.current.match?(uri)
 
           site_host = URI(ENV["SITE_ORIGIN"].presence || "https://levelcode.ai").host

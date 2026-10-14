@@ -15,7 +15,8 @@ module Levelcode
   # CSRF — the SPA sends the token from the shell's <meta name="csrf-token">.
   #
   # Sign-in delivers TWO ways (SHARED CONTRACT):
-  #   - editor: an `levelcode://…/auth/callback` redirect_uri is present ->
+  #   - editor: an `levelcode://…/auth/callback` redirect_uri is present (or, on a
+  #     server told of a web editor, that page's callback — Levelcode::EditorCallback) ->
   #     mint a single-use Levelcode::OneTimeCode bound to the editor's PKCE
   #     code_challenge and hand back `<redirect_uri>?code=<code>` (never tokens).
   #   - web: Devise sign_in(user) -> destination /ai/account.
@@ -264,13 +265,16 @@ module Levelcode
 
     # --- redirect_uri validation (no open redirect, never tokens in a URL) ----
     #
-    # Accept ONLY the editor deep-link (Levelcode::EditorCallback has the rule). We must
+    # Accept ONLY the editor's callback (Levelcode::EditorCallback has the rule): the
+    # desktop deep link or — on a server told of one — the web editor's page. We must
     # tolerate a query string (VS Code's asExternalUri appends ?windowId=N to route
     # the callback to the right editor window) and percent-encoding (the value can
-    # arrive single- OR double-encoded through the login → OAuth hops), but NOTHING
-    # else — no https, no other host/path — so this stays closed to open-redirect
-    # abuse (D36). Returns the DECODED deep-link WITH its query so the caller can
-    # append the one-time code without dropping the window routing.
+    # arrive single- OR double-encoded through the login → OAuth hops; for the web
+    # editor's page, Uri#toString() has encoded the whole query), but NOTHING
+    # else — no other host/path/scheme, no https origin the server was not told of —
+    # so this stays closed to open-redirect abuse (D36). Returns the DECODED callback
+    # WITH its query so the caller can append the one-time code without dropping the
+    # window routing. The decoded string is both what is validated and what is used.
     def safe_redirect_uri(raw)
       return nil if raw.blank?
 
@@ -290,8 +294,9 @@ module Levelcode
       s
     end
 
-    # True when uri_str is the editor callback deep-link. Any query (e.g. ?windowId=N) is allowed
-    # and gets preserved by editor_callback_with_code.
+    # True when uri_str is the editor's callback. Any query on the deep link (e.g. ?windowId=N) is
+    # allowed and gets preserved by editor_callback_with_code; the web editor's page carries its own
+    # vscode-* parameters, which are preserved the same way.
     def editor_deep_link?(uri_str)
       uri_str.present? && Levelcode::EditorCallback.current.match?(uri_str)
     end
