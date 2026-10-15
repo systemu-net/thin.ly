@@ -317,6 +317,213 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
     end
   end
 
+  # What the customer is charged when a stream ends WITHOUT its usage chunk. The reservation is the
+  # worst case for the turn (input plus the full output ceiling), so it is only a fair charge when the
+  # CLIENT walked away after the model had produced something. Each way a stream can end is pinned here.
+  describe "settlement when a stream ends without a usage chunk" do
+    let(:body) do
+      { model: "moonshotai/kimi-k2.6", stream: true, stream_options: { include_usage: true },
+        messages: [ { role: "user", content: "hi" } ] }
+    end
+    let(:reserved) { 5_000 }
+    let(:content_chunk) { '{"choices":[{"index":0,"delta":{"content":"partial "}}]}' }
+    let(:usage_chunk) { '{"choices":[{"index":0,"delta":{}}],"usage":{"prompt_tokens":12,"completion_tokens":8}}' }
+
+    before do
+      allow(Levelcode::Metering).to receive(:check!)
+        .and_return(Levelcode::Metering::Decision.new(allowed: true, throttle: false, policy: "throttle"))
+      allow(Levelcode::Metering).to receive(:reserve!)
+        .and_return(Levelcode::Metering::Reservation.new(ok: true, amount: reserved))
+    end
+
+    # Runs `script` in place of the upstream stream, handing it the controller's on_chunk tee.
+    def stream_then(&script)
+      allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:stream) do |_adapter, _body, on_chunk:|
+        script.call(on_chunk)
+      end
+    end
+
+    def upstream_error(status)
+      Levelcode::OpenRouterAdapter::UpstreamError.new(status, "upstream said #{status}")
+    end
+
+    it "RELEASES the reservation when the provider errors before any content" do
+      stream_then { |_on_chunk| raise upstream_error(504) }
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, reserved, 0, 0, 0)
+      expect(RecordUsageJob).not_to receive(:perform_async)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).to include("service_unavailable")
+    end
+
+    it "bills the REAL usage when the provider errors after the usage chunk already arrived" do
+      stream_then do |on_chunk|
+        on_chunk.call(content_chunk)
+        on_chunk.call(usage_chunk)
+        raise upstream_error(504)
+      end
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, reserved, 12, 8, 1_000)
+      expect(RecordUsageJob).to receive(:perform_async).once
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+    end
+
+    it "charges the reserved estimate when the CLIENT hangs up after content, so walking away is not free" do
+      writes = 0
+      allow_any_instance_of(Api::Levelcode::V1::AiController).to receive(:write_sse) do
+        writes += 1
+        raise IOError, "closed stream" if writes > 1
+      end
+      stream_then do |on_chunk|
+        on_chunk.call(content_chunk)
+        on_chunk.call(content_chunk) # the write for this one raises: the client is gone
+      end
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, reserved, 0, 0, reserved)
+      expect(RecordUsageJob).to receive(:perform_async).once
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+    end
+
+    # Field report, 2026-10-15: Gemini 4 Argon on Google Vertex streamed some content and then the provider
+    # failed (504). OpenRouter billed $0.00 for those generations. The gateway treated "content streamed,
+    # no usage" as a client hang-up and charged the reserved worst case.
+    it "RELEASES the reservation when the provider errors AFTER content (the customer got a failure, not a turn)" do
+      stream_then do |on_chunk|
+        on_chunk.call(content_chunk)
+        raise upstream_error(504)
+      end
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, reserved, 0, 0, 0)
+      expect(RecordUsageJob).not_to receive(:perform_async)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).to include("data: #{content_chunk}\n\n") # what was produced still reached them
+      expect(response.body).to include("service_unavailable")
+    end
+
+    # EOFError is an IOError, so a provider connection that drops mid-body used to land in the same rescue
+    # as a client hang-up. Only a failed WRITE to the client is a hang-up.
+    it "RELEASES the reservation when the PROVIDER connection drops after content (EOFError is not a hang-up)" do
+      stream_then do |on_chunk|
+        on_chunk.call(content_chunk)
+        raise EOFError, "end of file reached"
+      end
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, reserved, 0, 0, 0)
+      expect(RecordUsageJob).not_to receive(:perform_async)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+    end
+  end
+
+  # A reasoning model can think for minutes before its first token, and the gateway used to send the
+  # editor nothing while it did. The proxy in front of the app closes an idle connection, which the editor
+  # shows as a bare "terminated" (field report, Gemini 4 Argon, 2026-10-15). SSE comments are ignored by
+  # every SSE reader, so the gateway sends one whenever it has been quiet for KEEPALIVE_INTERVAL.
+  describe "keep-alive while the provider is silent" do
+    let(:body) do
+      { model: "moonshotai/kimi-k2.6", stream: true, stream_options: { include_usage: true },
+        messages: [ { role: "user", content: "hi" } ] }
+    end
+
+    before do
+      allow(Levelcode::Metering).to receive(:check!)
+        .and_return(Levelcode::Metering::Decision.new(allowed: true, throttle: false, policy: "throttle"))
+    end
+
+    def silent_for(seconds)
+      allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:stream) do |_adapter, _body, on_chunk:|
+        sleep seconds
+        canned_chunks.each { |c| on_chunk.call(c) }
+        Levelcode::OpenRouterAdapter::Result.new(usage: final_usage, model: "moonshotai/kimi-k2.6")
+      end
+    end
+
+    it "sends SSE comments through a long silence, ahead of the first chunk, and none after [DONE]" do
+      stub_const("Api::Levelcode::V1::AiController::KEEPALIVE_INTERVAL", 0.05)
+      silent_for(0.4)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body.scan(": keepalive\n\n").size).to be >= 2
+      expect(response.body.index(": keepalive")).to be < response.body.index("data: #{canned_chunks.first}")
+      expect(response.body).to end_with("data: [DONE]\n\n")
+      canned_chunks.each { |c| expect(response.body).to include("data: #{c}\n\n") } # the real stream is untouched
+    end
+
+    # The worker can be past its idle check, about to write, at the instant the stream ends. Joining it in
+    # the `ensure` is too late: [DONE] is already out, so its comment would land after the terminator.
+    it "never lets a comment land after [DONE], even when the worker is mid-write as the stream ends" do
+      stub_const("Api::Levelcode::V1::AiController::KEEPALIVE_INTERVAL", 0.05)
+      allow_any_instance_of(Api::Levelcode::V1::AiController).to receive(:write_raw) do |controller, data|
+        sleep 0.3 if Thread.current.name == "levelcode-sse-keepalive" # passed its idle check, about to write
+        controller.response.stream.write(data)
+      end
+      silent_for(0.12)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).to include(": keepalive")
+      expect(response.body).to end_with("data: [DONE]\n\n")
+    end
+
+    it "sends none while chunks keep arriving" do
+      stub_streaming_adapter
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).not_to include(": keepalive")
+    end
+
+    it "does not leave its thread running when the turn ends" do
+      stub_const("Api::Levelcode::V1::AiController::KEEPALIVE_INTERVAL", 0.05)
+      silent_for(0.2)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(Thread.list.select { |t| t.name == "levelcode-sse-keepalive" && t.alive? }).to be_empty
+    end
+
+    # The keep-alive is a courtesy. Failing to start one must not cost the customer the turn, and must
+    # never leave the reservation held (the worker is started after the reservation is taken).
+    it "still streams the turn, without a keep-alive, when the worker thread cannot be created" do
+      allow_any_instance_of(Api::Levelcode::V1::AiController)
+        .to receive(:spawn_keepalive_thread).and_raise(ThreadError, "can't create Thread")
+      stub_streaming_adapter
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      canned_chunks.each { |c| expect(response.body).to include("data: #{c}\n\n") }
+      expect(response.body).to end_with("data: [DONE]\n\n")
+      expect(response.body).not_to include(": keepalive")
+    end
+
+    it "releases the reservation and answers with an error frame when starting the keep-alive raises" do
+      allow(Levelcode::Metering).to receive(:reserve!)
+        .and_return(Levelcode::Metering::Reservation.new(ok: true, amount: 5_000))
+      allow_any_instance_of(Api::Levelcode::V1::AiController)
+        .to receive(:start_keepalive).and_raise(RuntimeError, "boom")
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, 5_000, 0, 0, 0)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).to include("gateway_error")
+    end
+
+    it "does not hide an upstream failure: the error frame still arrives after the silence" do
+      stub_const("Api::Levelcode::V1::AiController::KEEPALIVE_INTERVAL", 0.05)
+      allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:stream) do
+        sleep 0.2
+        raise Levelcode::OpenRouterAdapter::UpstreamError.new(504, "gateway timeout")
+      end
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).to include(": keepalive")
+      expect(response.body).to include("service_unavailable")
+    end
+  end
+
   describe "scope enforcement (ai:chat vs ai:agent)" do
     before do
       allow(Levelcode::Metering).to receive(:check!)

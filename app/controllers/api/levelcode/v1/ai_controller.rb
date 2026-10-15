@@ -16,6 +16,11 @@ module Api
 
         PROVIDER = "openrouter".freeze
 
+        # Seconds of quiet before the stream gets an SSE comment. A reasoning model can think for minutes
+        # before its first token, and the proxy in front of the app closes an idle connection (nginx's
+        # proxy_read_timeout is 60 s by default), which the editor reports as a bare "terminated".
+        KEEPALIVE_INTERVAL = 15
+
         def chat
           # Entitlement (M11): a PAID plan runs the flagship (Kimi K2.7 Code); ANY
           # other logged-in editor user gets the FREE tier — the cheap open-weights
@@ -103,13 +108,19 @@ module Api
           @captured_usage = nil
           @captured_model = nil
           @streamed_content = false
+          @stream_failed = false # ended in a failure that was NOT the client leaving (provider, network, ours)
+          @client_gone = false   # a write TO the client failed
+          @keepalive = nil
           settled = false
 
           begin
+            # Inside the protected block: the reservation is already held, so anything raised from here
+            # on must reach the `ensure` that releases it and closes the stream.
+            start_keepalive
             result = ::Levelcode::AiRouter.call(
               body,
               model: model,
-              on_chunk: ->(payload) { capture_usage(payload); write_sse(payload) }
+              on_chunk: ->(payload) { tee_chunk(payload) }
             )
             @captured_usage ||= result&.usage
             @captured_model ||= result&.model
@@ -119,15 +130,32 @@ module Api
             settled, cost_micros = finalize_stream!(wallet, request_id, reservation, model, estimate)
             frame = credits_frame(wallet, cost_micros)
             write_sse(frame) if frame
+            # Joined BEFORE the terminator: a worker that already passed its idle check would otherwise
+            # write its comment after [DONE]. Once this returns, nothing else can be written but [DONE].
+            stop_keepalive
             write_raw("data: [DONE]\n\n")
           rescue ::Levelcode::OpenRouterAdapter::UpstreamError => e
+            @stream_failed = true
             klass = classify_upstream(e)
             log_upstream(e, klass)
             write_sse(upstream_error_json(klass))
-          rescue IOError, ActionController::Live::ClientDisconnected
-            # Client hung up mid-stream; nothing more to write.
-            Rails.logger.info("[Api::Levelcode::V1::AiController] client disconnected mid-stream")
+          rescue IOError, ActionController::Live::ClientDisconnected => e
+            if @client_gone || e.is_a?(ActionController::Live::ClientDisconnected)
+              # Client hung up mid-stream; nothing more to write.
+              Rails.logger.info("[Api::Levelcode::V1::AiController] client disconnected mid-stream")
+            else
+              # An IOError (EOFError, a reset socket) that did not come from writing to the client is the
+              # PROVIDER's connection dropping. It is not a hang-up, so the turn is not billed as one.
+              @stream_failed = true
+              Rails.logger.warn("[Api::Levelcode::V1::AiController] upstream connection dropped mid-stream: #{e.class}: #{e.message}")
+              begin
+                write_sse({ error: { message: "gateway_error", code: "gateway_error" } }.to_json)
+              rescue IOError, ActionController::Live::ClientDisconnected
+                nil
+              end
+            end
           rescue => e
+            @stream_failed = true
             Rails.logger.error("[Api::Levelcode::V1::AiController] stream error: #{e.class}: #{e.message}")
             begin
               write_sse({ error: { message: "gateway_error", code: "gateway_error" } }.to_json)
@@ -135,12 +163,23 @@ module Api
               nil
             end
           ensure
+            stop_keepalive
             # Settle the reservation + meter the turn exactly once, even on a mid-stream disconnect
             # (SPEC §5), so tokens already consumed upstream still count and the reservation is never
             # stranded. `settled` = the happy path already metered (before [DONE]) — don't double-count.
             finalize_stream!(wallet, request_id, reservation, model, estimate) unless settled
             close_stream
           end
+        end
+
+        # One upstream chunk on its way to the editor. A failed WRITE here is the one thing that means the
+        # client left; remember it, because an IOError raised anywhere else in the stream is the provider's.
+        def tee_chunk(payload)
+          capture_usage(payload)
+          write_sse(payload)
+        rescue IOError, ActionController::Live::ClientDisconnected
+          @client_gone = true
+          raise
         end
 
         # OpenRouter emits the final usage/model object as a chunk before [DONE]. Capture it off the tee
@@ -163,10 +202,13 @@ module Api
 
         # Settle the reservation + meter the turn exactly once, whatever happened to the stream:
         #  • usage captured  → bill the REAL cost (and release the over-reserved remainder).
-        #  • no usage but content WAS streamed (client hung up before the final usage chunk) → tokens
-        #    were produced upstream, so don't zero-bill: charge the reserved estimate + write a
+        #  • no usage but content WAS streamed AND the client left (hung up before the final usage chunk)
+        #    → tokens were produced upstream, so don't zero-bill: charge the reserved estimate + write a
         #    synthetic ledger row so the durable column matches the hot counter.
         #  • no usage and nothing streamed (pure upstream error / instant disconnect) → release it.
+        #  • no usage, content streamed, but the stream FAILED on the provider's or our side → release it.
+        #    The reservation is the worst case for the turn, and the customer got an error, not a turn
+        #    (OpenRouter billed $0.00 for the 504s that were charged at the estimate before this).
         def finalize_stream!(wallet, request_id, reservation, model, estimate)
           if @captured_usage.present?
             meter!(
@@ -174,7 +216,7 @@ module Api
               ::Levelcode::OpenRouterAdapter::Result.new(usage: @captured_usage, model: @captured_model),
               request_id, reservation, model
             )
-          elsif @streamed_content
+          elsif @streamed_content && !@stream_failed
             # Tokens were produced upstream but the usage chunk never arrived (client hung up). Charge
             # the reserved estimate; if the reservation failed OPEN (amount 0 on a Redis blip at
             # admission), fall back to a fresh estimate so a disconnect-after-output is never billed $0.
@@ -337,6 +379,49 @@ module Api
 
         def write_raw(data)
           response.stream.write(data)
+          @last_write_at = monotonic_now
+        end
+
+        # While the provider is quiet, write an SSE comment (`: keepalive`) every KEEPALIVE_INTERVAL.
+        # Every SSE reader ignores comment lines (the editor only reads `data:`), and each write tells the
+        # proxy the connection is alive. Frames are written whole, so they cannot interleave with a chunk.
+        def start_keepalive
+          @last_write_at = monotonic_now
+          @keepalive_stop = Queue.new
+          @keepalive = spawn_keepalive_thread
+        rescue StandardError => e
+          # A courtesy, not a requirement: a turn must not fail because the worker could not be created.
+          @keepalive = nil
+          Rails.logger.warn("[Api::Levelcode::V1::AiController] keep-alive not started: #{e.class}: #{e.message}")
+        end
+
+        def spawn_keepalive_thread
+          Thread.new do
+            Thread.current.name = "levelcode-sse-keepalive"
+            Thread.current.report_on_exception = false
+            loop do
+              break if @keepalive_stop.pop(timeout: KEEPALIVE_INTERVAL) == :stop
+              next if monotonic_now - @last_write_at < KEEPALIVE_INTERVAL
+
+              write_raw(": keepalive\n\n")
+            end
+          rescue IOError, ActionController::Live::ClientDisconnected
+            nil # the client is gone; the request thread will see the same on its next write
+          end
+        end
+
+        # Idempotent. Called before [DONE] on the happy path and again from the `ensure` on every path.
+        def stop_keepalive
+          worker = @keepalive
+          return unless worker
+
+          @keepalive = nil
+          @keepalive_stop << :stop
+          worker.join(2) || worker.kill
+        end
+
+        def monotonic_now
+          Process.clock_gettime(Process::CLOCK_MONOTONIC)
         end
 
         def close_stream
