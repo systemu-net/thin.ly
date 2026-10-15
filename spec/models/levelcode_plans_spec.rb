@@ -135,12 +135,13 @@ RSpec.describe Levelcode do
     it 'free/no-plan may use ONLY the open-weights engine' do
       expect(Levelcode.allowed_models('free')).to eq([ Levelcode::FREE_MODEL ])
       expect(Levelcode.allowed_models(nil)).to eq([ Levelcode::FREE_MODEL ])
+      expect(Levelcode.gateway_model('free', 'google/gemini-4-argon')).to eq(Levelcode::FREE_MODEL)
     end
 
     it 'a paid plan may use the flagship AND the open-weights engine (confirmed-price roster)' do
       # Every Pro-tier engine is confirmed now — the frontier rows (Codex 5.3, GPT-5.5, Sonnet 5) went live.
       expect(Levelcode.allowed_models('orbits_pro')).to match_array([ Levelcode::DEFAULT_MODEL, Levelcode::FREE_MODEL, 'anthropic/claude-opus-4-8', 'anthropic/claude-opus-5', 'moonshotai/kimi-k3', 'openai/gpt-5.3-codex', 'openai/gpt-5.5', 'anthropic/claude-sonnet-5',
-                                                                       'anthropic/claude-fable-5', 'anthropic/claude-fable-5.1' ])
+                                                                       'anthropic/claude-fable-5', 'anthropic/claude-fable-5.1', 'google/gemini-4-argon' ])
       # Fable 5 / 5.1 are Pro-tier since 2026-09-08 (owner's call). Astra is the one Pro can't reach.
       expect(Levelcode.allowed_models('orbits_pro')).not_to include('openai/gpt-6-astra')
     end
