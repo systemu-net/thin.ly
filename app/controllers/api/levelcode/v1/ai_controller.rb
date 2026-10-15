@@ -103,13 +103,15 @@ module Api
           @captured_usage = nil
           @captured_model = nil
           @streamed_content = false
+          @stream_failed = false # ended in a failure that was NOT the client leaving (provider, network, ours)
+          @client_gone = false   # a write TO the client failed
           settled = false
 
           begin
             result = ::Levelcode::AiRouter.call(
               body,
               model: model,
-              on_chunk: ->(payload) { capture_usage(payload); write_sse(payload) }
+              on_chunk: ->(payload) { tee_chunk(payload) }
             )
             @captured_usage ||= result&.usage
             @captured_model ||= result&.model
@@ -121,13 +123,27 @@ module Api
             write_sse(frame) if frame
             write_raw("data: [DONE]\n\n")
           rescue ::Levelcode::OpenRouterAdapter::UpstreamError => e
+            @stream_failed = true
             klass = classify_upstream(e)
             log_upstream(e, klass)
             write_sse(upstream_error_json(klass))
-          rescue IOError, ActionController::Live::ClientDisconnected
-            # Client hung up mid-stream; nothing more to write.
-            Rails.logger.info("[Api::Levelcode::V1::AiController] client disconnected mid-stream")
+          rescue IOError, ActionController::Live::ClientDisconnected => e
+            if @client_gone || e.is_a?(ActionController::Live::ClientDisconnected)
+              # Client hung up mid-stream; nothing more to write.
+              Rails.logger.info("[Api::Levelcode::V1::AiController] client disconnected mid-stream")
+            else
+              # An IOError (EOFError, a reset socket) that did not come from writing to the client is the
+              # PROVIDER's connection dropping. It is not a hang-up, so the turn is not billed as one.
+              @stream_failed = true
+              Rails.logger.warn("[Api::Levelcode::V1::AiController] upstream connection dropped mid-stream: #{e.class}: #{e.message}")
+              begin
+                write_sse({ error: { message: "gateway_error", code: "gateway_error" } }.to_json)
+              rescue IOError, ActionController::Live::ClientDisconnected
+                nil
+              end
+            end
           rescue => e
+            @stream_failed = true
             Rails.logger.error("[Api::Levelcode::V1::AiController] stream error: #{e.class}: #{e.message}")
             begin
               write_sse({ error: { message: "gateway_error", code: "gateway_error" } }.to_json)
@@ -141,6 +157,16 @@ module Api
             finalize_stream!(wallet, request_id, reservation, model, estimate) unless settled
             close_stream
           end
+        end
+
+        # One upstream chunk on its way to the editor. A failed WRITE here is the one thing that means the
+        # client left; remember it, because an IOError raised anywhere else in the stream is the provider's.
+        def tee_chunk(payload)
+          capture_usage(payload)
+          write_sse(payload)
+        rescue IOError, ActionController::Live::ClientDisconnected
+          @client_gone = true
+          raise
         end
 
         # OpenRouter emits the final usage/model object as a chunk before [DONE]. Capture it off the tee
@@ -163,10 +189,13 @@ module Api
 
         # Settle the reservation + meter the turn exactly once, whatever happened to the stream:
         #  • usage captured  → bill the REAL cost (and release the over-reserved remainder).
-        #  • no usage but content WAS streamed (client hung up before the final usage chunk) → tokens
-        #    were produced upstream, so don't zero-bill: charge the reserved estimate + write a
+        #  • no usage but content WAS streamed AND the client left (hung up before the final usage chunk)
+        #    → tokens were produced upstream, so don't zero-bill: charge the reserved estimate + write a
         #    synthetic ledger row so the durable column matches the hot counter.
         #  • no usage and nothing streamed (pure upstream error / instant disconnect) → release it.
+        #  • no usage, content streamed, but the stream FAILED on the provider's or our side → release it.
+        #    The reservation is the worst case for the turn, and the customer got an error, not a turn
+        #    (OpenRouter billed $0.00 for the 504s that were charged at the estimate before this).
         def finalize_stream!(wallet, request_id, reservation, model, estimate)
           if @captured_usage.present?
             meter!(
@@ -174,7 +203,7 @@ module Api
               ::Levelcode::OpenRouterAdapter::Result.new(usage: @captured_usage, model: @captured_model),
               request_id, reservation, model
             )
-          elsif @streamed_content
+          elsif @streamed_content && !@stream_failed
             # Tokens were produced upstream but the usage chunk never arrived (client hung up). Charge
             # the reserved estimate; if the reservation failed OPEN (amount 0 on a Redis blip at
             # admission), fall back to a fresh estimate so a disconnect-after-output is never billed $0.

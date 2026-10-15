@@ -384,6 +384,36 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
 
       post "/api/levelcode/v1/ai/chat", params: body, as: :json
     end
+
+    # Field report, 2026-10-15: Gemini 4 Argon on Google Vertex streamed some content and then the provider
+    # failed (504). OpenRouter billed $0.00 for those generations. The gateway treated "content streamed,
+    # no usage" as a client hang-up and charged the reserved worst case.
+    it "RELEASES the reservation when the provider errors AFTER content (the customer got a failure, not a turn)" do
+      stream_then do |on_chunk|
+        on_chunk.call(content_chunk)
+        raise upstream_error(504)
+      end
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, reserved, 0, 0, 0)
+      expect(RecordUsageJob).not_to receive(:perform_async)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).to include("data: #{content_chunk}\n\n") # what was produced still reached them
+      expect(response.body).to include("service_unavailable")
+    end
+
+    # EOFError is an IOError, so a provider connection that drops mid-body used to land in the same rescue
+    # as a client hang-up. Only a failed WRITE to the client is a hang-up.
+    it "RELEASES the reservation when the PROVIDER connection drops after content (EOFError is not a hang-up)" do
+      stream_then do |on_chunk|
+        on_chunk.call(content_chunk)
+        raise EOFError, "end of file reached"
+      end
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, reserved, 0, 0, 0)
+      expect(RecordUsageJob).not_to receive(:perform_async)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+    end
   end
 
   describe "scope enforcement (ai:chat vs ai:agent)" do
