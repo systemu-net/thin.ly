@@ -113,6 +113,12 @@ RSpec.describe "Api::Levelcode::V1::Account", type: :request do
       k3 = body["models"].find { |m| m["id"] == "moonshotai/kimi-k3" }
       expect(k3["live"]).to be(true)                   # confirmed OpenRouter price → selectable + billable
       expect(k3["multiplier"]).to be_within(0.05).of(4.00)   # ~4× the Kimi K2.7 flagship baseline
+      # Gemini 4 Argon reaches every Pro user from this one catalog row, with no editor release: the
+      # picker reads this roster live. At the introductory $2/$10 it buys about 100 reference turns.
+      argon = body["models"].find { |m| m["id"] == "google/gemini-4-argon" }
+      expect(argon["live"]).to be(true)
+      expect(argon["multiplier"]).to be_within(0.05).of(2.61)
+      expect(argon["turns_left"]).to be_within(2).of(99)
       opus = body["models"].find { |m| m["id"] == "anthropic/claude-opus-4-8" }
       expect(opus["live"]).to be(true)                # price confirmed → live + billable
       expect(opus["multiplier"]).to be_within(0.05).of(6.67)

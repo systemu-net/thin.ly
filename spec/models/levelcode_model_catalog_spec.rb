@@ -19,6 +19,7 @@ RSpec.describe Levelcode::ModelCatalog do
       expect(described_class.find("anthropic/claude-opus-4-8")[:context]).to eq(1_000_000)
       expect(described_class.find("anthropic/claude-opus-5")[:context]).to eq(1_000_000)
       expect(described_class.find("moonshotai/kimi-k3")[:context]).to eq(1_048_576)
+      expect(described_class.find("google/gemini-4-argon")[:context]).to eq(1_048_576)
       expect(described_class.find("openai/gpt-oss-120b")[:context]).to eq(131_072)
       expect(described_class.find("openai/gpt-6-astra")[:context]).to eq(1_050_000)
       expect(described_class.find("anthropic/claude-fable-5.1")[:context]).to eq(1_000_000)
@@ -29,6 +30,7 @@ RSpec.describe Levelcode::ModelCatalog do
     it "rate_table exposes every roster model's per-token rates (feeds Levelcode.cost_micros)" do
       expect(described_class.rate_table["moonshotai/kimi-k2.7-code"]).to eq(input: 0.74, cached_input: 0.15, output: 3.50)
       expect(described_class.rate_table["moonshotai/kimi-k3"]).to eq(input: 3.00, cached_input: 0.30, output: 15.00)
+      expect(described_class.rate_table["google/gemini-4-argon"]).to eq(input: 2.00, cached_input: 0.10, output: 10.00)
       expect(described_class.rate_table.keys).to match_array(described_class.ids)
     end
   end
@@ -44,6 +46,8 @@ RSpec.describe Levelcode::ModelCatalog do
     it "reproduces the analysis multipliers (within rounding)" do
       {
         "openai/gpt-oss-120b" => 0.05, "moonshotai/kimi-k2.7-code" => 1.00,
+        # Gemini 4 Argon at its introductory rate; it doubles to ~5.23 when the standard rate applies.
+        "google/gemini-4-argon" => 2.61,
         "anthropic/claude-sonnet-5" => 2.67, "openai/gpt-5.3-codex" => 3.10, "moonshotai/kimi-k3" => 4.00,
         # Opus 5 TIES Opus 4.8 — identical rates ⇒ identical multiplier. That tie is exactly what lets
         # it sit beside 4.8 without disturbing the monotonic ordering asserted below.
@@ -73,7 +77,7 @@ RSpec.describe Levelcode::ModelCatalog do
     it "pro reaches Fable 5 and 5.1 (owner's call, 2026-09-08 — reach over rec #3) but not Astra" do
       pro = described_class.entitled(:pro)
       expect(pro).to include("moonshotai/kimi-k2.7-code", "anthropic/claude-opus-4-8", "anthropic/claude-opus-5", "openai/gpt-5.5",
-                             "anthropic/claude-fable-5", "anthropic/claude-fable-5.1")
+                             "anthropic/claude-fable-5", "anthropic/claude-fable-5.1", "google/gemini-4-argon")
       expect(pro).not_to include("openai/gpt-6-astra")
     end
 

@@ -39,6 +39,21 @@ module Levelcode
       # Frontier rows re-verified against the OpenRouter models API on 2026-07-26 -- the earlier lineage
       # estimates were wrong (Codex even carried a non-existent slug). Ordered by COST (ascending multiplier),
       # the monotonic-multiplier invariant (spec) the picker relies on.
+      #
+      # Gemini 4 Argon sits before Sonnet 5 by cost: 2.61x against 2.67x.
+      "google/gemini-4-argon" => {
+        label: "Gemini 4 Argon", provider: "openrouter",
+        # Confirmed vs the OpenRouter endpoints API (2026-10-14, listed 2026-10-13): $2/M in · $10/M out ·
+        # $0.10/M cached read · 1,048,576 ctx, on Google Vertex (global) and Google AI Studio alike.
+        # INTRODUCTORY (50% off) through 2026-11-30; the standard rate is $4 / $20 / $0.20. RE-PRICE BY
+        # 2026-11-30: this row is also the OpenRouter max_price ceiling, so once the intro rate ends a stale
+        # row makes OpenRouter refuse every Argon request (loudly, never at a loss).
+        # Always-on reasoning with no off switch; reasoning bills at the output rate, and the ledger meters
+        # real usage, so that is covered. The agent loop was checked with scripts/kimi-k3-spike.js on
+        # 2026-10-14: turn 2 succeeds without reasoning carried back.
+        input: 2.00, cached_input: 0.10, output: 10.00,
+        context: 1_048_576, min_tier: :pro, status: :confirmed
+      },
       "anthropic/claude-sonnet-5" => {
         label: "Sonnet 5", provider: "openrouter",
         # OpenRouter 2026-07-26: $2/M in, $10/M out, $0.20/M cached, 1M ctx.

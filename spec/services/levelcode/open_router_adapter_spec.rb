@@ -53,6 +53,14 @@ RSpec.describe Levelcode::OpenRouterAdapter do
       expect(out["provider"]["max_price"]).to eq("prompt" => row[:input].to_f, "completion" => row[:output].to_f)
     end
 
+    # Argon's row is its introductory rate, so the ceiling keeps OpenRouter on the $2/$10 endpoints and off
+    # Vertex US ($2.20/$11) and both Priority endpoints ($3.60/$18). When the intro rate ends on 2026-11-30
+    # every endpoint lists above this ceiling and OpenRouter refuses the request: the re-price is due by then.
+    it "ceilings Gemini 4 Argon at its introductory rate" do
+      expect(routed("model" => "google/gemini-4-argon", "messages" => [])["provider"])
+        .to eq("max_price" => { "prompt" => 2.0, "completion" => 10.0 })
+    end
+
     it "ceilings every confirmed paid row at its own rate (no model is left routable over price)" do
       Levelcode::ModelCatalog.ids.reject { |id| id == Levelcode::FREE_MODEL }.each do |id|
         row = Levelcode::ModelCatalog.find(id)
