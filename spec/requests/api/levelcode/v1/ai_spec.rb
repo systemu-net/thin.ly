@@ -317,6 +317,75 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
     end
   end
 
+  # What the customer is charged when a stream ends WITHOUT its usage chunk. The reservation is the
+  # worst case for the turn (input plus the full output ceiling), so it is only a fair charge when the
+  # CLIENT walked away after the model had produced something. Each way a stream can end is pinned here.
+  describe "settlement when a stream ends without a usage chunk" do
+    let(:body) do
+      { model: "moonshotai/kimi-k2.6", stream: true, stream_options: { include_usage: true },
+        messages: [ { role: "user", content: "hi" } ] }
+    end
+    let(:reserved) { 5_000 }
+    let(:content_chunk) { '{"choices":[{"index":0,"delta":{"content":"partial "}}]}' }
+    let(:usage_chunk) { '{"choices":[{"index":0,"delta":{}}],"usage":{"prompt_tokens":12,"completion_tokens":8}}' }
+
+    before do
+      allow(Levelcode::Metering).to receive(:check!)
+        .and_return(Levelcode::Metering::Decision.new(allowed: true, throttle: false, policy: "throttle"))
+      allow(Levelcode::Metering).to receive(:reserve!)
+        .and_return(Levelcode::Metering::Reservation.new(ok: true, amount: reserved))
+    end
+
+    # Runs `script` in place of the upstream stream, handing it the controller's on_chunk tee.
+    def stream_then(&script)
+      allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:stream) do |_adapter, _body, on_chunk:|
+        script.call(on_chunk)
+      end
+    end
+
+    def upstream_error(status)
+      Levelcode::OpenRouterAdapter::UpstreamError.new(status, "upstream said #{status}")
+    end
+
+    it "RELEASES the reservation when the provider errors before any content" do
+      stream_then { |_on_chunk| raise upstream_error(504) }
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, reserved, 0, 0, 0)
+      expect(RecordUsageJob).not_to receive(:perform_async)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).to include("service_unavailable")
+    end
+
+    it "bills the REAL usage when the provider errors after the usage chunk already arrived" do
+      stream_then do |on_chunk|
+        on_chunk.call(content_chunk)
+        on_chunk.call(usage_chunk)
+        raise upstream_error(504)
+      end
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, reserved, 12, 8, 1_000)
+      expect(RecordUsageJob).to receive(:perform_async).once
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+    end
+
+    it "charges the reserved estimate when the CLIENT hangs up after content, so walking away is not free" do
+      writes = 0
+      allow_any_instance_of(Api::Levelcode::V1::AiController).to receive(:write_sse) do
+        writes += 1
+        raise IOError, "closed stream" if writes > 1
+      end
+      stream_then do |on_chunk|
+        on_chunk.call(content_chunk)
+        on_chunk.call(content_chunk) # the write for this one raises: the client is gone
+      end
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, reserved, 0, 0, reserved)
+      expect(RecordUsageJob).to receive(:perform_async).once
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+    end
+  end
+
   describe "scope enforcement (ai:chat vs ai:agent)" do
     before do
       allow(Levelcode::Metering).to receive(:check!)
