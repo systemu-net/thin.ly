@@ -416,6 +416,72 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
     end
   end
 
+  # A reasoning model can think for minutes before its first token, and the gateway used to send the
+  # editor nothing while it did. The proxy in front of the app closes an idle connection, which the editor
+  # shows as a bare "terminated" (field report, Gemini 4 Argon, 2026-10-15). SSE comments are ignored by
+  # every SSE reader, so the gateway sends one whenever it has been quiet for KEEPALIVE_INTERVAL.
+  describe "keep-alive while the provider is silent" do
+    let(:body) do
+      { model: "moonshotai/kimi-k2.6", stream: true, stream_options: { include_usage: true },
+        messages: [ { role: "user", content: "hi" } ] }
+    end
+
+    before do
+      allow(Levelcode::Metering).to receive(:check!)
+        .and_return(Levelcode::Metering::Decision.new(allowed: true, throttle: false, policy: "throttle"))
+    end
+
+    def silent_for(seconds)
+      allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:stream) do |_adapter, _body, on_chunk:|
+        sleep seconds
+        canned_chunks.each { |c| on_chunk.call(c) }
+        Levelcode::OpenRouterAdapter::Result.new(usage: final_usage, model: "moonshotai/kimi-k2.6")
+      end
+    end
+
+    it "sends SSE comments through a long silence, ahead of the first chunk, and none after [DONE]" do
+      stub_const("Api::Levelcode::V1::AiController::KEEPALIVE_INTERVAL", 0.05)
+      silent_for(0.4)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body.scan(": keepalive\n\n").size).to be >= 2
+      expect(response.body.index(": keepalive")).to be < response.body.index("data: #{canned_chunks.first}")
+      expect(response.body).to end_with("data: [DONE]\n\n")
+      canned_chunks.each { |c| expect(response.body).to include("data: #{c}\n\n") } # the real stream is untouched
+    end
+
+    it "sends none while chunks keep arriving" do
+      stub_streaming_adapter
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).not_to include(": keepalive")
+    end
+
+    it "does not leave its thread running when the turn ends" do
+      stub_const("Api::Levelcode::V1::AiController::KEEPALIVE_INTERVAL", 0.05)
+      silent_for(0.2)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(Thread.list.select { |t| t.name == "levelcode-sse-keepalive" && t.alive? }).to be_empty
+    end
+
+    it "does not hide an upstream failure: the error frame still arrives after the silence" do
+      stub_const("Api::Levelcode::V1::AiController::KEEPALIVE_INTERVAL", 0.05)
+      allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:stream) do
+        sleep 0.2
+        raise Levelcode::OpenRouterAdapter::UpstreamError.new(504, "gateway timeout")
+      end
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).to include(": keepalive")
+      expect(response.body).to include("service_unavailable")
+    end
+  end
+
   describe "scope enforcement (ai:chat vs ai:agent)" do
     before do
       allow(Levelcode::Metering).to receive(:check!)

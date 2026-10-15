@@ -16,6 +16,11 @@ module Api
 
         PROVIDER = "openrouter".freeze
 
+        # Seconds of quiet before the stream gets an SSE comment. A reasoning model can think for minutes
+        # before its first token, and the proxy in front of the app closes an idle connection (nginx's
+        # proxy_read_timeout is 60 s by default), which the editor reports as a bare "terminated".
+        KEEPALIVE_INTERVAL = 15
+
         def chat
           # Entitlement (M11): a PAID plan runs the flagship (Kimi K2.7 Code); ANY
           # other logged-in editor user gets the FREE tier — the cheap open-weights
@@ -106,6 +111,7 @@ module Api
           @stream_failed = false # ended in a failure that was NOT the client leaving (provider, network, ours)
           @client_gone = false   # a write TO the client failed
           settled = false
+          start_keepalive
 
           begin
             result = ::Levelcode::AiRouter.call(
@@ -151,6 +157,7 @@ module Api
               nil
             end
           ensure
+            stop_keepalive
             # Settle the reservation + meter the turn exactly once, even on a mid-stream disconnect
             # (SPEC §5), so tokens already consumed upstream still count and the reservation is never
             # stranded. `settled` = the happy path already metered (before [DONE]) — don't double-count.
@@ -366,6 +373,39 @@ module Api
 
         def write_raw(data)
           response.stream.write(data)
+          @last_write_at = monotonic_now
+        end
+
+        # While the provider is quiet, write an SSE comment (`: keepalive`) every KEEPALIVE_INTERVAL.
+        # Every SSE reader ignores comment lines (the editor only reads `data:`), and each write tells the
+        # proxy the connection is alive. Frames are written whole, so they cannot interleave with a chunk.
+        def start_keepalive
+          @last_write_at = monotonic_now
+          @keepalive_stop = Queue.new
+          @keepalive = Thread.new do
+            Thread.current.name = "levelcode-sse-keepalive"
+            Thread.current.report_on_exception = false
+            loop do
+              break if @keepalive_stop.pop(timeout: KEEPALIVE_INTERVAL) == :stop
+              next if monotonic_now - @last_write_at < KEEPALIVE_INTERVAL
+
+              write_raw(": keepalive\n\n")
+            end
+          rescue IOError, ActionController::Live::ClientDisconnected
+            nil # the client is gone; the request thread will see the same on its next write
+          end
+        end
+
+        # Joined BEFORE the stream is closed, so no comment can land after the terminator.
+        def stop_keepalive
+          return unless @keepalive
+
+          @keepalive_stop << :stop
+          @keepalive.join(2) || @keepalive.kill
+        end
+
+        def monotonic_now
+          Process.clock_gettime(Process::CLOCK_MONOTONIC)
         end
 
         def close_stream
