@@ -130,6 +130,9 @@ module Api
             settled, cost_micros = finalize_stream!(wallet, request_id, reservation, model, estimate)
             frame = credits_frame(wallet, cost_micros)
             write_sse(frame) if frame
+            # Joined BEFORE the terminator: a worker that already passed its idle check would otherwise
+            # write its comment after [DONE]. Once this returns, nothing else can be written but [DONE].
+            stop_keepalive
             write_raw("data: [DONE]\n\n")
           rescue ::Levelcode::OpenRouterAdapter::UpstreamError => e
             @stream_failed = true
@@ -407,12 +410,14 @@ module Api
           end
         end
 
-        # Joined BEFORE the stream is closed, so no comment can land after the terminator.
+        # Idempotent. Called before [DONE] on the happy path and again from the `ensure` on every path.
         def stop_keepalive
-          return unless @keepalive
+          worker = @keepalive
+          return unless worker
 
+          @keepalive = nil
           @keepalive_stop << :stop
-          @keepalive.join(2) || @keepalive.kill
+          worker.join(2) || worker.kill
         end
 
         def monotonic_now

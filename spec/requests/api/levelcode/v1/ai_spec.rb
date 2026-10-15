@@ -451,6 +451,22 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
       canned_chunks.each { |c| expect(response.body).to include("data: #{c}\n\n") } # the real stream is untouched
     end
 
+    # The worker can be past its idle check, about to write, at the instant the stream ends. Joining it in
+    # the `ensure` is too late: [DONE] is already out, so its comment would land after the terminator.
+    it "never lets a comment land after [DONE], even when the worker is mid-write as the stream ends" do
+      stub_const("Api::Levelcode::V1::AiController::KEEPALIVE_INTERVAL", 0.05)
+      allow_any_instance_of(Api::Levelcode::V1::AiController).to receive(:write_raw) do |controller, data|
+        sleep 0.3 if Thread.current.name == "levelcode-sse-keepalive" # passed its idle check, about to write
+        controller.response.stream.write(data)
+      end
+      silent_for(0.12)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).to include(": keepalive")
+      expect(response.body).to end_with("data: [DONE]\n\n")
+    end
+
     it "sends none while chunks keep arriving" do
       stub_streaming_adapter
 
