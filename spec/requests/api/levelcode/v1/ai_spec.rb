@@ -468,6 +468,32 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
       expect(Thread.list.select { |t| t.name == "levelcode-sse-keepalive" && t.alive? }).to be_empty
     end
 
+    # The keep-alive is a courtesy. Failing to start one must not cost the customer the turn, and must
+    # never leave the reservation held (the worker is started after the reservation is taken).
+    it "still streams the turn, without a keep-alive, when the worker thread cannot be created" do
+      allow_any_instance_of(Api::Levelcode::V1::AiController)
+        .to receive(:spawn_keepalive_thread).and_raise(ThreadError, "can't create Thread")
+      stub_streaming_adapter
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      canned_chunks.each { |c| expect(response.body).to include("data: #{c}\n\n") }
+      expect(response.body).to end_with("data: [DONE]\n\n")
+      expect(response.body).not_to include(": keepalive")
+    end
+
+    it "releases the reservation and answers with an error frame when starting the keep-alive raises" do
+      allow(Levelcode::Metering).to receive(:reserve!)
+        .and_return(Levelcode::Metering::Reservation.new(ok: true, amount: 5_000))
+      allow_any_instance_of(Api::Levelcode::V1::AiController)
+        .to receive(:start_keepalive).and_raise(RuntimeError, "boom")
+      expect(Levelcode::Metering).to receive(:settle!).once.with(wallet, 5_000, 0, 0, 0)
+
+      post "/api/levelcode/v1/ai/chat", params: body, as: :json
+
+      expect(response.body).to include("gateway_error")
+    end
+
     it "does not hide an upstream failure: the error frame still arrives after the silence" do
       stub_const("Api::Levelcode::V1::AiController::KEEPALIVE_INTERVAL", 0.05)
       allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:stream) do

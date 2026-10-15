@@ -110,10 +110,13 @@ module Api
           @streamed_content = false
           @stream_failed = false # ended in a failure that was NOT the client leaving (provider, network, ours)
           @client_gone = false   # a write TO the client failed
+          @keepalive = nil
           settled = false
-          start_keepalive
 
           begin
+            # Inside the protected block: the reservation is already held, so anything raised from here
+            # on must reach the `ensure` that releases it and closes the stream.
+            start_keepalive
             result = ::Levelcode::AiRouter.call(
               body,
               model: model,
@@ -382,7 +385,15 @@ module Api
         def start_keepalive
           @last_write_at = monotonic_now
           @keepalive_stop = Queue.new
-          @keepalive = Thread.new do
+          @keepalive = spawn_keepalive_thread
+        rescue StandardError => e
+          # A courtesy, not a requirement: a turn must not fail because the worker could not be created.
+          @keepalive = nil
+          Rails.logger.warn("[Api::Levelcode::V1::AiController] keep-alive not started: #{e.class}: #{e.message}")
+        end
+
+        def spawn_keepalive_thread
+          Thread.new do
             Thread.current.name = "levelcode-sse-keepalive"
             Thread.current.report_on_exception = false
             loop do
