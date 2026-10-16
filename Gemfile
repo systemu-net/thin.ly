@@ -70,7 +70,7 @@ gem "octokit", "~> 10.0"
 
 gem "googleauth", "~> 1.17"
 gem "google-apis-safebrowsing_v4", "~> 0.22.0"
-gem "json", "2.21.2"
+gem "json", "3.1.0"
 gem "bigdecimal", "4.1.3"
 gem "bcrypt", "3.1.21"
 
