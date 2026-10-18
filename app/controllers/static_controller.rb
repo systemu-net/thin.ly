@@ -1,4 +1,10 @@
 class StaticController < ApplicationController
+  # This controller only serves pages and the catch-all 404 (`match "*path", via: :all`), so a POST
+  # from a bot lands here too. Skip CSRF: ApplicationController's :null_session handler calls
+  # `request.flash = nil`, which this api_only app does not define (no Flash middleware), turning
+  # every tokenless POST/PUT/DELETE to an unknown path (e.g. POST /login) into a 500 instead of a 404.
+  skip_forgery_protection
+
   # Strict host↔brand isolation:
   #   • a LevelCode host serves ONLY the account app (levelcode shell); bare paths funnel into /ai and
   #     it never renders the thin.ly shortener shell.

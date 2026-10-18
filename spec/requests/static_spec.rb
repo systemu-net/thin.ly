@@ -12,6 +12,34 @@ RSpec.describe "Static host/brand isolation", type: :request do
     allow(Levelcode::Hosts).to receive(:current).and_return(Levelcode::Hosts.new(hosts: hosts, origin: origin))
   end
 
+  describe "a tokenless non-GET request to an unknown path (bot probes like POST /login)" do
+    # Forgery protection is off in the test env, which would hide the bug — turn it on for these.
+    around do |example|
+      original = ActionController::Base.allow_forgery_protection
+      ActionController::Base.allow_forgery_protection = true
+      example.run
+    ensure
+      ActionController::Base.allow_forgery_protection = original
+    end
+
+    # Production (api_only, eager-loaded) never loads ActionDispatch::Flash, so ApplicationController's
+    # :null_session handler (`request.flash = nil`) raises NoMethodError there. The test env happens to
+    # load Flash, so make the handler fail the way it does in production: it must never be reached.
+    before do
+      allow_any_instance_of(StaticController).to receive(:handle_unverified_request)
+        .and_raise(NoMethodError, "undefined method 'flash=' for an instance of ActionDispatch::Request")
+    end
+
+    before { host! "thin.ly" }
+
+    %i[post put patch delete].each do |verb|
+      it "answers #{verb.upcase} with a 404, not a 500" do
+        public_send(verb, "/login", params: { junk: "A" * 100 })
+        expect(response).to have_http_status(:not_found)
+      end
+    end
+  end
+
   describe "on the thin.ly (shortener) host" do
     before { host! "thin.ly" }
 
