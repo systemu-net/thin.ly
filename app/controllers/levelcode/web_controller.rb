@@ -19,7 +19,8 @@ module Levelcode
   #     server told of a web editor, that page's callback — Levelcode::EditorCallback) ->
   #     mint a single-use Levelcode::OneTimeCode bound to the editor's PKCE
   #     code_challenge and hand back `<redirect_uri>?code=<code>` (never tokens).
-  #   - web: Devise sign_in(user) -> destination /ai/account.
+  #   - web: Devise sign_in(user) -> destination: the page the visitor asked for (`next`), else the
+  #     web editor when it is on (it signs itself in from this session), else /ai/account.
   class WebController < ApplicationController
     include AccessTracking
 
@@ -34,6 +35,11 @@ module Levelcode
     # resend window alone can be fanned out across many addresses — bound by source IP.
     EMAIL_SEND_WINDOW = 1.hour.to_i
     EMAIL_SEND_MAX = 20
+
+    # The longest `next` (a page of this site to land on after signing in) that is taken, and the characters it may
+    # be written in: RFC 3986's path and query characters and well-formed percent escapes (#safe_next).
+    NEXT_MAX = 512
+    NEXT_CHARS = %r{\A(?:[A-Za-z0-9\-._~!$&'()*+,;=:@/?]|%\h\h)+\z}
 
     # POST /ai/auth/email  (JSON) — passwordless step 1: email a 6-digit code.
     def email_request
@@ -57,12 +63,13 @@ module Levelcode
       render json: { sent: true }
     end
 
-    # POST /ai/auth/verify  (JSON) — step 2. Body: { email, code, redirect_uri?, code_challenge? }.
+    # POST /ai/auth/verify  (JSON) — step 2. Body: { email, code, redirect_uri?, code_challenge?, next? }.
     # The editor threads redirect_uri + code_challenge as params (there is no
     # server-rendered login page to stash them in session first).
     def email_verify
       @redirect_uri = editor_redirect_uri(params[:redirect_uri])
       @code_challenge = editor_code_challenge(params[:code_challenge])
+      @next = safe_next(params[:next])
       email = params[:email].to_s.strip.downcase
 
       unless Levelcode::EmailCode.verify(email, params[:code])
@@ -92,6 +99,9 @@ module Levelcode
       (redirect_to("/ai/login") and return) unless %w[github google].include?(provider)
 
       stash_editor_context(safe_redirect_uri(params[:redirect_uri]), params[:code_challenge].presence)
+      # The page the visitor asked for rides the session across the provider, like `state`.
+      next_page = safe_next(params[:next])
+      next_page ? session[:levelcode_next] = next_page : session.delete(:levelcode_next)
 
       state = SecureRandom.urlsafe_base64(24)
       session[:levelcode_oauth_state] = state
@@ -109,15 +119,16 @@ module Levelcode
 
     # GET /ai/auth/callback  — OAuth return: verify session `state`, exchange the
     # code server-side, then either 302 to the editor deep-link (with a one-time
-    # code) or sign in and 302 to /ai/account.
+    # code) or sign in and 302 to where a web sign-in lands (#web_destination).
     def oauth_callback
       provider = session.delete(:levelcode_oauth_provider).to_s
       expected_state = session.delete(:levelcode_oauth_state).to_s
+      @next = safe_next(session.delete(:levelcode_next))
       raw_attribution = session.delete(:levelcode_oauth_attribution)
 
       if expected_state.blank? || params[:state].to_s != expected_state
         log_auth(kind: "oauth", outcome: "failure", provider: provider, reason: "session_expired")
-        return redirect_to("/ai/login?error=session_expired")
+        return redirect_to(login_again("session_expired"))
       end
 
       user =
@@ -128,7 +139,7 @@ module Levelcode
 
       unless user&.persisted?
         log_auth(kind: "oauth", outcome: "failure", provider: provider, reason: "oauth_failed")
-        return redirect_to("/ai/login?error=oauth_failed")
+        return redirect_to(login_again("oauth_failed"))
       end
 
       stamp_oauth_attribution!(user, raw_attribution)
@@ -251,8 +262,62 @@ module Levelcode
         editor_callback_with_code(@redirect_uri, code)
       else
         sign_in(user)
-        "/ai/account"
+        web_destination
       end
+    end
+
+    # The login page again after a failed sign-in, still bringing the visitor to the page they asked for.
+    def login_again(error)
+      query = { error: error }
+      query[:next] = @next if @next
+      "/ai/login?#{query.to_query}"
+    end
+
+    # Where a web sign-in lands: the page of this site the visitor asked for (`next`); else the web editor, when it
+    # is on — the editor is where the work is, and the account page is a click away in it; else the account page.
+    def web_destination
+      @next || web_editor_home || "/ai/account"
+    end
+
+    # The web editor, asked to sign this visitor in (`signin=1`): it takes the tab to /ai/login with its own PKCE
+    # challenge, finds the session just made here, and is back signed in with nothing typed. The account site's
+    # "Open LevelCode" link is the same address (useWebEditor in the SPA). nil when the web edition is off.
+    def web_editor_home
+      rule = Levelcode::EditorCallback.current
+      return nil unless rule.web_enabled? && rule.web_url.present?
+
+      # The address is an origin and, optionally, a path (LEVELCODE_WEB_EDITOR_URL; the first origin when it is unset):
+      # never a query of its own.
+      uri = URI.parse(rule.web_url)
+      uri.path = "/" if uri.path.empty?
+      uri.query = "signin=1"
+      uri.to_s
+    rescue URI::InvalidURIError
+      nil
+    end
+
+    # A page of this site to land on after signing in, as the SPA passes it (`next`), or nil. The same rule as the
+    # SPA's safeNext (src/levelcode/next.ts in onetime): a page under /ai/, written only in the characters a URL
+    # path and query allow (so no blank, control character, backslash, fragment or non-ASCII), with a query kept
+    # (`/ai/pricing?plan=pro`). Refused: `//` (a host to a browser), a percent-encoded slash or backslash, a dot
+    # segment, plain or encoded (`/ai/%2e%2e/x` is /x to a browser), and the server's own endpoints under /ai/auth/
+    # and /ai/csrf, which are not pages. It is only ever a same-site path, so it takes the visitor nowhere this
+    # site's own links could not.
+    def safe_next(raw)
+      return nil unless raw.is_a?(String) && raw.length.between?(5, NEXT_MAX) && raw.start_with?("/ai/")
+      return nil unless raw.match?(NEXT_CHARS)
+      return nil if raw.include?("//") || raw.match?(/%2f|%5c/i)
+
+      path = raw.split("?", 2).first
+      return nil if path.split("/").any? { |segment| %w[. ..].include?(segment.gsub(/%2e/i, ".")) }
+      return nil if path.start_with?("/ai/auth/") || path == "/ai/csrf"
+
+      uri = URI.parse(raw)
+      return nil if uri.scheme || uri.host || uri.userinfo
+
+      raw
+    rescue URI::InvalidURIError
+      nil
     end
 
     def editor_callback_with_code(uri_str, code)

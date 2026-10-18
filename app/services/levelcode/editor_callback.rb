@@ -70,14 +70,15 @@ module Levelcode
   # parts, never by a test on the text of an address. The parent must be a domain the deployment
   # owns: a public suffix (`co.uk`) is not detected, and under it anyone may register `v--x`.
   #
-  # The editor, and the extension host's wildcard parent, MUST NOT be hosted on a subdomain of the
-  # account host (levelcode.ai) unless cookie auth on /api/levelcode/v1 is refused for same-site
-  # requests. The account session cookie is SameSite=Lax, which is a site boundary and not an
-  # origin one: it is sent on a request from a sibling subdomain. Api::Levelcode::V1::BaseController
-  # takes that cookie when there is no Bearer token, and has no CSRF or Origin check. A page that
-  # runs other people's extensions, on such a subdomain, can send credentialed requests that the
-  # account's session authorises (a plan change, a billing session, credits) — CORS here stops it
-  # reading the answer, not causing the effect. Host them on another registrable domain.
+  # The editor may be on a subdomain of the account host: app.levelcode.ai is where it goes. The
+  # account session cookie is SameSite=Lax, a site boundary and not an origin one, so it IS sent on a
+  # request from a sibling subdomain; Api::Levelcode::V1::BaseController counts it only on a request
+  # from this origin's own pages (#own_page_request?), and the /ai/* POSTs carry Rails' CSRF token,
+  # so such a page cannot spend the account's session (a plan change, a billing
+  # session, credits). Two things a subdomain can still do that another domain cannot: set a cookie
+  # for the parent domain (a session cookie planted on .levelcode.ai; a `__Host-` prefix on the
+  # session cookie would refuse it), and run with whatever the page runs. It runs only LevelCode's own
+  # code; before it runs anyone else's, put the extension host on another registrable domain.
   class EditorCallback
     HOST = "levelcode.levelcode-ai"
     PATH = "/auth/callback"
