@@ -40,6 +40,8 @@ module Levelcode
     # be written in: RFC 3986's path and query characters and well-formed percent escapes (#safe_next).
     NEXT_MAX = 512
     NEXT_CHARS = %r{\A(?:[A-Za-z0-9\-._~!$&'()*+,;=:@/?]|%\h\h)+\z}
+    # What this app serves under /ai/ itself (config/routes.rb, the "ai" scope): never a page to land on.
+    NEXT_SERVER_NAMES = %w[auth authorize_editor checkout billing signout csrf].freeze
 
     # POST /ai/auth/email  (JSON) — passwordless step 1: email a 6-digit code.
     def email_request
@@ -266,6 +268,14 @@ module Levelcode
       end
     end
 
+    # Is this first segment after /ai/ one of this app's own endpoints, as written or decoded? A name is read as the
+    # router would: in lower case, up to the first character that is not a letter, digit or underscore (`csrf.json`
+    # and `csrf;x` are `csrf`). Read both ways, `%63srf` and `checkout%A9` are endpoints too. The SPA's isServerName.
+    def next_server_name?(segment)
+      name = ->(s) { s.scrub.downcase[/\A[a-z0-9_]*/] }
+      NEXT_SERVER_NAMES.include?(name.(segment)) || NEXT_SERVER_NAMES.include?(name.(URI.decode_uri_component(segment)))
+    end
+
     # The login page again after a failed sign-in, still bringing the visitor to the page they asked for.
     def login_again(error)
       query = { error: error }
@@ -300,8 +310,9 @@ module Levelcode
     # SPA's safeNext (src/levelcode/next.ts in onetime): a page under /ai/, written only in the characters a URL
     # path and query allow (so no blank, control character, backslash, fragment or non-ASCII), with a query kept
     # (`/ai/pricing?plan=pro`). Refused: `//` (a host to a browser), a percent-encoded slash or backslash, a dot
-    # segment, plain or encoded (`/ai/%2e%2e/x` is /x to a browser), and the server's own endpoints under /ai/auth/
-    # and /ai/csrf, which are not pages. It is only ever a same-site path, so it takes the visitor nowhere this
+    # segment, plain or encoded (`/ai/%2e%2e/x` is /x to a browser), and the server's own endpoints
+    # (NEXT_SERVER_NAMES), which are not pages, in every spelling the router answers: /ai/csrf.json, /ai/csrf/,
+    # /ai/%63srf, /ai/CSRF, /ai/auth/…. It is only ever a same-site path, so it takes the visitor nowhere this
     # site's own links could not.
     def safe_next(raw)
       return nil unless raw.is_a?(String) && raw.length.between?(5, NEXT_MAX) && raw.start_with?("/ai/")
@@ -310,7 +321,7 @@ module Levelcode
 
       path = raw.split("?", 2).first
       return nil if path.split("/").any? { |segment| %w[. ..].include?(segment.gsub(/%2e/i, ".")) }
-      return nil if path.start_with?("/ai/auth/") || path == "/ai/csrf"
+      return nil if next_server_name?(path.split("/")[2].to_s)
 
       uri = URI.parse(raw)
       return nil if uri.scheme || uri.host || uri.userinfo
