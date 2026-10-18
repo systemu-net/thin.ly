@@ -414,6 +414,8 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
         'the page with a fragment' =>
           'https://editor.levelcode.test/callback.html?vscode-reqid=1&vscode-scheme=levelcode&vscode-authority=levelcode.levelcode-ai&vscode-path=%2Fauth%2Fcallback#x'
       }.each do |what, address|
+        # Refused as a callback, it is a web sign-in: it lands where those land with the editor on — the editor's own
+        # address, which it configured, asked to sign itself in — never at the address given, and with no code.
         it "signs in to the web account and mints nothing for #{what}" do
           expect(Levelcode::OneTimeCode).not_to receive(:issue)
 
@@ -421,7 +423,7 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
                params: { email: 'refused-web@example.com', code: '123456', redirect_uri: address, code_challenge: 'chal' }
 
           expect(response).to have_http_status(:ok)
-          expect(json).to eq('redirect' => '/ai/account')
+          expect(json).to eq('redirect' => 'https://editor.levelcode.test/?signin=1')
         end
       end
     end
@@ -461,7 +463,7 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
                          redirect_uri: "#{base}/callback.html?#{vscode_query}" }
 
           expect(response).to have_http_status(:ok)
-          expect(json).to eq('redirect' => '/ai/account')
+          expect(json).to eq('redirect' => 'https://editor.levelcode.test/?signin=1')   # a web sign-in, with the editor on
         end
       end
     end
@@ -485,6 +487,111 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
       post '/ai/auth/verify', params: { email: 'nope@example.com', code: '000000' }
       expect(response).to have_http_status(:unauthorized)
       expect(json.dig('error', 'code')).to eq('invalid_code')
+    end
+  end
+
+  # Where a sign-in on the account site lands, when no editor is signing in. The editor, when its web edition is on:
+  # the editor is where the work is, and it signs itself in from the session just made. The page the visitor asked
+  # for (`next`), when they asked for one. The account page otherwise.
+  describe 'where a web sign-in lands' do
+    let(:editor_home) { 'https://app.levelcode.test/?signin=1' }
+
+    before { allow(Levelcode::EmailCode).to receive(:verify).and_return(true) }
+
+    def verify(extra = {})
+      post '/ai/auth/verify', params: { email: 'lands@example.com', code: '123456' }.merge(extra)
+    end
+
+    it 'in the web editor, asked to sign itself in, when it is on — and the session is made for it to find' do
+      with_web_editor('https://app.levelcode.test', url: 'https://app.levelcode.test/')
+
+      verify
+
+      expect(json).to eq('redirect' => editor_home)
+      get '/api/levelcode/v1/account/profile'
+      expect(response).to have_http_status(:ok)
+    end
+
+    it 'at the editor address configured, its path kept — and at its origin when none is' do
+      with_web_editor('https://app.levelcode.test', url: 'https://app.levelcode.test/editor')
+      verify
+      expect(json).to eq('redirect' => 'https://app.levelcode.test/editor?signin=1')
+
+      with_web_editor('https://app.levelcode.test')
+      post '/ai/auth/verify', params: { email: 'lands-2@example.com', code: '123456' }
+      expect(json).to eq('redirect' => editor_home)
+    end
+
+    it 'on the account page when the web edition is off' do
+      verify
+
+      expect(json).to eq('redirect' => '/ai/account')
+    end
+
+    it 'on the page the visitor asked for, editor on or off' do
+      verify(next: '/ai/pricing?plan=pro')
+      expect(json).to eq('redirect' => '/ai/pricing?plan=pro')
+
+      with_web_editor('https://app.levelcode.test', url: 'https://app.levelcode.test/')
+      post '/ai/auth/verify', params: { email: 'lands-2@example.com', code: '123456', next: '/ai/account' }
+      expect(json).to eq('redirect' => '/ai/account')
+    end
+
+    it 'never anywhere a `next` could make of it: anything but a plain path under /ai/ is ignored' do
+      with_web_editor('https://app.levelcode.test', url: 'https://app.levelcode.test/')
+      [ 'https://evil.example/ai/x', '//evil.example/ai/x', '/ai//evil.example', '/ai/\\evil.example', '/ai/%2F%2Fevil.example',
+       '/ai/../users/edit', '/other/path', 'javascript:alert(1)', '/ai/x#y', "/ai/x\nSet-Cookie:a=b", '/ai/' + ('a' * 600) ].each_with_index do |bad, i|
+        post '/ai/auth/verify', params: { email: "bad-next-#{i}@example.com", code: '123456', next: bad }
+        expect(json).to eq('redirect' => editor_home), bad.inspect
+      end
+    end
+
+    it 'leaves an editor that is signing in alone: it gets its code, and `next` is not looked at' do
+      with_web_editor('https://app.levelcode.test', url: 'https://app.levelcode.test/')
+      allow(Levelcode::OneTimeCode).to receive(:issue).and_return('one-time-code')
+
+      verify(redirect_uri: editor_uri, code_challenge: 'chal', next: '/ai/account')
+
+      expect(json).to eq('redirect' => "#{editor_uri}?code=one-time-code")
+    end
+
+    describe 'through a provider (OAuth)' do
+      before do
+        allow(SecureRandom).to receive(:urlsafe_base64).and_return('teststate')
+        allow(Levelcode::ProviderOAuth).to receive(:authorize_url).and_return('https://github.test/authorize')
+        allow(Levelcode::ProviderOAuth).to receive(:github_user)
+          .and_return(User.create!(email: 'gh-lands@example.com', password: 'x' * 20, terms_accepted: true))
+        with_web_editor('https://app.levelcode.test', url: 'https://app.levelcode.test/')
+      end
+
+      it 'in the web editor when it is on' do
+        get '/ai/auth/oauth/github'
+        get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
+
+        expect(response).to redirect_to(editor_home)
+      end
+
+      it 'on the page the visitor asked for, carried across the provider' do
+        get '/ai/auth/oauth/github', params: { next: '/ai/pricing?plan=pro' }
+        get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
+
+        expect(response).to redirect_to('/ai/pricing?plan=pro')
+      end
+
+      it 'not on a page asked for in an earlier sign-in that did not finish' do
+        get '/ai/auth/oauth/github', params: { next: '/ai/account' }
+        get '/ai/auth/oauth/github'                     # started again, asking for nothing
+        get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
+
+        expect(response).to redirect_to(editor_home)
+      end
+
+      it 'ignores a `next` that is not a plain path under /ai/' do
+        get '/ai/auth/oauth/github', params: { next: '//evil.example/ai/x' }
+        get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
+
+        expect(response).to redirect_to(editor_home)
+      end
     end
   end
 
@@ -555,14 +662,14 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
         expect(Levelcode::OneTimeCode).to have_received(:issue).with(User.find_by(email: 'gh-web@example.com'), 'chal')
       end
 
-      it 'does not carry an address that is not the page — the sign-in ends on the web account' do
+      it 'does not carry an address that is not the page — the sign-in is a web one, landing on the editor\'s own address' do
         expect(Levelcode::OneTimeCode).not_to receive(:issue)
 
         get '/ai/auth/oauth/github',
             params: { redirect_uri: web_callback.sub('editor.levelcode.test', 'evil.test'), code_challenge: 'chal' }
         get '/ai/auth/callback', params: { code: 'gh', state: 'teststate' }
 
-        expect(response).to redirect_to('/ai/account')
+        expect(response).to redirect_to('https://editor.levelcode.test/?signin=1')
       end
     end
 
