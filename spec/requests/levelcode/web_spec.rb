@@ -540,12 +540,18 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
     it 'never anywhere a `next` could make of it: anything but a plain path under /ai/ is ignored' do
       with_web_editor('https://app.levelcode.test', url: 'https://app.levelcode.test/')
       [ 'https://evil.example/ai/x', '//evil.example/ai/x', '/ai//evil.example', '/ai/\\evil.example', '/ai/%2F%2Fevil.example',
-       '/ai/../users/edit', '/ai/%2e%2e/users/edit', '/ai/%2E./x', '/other/path', 'javascript:alert(1)', '/ai/x#y',
+       '/ai/../users/edit', '/ai/%2e%2e/users/edit', '/ai/%2E./x', '/ai/.%2e/users/edit', '/ai/%2e./users/edit', '/ai/%2e/x',
+       '/ai/docs/%2e%2e/%2e%2e/users/edit', '/other/path', 'javascript:alert(1)', '/ai/x#y',
        "/ai/x\nSet-Cookie:a=b", '/ai/' + ('a' * 600), '/ai/caf' + [ 0xe9 ].pack('U') + '/x', '/ai/<script>', '/ai/x%zz',
        '/ai/auth/handoff?code=attacker', '/ai/auth/oauth/github', '/ai/csrf' ].each_with_index do |bad, i|
         post '/ai/auth/verify', params: { email: "bad-next-#{i}@example.com", code: '123456', next: bad }
         expect(json).to eq('redirect' => editor_home), bad.inspect
       end
+    end
+
+    it 'takes a name that only looks like a dot segment: `a..` and `...` are names, not steps up' do
+      verify(next: '/ai/docs/a.%2e')
+      expect(json).to eq('redirect' => '/ai/docs/a.%2e')
     end
 
     it 'leaves an editor that is signing in alone: it gets its code, and `next` is not looked at' do
