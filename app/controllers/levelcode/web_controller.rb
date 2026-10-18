@@ -36,8 +36,10 @@ module Levelcode
     EMAIL_SEND_WINDOW = 1.hour.to_i
     EMAIL_SEND_MAX = 20
 
-    # The longest `next` (a page of this site to land on after signing in) that is taken.
+    # The longest `next` (a page of this site to land on after signing in) that is taken, and the characters it may
+    # be written in: RFC 3986's path and query characters and well-formed percent escapes (#safe_next).
     NEXT_MAX = 512
+    NEXT_CHARS = %r{\A(?:[A-Za-z0-9\-._~!$&'()*+,;=:@/?]|%\h\h)+\z}
 
     # POST /ai/auth/email  (JSON) — passwordless step 1: email a 6-digit code.
     def email_request
@@ -126,7 +128,7 @@ module Levelcode
 
       if expected_state.blank? || params[:state].to_s != expected_state
         log_auth(kind: "oauth", outcome: "failure", provider: provider, reason: "session_expired")
-        return redirect_to("/ai/login?error=session_expired")
+        return redirect_to(login_again("session_expired"))
       end
 
       user =
@@ -137,7 +139,7 @@ module Levelcode
 
       unless user&.persisted?
         log_auth(kind: "oauth", outcome: "failure", provider: provider, reason: "oauth_failed")
-        return redirect_to("/ai/login?error=oauth_failed")
+        return redirect_to(login_again("oauth_failed"))
       end
 
       stamp_oauth_attribution!(user, raw_attribution)
@@ -264,6 +266,13 @@ module Levelcode
       end
     end
 
+    # The login page again after a failed sign-in, still bringing the visitor to the page they asked for.
+    def login_again(error)
+      query = { error: error }
+      query[:next] = @next if @next
+      "/ai/login?#{query.to_query}"
+    end
+
     # Where a web sign-in lands: the page of this site the visitor asked for (`next`); else the web editor, when it
     # is on — the editor is where the work is, and the account page is a click away in it; else the account page.
     def web_destination
@@ -287,18 +296,24 @@ module Levelcode
       nil
     end
 
-    # A page of this site to land on after signing in, as the SPA passes it (`next`), or nil. A path under /ai/ and
-    # nothing that could be read as another place: no scheme or host, no `//` (a host to a browser), no backslash
-    # (a slash to some), no percent-encoded slash or backslash, no dot segment, no blank, control character or
-    # fragment. A query is kept (`/ai/pricing?plan=pro`). It is only ever a same-site path, so it cannot take the
-    # visitor anywhere this site's own links could not.
+    # A page of this site to land on after signing in, as the SPA passes it (`next`), or nil. The same rule as the
+    # SPA's safeNext (src/levelcode/next.ts in onetime): a page under /ai/, written only in the characters a URL
+    # path and query allow (so no blank, control character, backslash, fragment or non-ASCII), with a query kept
+    # (`/ai/pricing?plan=pro`). Refused: `//` (a host to a browser), a percent-encoded slash or backslash, a dot
+    # segment, plain or encoded (`/ai/%2e%2e/x` is /x to a browser), and the server's own endpoints under /ai/auth/
+    # and /ai/csrf, which are not pages. It is only ever a same-site path, so it takes the visitor nowhere this
+    # site's own links could not.
     def safe_next(raw)
       return nil unless raw.is_a?(String) && raw.length.between?(5, NEXT_MAX) && raw.start_with?("/ai/")
-      return nil if raw.match?(%r{//|\\|%2f|%5c|#|[[:space:][:cntrl:]]}i)
+      return nil unless raw.match?(NEXT_CHARS)
+      return nil if raw.include?("//") || raw.match?(/%2f|%5c/i)
+
+      path = raw.split("?", 2).first
+      return nil if path.split("/").any? { |segment| %w[. ..].include?(segment.gsub(/%2e/i, ".")) }
+      return nil if path.start_with?("/ai/auth/") || path == "/ai/csrf"
 
       uri = URI.parse(raw)
       return nil if uri.scheme || uri.host || uri.userinfo
-      return nil if uri.path.split("/").any? { |segment| %w[. ..].include?(segment) }
 
       raw
     rescue URI::InvalidURIError
