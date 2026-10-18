@@ -11,7 +11,8 @@ module Api
       #   - `Authorization: Bearer <editor access JWT>` — verified via
       #     ::Levelcode::EditorToken (sig + exp + scope + jti-not-revoked), OR
       #   - the levelcode.ai web session cookie — i.e. an already-signed-in Devise
-      #     user (warden), used by `/account` and `/pricing` server calls.
+      #     user (warden), used by `/account` and `/pricing` server calls — on a
+      #     request from this origin's own pages only (#own_page_request?).
       class BaseController < ActionController::API
         include ActionController::Cookies
         include Devise::Controllers::Helpers
@@ -101,10 +102,28 @@ module Api
 
         # --- Web session cookie -------------------------------------------------
 
+        # The account site's session counts only on a request from the account site's own pages. SameSite=Lax is a
+        # SITE boundary, not an origin one: a page on another origin of the same site — the web editor at
+        # app.levelcode.ai, or any other subdomain — is sent the cookie too, and this API has no CSRF token, so such a
+        # page could start a checkout, open the billing portal or spend credits at the gateway with it. A page anywhere
+        # but here brings a token, as the editor does.
         def user_from_session
+          return nil unless own_page_request?
+
           # warden is populated by Devise's middleware from the session cookie.
           warden = request.env["warden"]
           warden&.authenticate(scope: :user)
+        end
+
+        # Did this request come from one of this origin's own pages, or from the visitor themselves (an address they
+        # opened)? Browsers say so in Sec-Fetch-Site. One that does not send it (older than 2023) says where a page
+        # sent it from in Origin, when it was a page: none, or this origin's own, counts.
+        def own_page_request?
+          fetch_site = request.headers["Sec-Fetch-Site"].to_s
+          return %w[same-origin none].include?(fetch_site) if fetch_site.present?
+
+          origin = request.headers["Origin"].to_s
+          origin.empty? || origin == request.base_url
         end
 
         # --- Abuse caps (SPEC §5) ----------------------------------------------
