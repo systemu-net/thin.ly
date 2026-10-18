@@ -543,7 +543,10 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
        '/ai/../users/edit', '/ai/%2e%2e/users/edit', '/ai/%2E./x', '/ai/.%2e/users/edit', '/ai/%2e./users/edit', '/ai/%2e/x',
        '/ai/docs/%2e%2e/%2e%2e/users/edit', '/other/path', 'javascript:alert(1)', '/ai/x#y',
        "/ai/x\nSet-Cookie:a=b", '/ai/' + ('a' * 600), '/ai/caf' + [ 0xe9 ].pack('U') + '/x', '/ai/<script>', '/ai/x%zz',
-       '/ai/auth/handoff?code=attacker', '/ai/auth/oauth/github', '/ai/csrf' ].each_with_index do |bad, i|
+       '/ai/auth/handoff?code=attacker', '/ai/auth/oauth/github', '/ai/csrf',
+       # an endpoint in every spelling the router answers: a format suffix, a trailing slash, an encoded letter, capitals
+       '/ai/csrf.json', '/ai/csrf/', '/ai/%63srf', '/ai/CSRF', '/ai/auth.json/handoff', '/ai/%61uth/handoff?code=attacker',
+       '/ai/authorize_editor', '/ai/checkout', '/ai/billing', '/ai/signout', '/ai/checkout%A9' ].each_with_index do |bad, i|
         post '/ai/auth/verify', params: { email: "bad-next-#{i}@example.com", code: '123456', next: bad }
         expect(json).to eq('redirect' => editor_home), bad.inspect
       end
@@ -552,6 +555,14 @@ RSpec.describe 'Levelcode::Web (SPA backend at /ai/*)', type: :request do
     it 'takes a name that only looks like a dot segment: `a..` and `...` are names, not steps up' do
       verify(next: '/ai/docs/a.%2e')
       expect(json).to eq('redirect' => '/ai/docs/a.%2e')
+    end
+
+    it 'takes a page whose name only starts like an endpoint\'s, or has an endpoint\'s name further down' do
+      verify(next: '/ai/csrfx')
+      expect(json).to eq('redirect' => '/ai/csrfx')
+
+      post '/ai/auth/verify', params: { email: 'lands-2@example.com', code: '123456', next: '/ai/docs/auth' }
+      expect(json).to eq('redirect' => '/ai/docs/auth')
     end
 
     it 'leaves an editor that is signing in alone: it gets its code, and `next` is not looked at' do
