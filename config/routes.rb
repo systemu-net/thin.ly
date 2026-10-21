@@ -174,6 +174,9 @@ Rails.application.routes.draw do
         # HTML catch-all. `ai/chat` kept as an alias for the SPEC/tests.
         post  "ai/chat/completions", to: "ai#chat"
         post  "ai/chat",             to: "ai#chat"
+        # Web access for the agent's web_search / web_fetch tools (levelcode docs/WEB-SEARCH.md).
+        post  "ai/web/search",       to: "ai_web#search"
+        post  "ai/web/fetch",        to: "ai_web#fetch"
       end
     end
   end
