@@ -534,8 +534,14 @@ module Api
         # payload because this is a transparent proxy — we must not drop fields
         # the editor/upstream rely on.
         def chat_params
-          params.permit!.to_h.except("controller", "action", "ai", "format")
+          params.permit!.to_h.except("controller", "action", "ai", "format", *UNBILLED_FIELDS)
         end
+
+        # Fields that would make OpenRouter do paid work the gateway never bills: its web-search plugin and the
+        # search options of a hosted search model. Metering prices tokens at catalog rates (Levelcode.cost_micros) and
+        # never reads OpenRouter's own cost, so these would run on LevelCode's account for free. The editor's web
+        # search goes through AiWebController, which bills it.
+        UNBILLED_FIELDS = %w[plugins web_search_options].freeze
 
         # Per-request output ceiling (M14). Enforcement is per-request-start, so without a per-request
         # bound a burst of concurrent streams could overshoot the dollar budget before their spend

@@ -612,6 +612,25 @@ RSpec.describe "Api::Levelcode::V1::Ai", type: :request do
       expect(captured["max_tokens"]).to eq(Levelcode::FREE_MAX_TOKENS)
     end
 
+    it "drops OpenRouter's web-search plugin and search options — paid work metering would never bill" do
+      allow(Levelcode::Metering).to receive(:check!)
+        .and_return(Levelcode::Metering::Decision.new(allowed: true, throttle: false, policy: "stop"))
+      captured = nil
+      allow_any_instance_of(Levelcode::OpenRouterAdapter).to receive(:stream) do |_a, routed, on_chunk:|
+        captured = routed
+        canned_chunks.each { |c| on_chunk.call(c) }
+        Levelcode::OpenRouterAdapter::Result.new(usage: final_usage, model: "moonshotai/kimi-k2.6")
+      end
+
+      post "/api/levelcode/v1/ai/chat",
+           params: { model: "x", stream: true, messages: [ { role: "user", content: "who is it?" } ],
+                     plugins: [ { id: "web", max_results: 10 } ], web_search_options: { search_context_size: "high" } }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(captured.keys).not_to include("plugins", "web_search_options")
+      expect(captured["messages"]).to be_present
+    end
+
     it "402s cap_reached with an upgrade_url when the free monthly cap is hit" do
       allow(Levelcode::Metering).to receive(:check!)
         .and_return(Levelcode::Metering::Decision.new(allowed: false, throttle: false, policy: "stop"))
