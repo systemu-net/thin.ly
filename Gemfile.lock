@@ -79,7 +79,7 @@ GEM
     annotate (3.2.0)
       activerecord (>= 3.2, < 8.0)
       rake (>= 10.4, < 14.0)
-    anthropic (1.80.0)
+    anthropic (2.3.0)
       base64 (~> 0.1)
       connection_pool (>= 2, < 4)
       opentelemetry-api (>= 1.2.4, < 2)
@@ -561,7 +561,7 @@ PLATFORMS
 
 DEPENDENCIES
   annotate (~> 3.2)
-  anthropic (~> 1.80)
+  anthropic (~> 2.3)
   aws-sdk-s3 (~> 1.233)
   bcrypt (= 3.1.21)
   bigdecimal (= 4.1.3)
