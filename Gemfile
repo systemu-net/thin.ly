@@ -50,7 +50,7 @@ group :development, :test do
   gem "factory_bot_rails", "~> 6.5"
 
   gem "rails-controller-testing", "~> 1.0"
-  gem "rspec-rails", "~> 8.0"
+  gem "rspec-rails", "~> 8.1"
   # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
   gem "rubocop-rails-omakase", require: false
 end
