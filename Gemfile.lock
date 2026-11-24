@@ -110,7 +110,7 @@ GEM
     benchmark (0.5.0)
     bigdecimal (4.1.3)
     bindex (0.8.1)
-    brakeman (8.1.0)
+    brakeman (8.1.1)
       racc
     builder (3.3.0)
     byebug (13.0.0)
@@ -565,7 +565,7 @@ DEPENDENCIES
   aws-sdk-s3 (~> 1.233)
   bcrypt (= 3.1.21)
   bigdecimal (= 4.1.3)
-  brakeman (~> 8.0)
+  brakeman (~> 8.1)
   byebug (~> 13.0)
   carrierwave (~> 3.1)
   debug
